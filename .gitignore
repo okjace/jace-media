@@ -14,3 +14,6 @@ next-env.d.ts
 # Local Claude Code launch config (machine-specific paths)
 /.claude/
 /data
+
+# The Android signing key backup (packaging/android_keystore.py). Never commit it.
+/local/

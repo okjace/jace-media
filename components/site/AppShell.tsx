@@ -40,6 +40,7 @@ const YOU: NavItem[] = [
   { href: "/studio", label: "Your videos", icon: "videos", signedIn: true },
   { href: "/import", label: "Import from YouTube", icon: "import", signedIn: true },
   { href: "/extensions", label: "Extensions", icon: "puzzle" },
+  { href: "/apps", label: "Get the app", icon: "import" },
   { href: "/services", label: "Choose services", icon: "services" },
   { href: "/settings", label: "Edit profile", icon: "settings", signedIn: true },
 ];
@@ -232,6 +233,23 @@ export function AppShell({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setDrawer(false);
   }, [pathname]);
+
+  // TVs (LG webOS, Android TV, other smart TVs): bigger text, clear focus outlines for the remote,
+  // and the remote's Back button goes back.
+  useEffect(() => {
+    const ua = navigator.userAgent;
+    if (!/Web0S|webOS|AndroidTV|SMART-TV|SmartTV|GoogleTV|BRAVIA|AFT[A-Z]|CrKey|Tizen/i.test(ua)) return;
+    document.documentElement.classList.add("tv");
+    const onKey = (e: KeyboardEvent) => {
+      // 461 is the LG remote's Back key.
+      if (e.keyCode === 461 || e.key === "GoBack" || e.key === "BrowserBack") {
+        e.preventDefault();
+        if (window.history.length > 1) window.history.back();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // Shorts fill the screen: the page itself doesn't scroll (no scrollbar), only the Shorts do.
   useEffect(() => {

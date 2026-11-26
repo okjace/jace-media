@@ -102,3 +102,13 @@ body {
     transform: scale(1.25);
   }
 }
+
+/* TV mode (set on smart TVs): bigger everything, and a clear outline on whatever the remote is on. */
+html.tv {
+  font-size: 125%;
+}
+html.tv :focus-visible {
+  outline: 4px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 12px;
+}

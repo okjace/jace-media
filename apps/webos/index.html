@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Jace Media</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #111317; color: #e6e8eb; font-family: sans-serif; }
+      body { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 24px; }
+      img { width: 160px; height: 160px; border-radius: 40px; }
+      p { font-size: 28px; color: #8b919c; }
+    </style>
+  </head>
+  <body>
+    <img src="largeIcon.png" alt="" />
+    <p id="status">Opening Jace Media…</p>
+    <script>
+      // Jace Media for LG TVs: the live website (always the newest version), in its TV mode.
+      var SITE = "https://jace-media.vercel.app/";
+      if (navigator.onLine === false) {
+        document.getElementById("status").textContent = "Connect your TV to the internet to use Jace Media.";
+        window.addEventListener("online", function () { location.replace(SITE); });
+      } else {
+        location.replace(SITE);
+      }
+    </script>
+  </body>
+</html>

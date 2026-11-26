@@ -1,0 +1,151 @@
+# Builds the Jace Media apps on GitHub's computers: Android (phones, tablets, Android TV), iPhone/iPad
+# (unsigned, for AltStore / SideStore), and LG TV (webOS). Every run uploads the builds as artifacts.
+# A push to main with a new apps/VERSION publishes a GitHub Release "apps-v<version>" with all three,
+# which the apps' update checks (/api/app-version) and the AltStore source (/api/altstore) read.
+name: Apps
+
+on:
+  push:
+    branches: [main]
+    paths: ["apps/**", ".github/workflows/apps.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      publish: ${{ steps.v.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=$(tr -d '[:space:]' < apps/VERSION)
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF" == refs/heads/main ]] && ! gh release view "apps-v$V" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "New version $V: will be released if every build passes"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "apps-v$V is already released: build only"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Android phones, tablets, and Android TV. Releases must be signed with the same key every time, or
+  # Android refuses the update: the key comes from ANDROID_KEYSTORE_B64 / ANDROID_KEYSTORE_PASSWORD
+  # (made once by packaging/android_keystore.py).
+  android:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+      - name: Build the APK
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: gradle -p apps/android --no-daemon assembleRelease
+      - name: Name the APK
+        run: |
+          if [ -z "${{ secrets.ANDROID_KEYSTORE_B64 }}" ]; then
+            echo "::warning::ANDROID_KEYSTORE_* secrets aren't set, so this APK isn't released (run python3 packaging/android_keystore.py once)"
+            exit 0
+          fi
+          mkdir -p dist
+          cp apps/android/app/build/outputs/apk/release/app-release.apk "dist/JaceMedia-${{ needs.version.outputs.version }}-android.apk"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android
+          path: dist/*.apk
+          if-no-files-found: ignore
+
+  # iPhone and iPad, unsigned: AltStore / SideStore sign it with your own Apple ID when they install it.
+  ios:
+    needs: version
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Generate the Xcode project
+        run: |
+          brew install xcodegen
+          cd apps/ios && xcodegen generate
+      - name: Build the app (unsigned) and package the .ipa
+        run: |
+          V="${{ needs.version.outputs.version }}"
+          B=$(python3 -c "v='$V'.split('.')+['0','0'];print(int(v[0])*10000+int(v[1])*100+int(v[2]))")
+          set -o pipefail
+          cd apps/ios
+          xcodebuild -project JaceMedia.xcodeproj -scheme JaceMedia -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            MARKETING_VERSION="$V" CURRENT_PROJECT_VERSION="$B" build | tail -n 40
+          test -d build/Build/Products/Release-iphoneos/JaceMedia.app
+          rm -rf Payload && mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/JaceMedia.app Payload/
+          mkdir -p ../../dist && zip -qry "../../dist/JaceMedia-$V-ios.ipa" Payload
+          ls -la ../../dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ios
+          path: dist/*.ipa
+
+  # LG TVs (webOS): LG's own packaging tool makes the .ipk.
+  webos:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Package the .ipk
+        run: |
+          V="${{ needs.version.outputs.version }}"
+          jq --arg v "$V" '.version = $v' apps/webos/appinfo.json > appinfo.tmp && mv appinfo.tmp apps/webos/appinfo.json
+          npm install -g @webos-tools/cli
+          mkdir -p dist out
+          ares-package apps/webos -o out
+          cp out/*.ipk "dist/JaceMedia-$V-webos.ipk"
+          ls -la dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: webos
+          path: dist/*.ipk
+
+  release:
+    if: needs.version.outputs.publish == 'true'
+    needs: [version, android, ios, webos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: actions/checkout@v7
+        with:
+          path: src
+      - name: Release notes
+        run: |
+          V="${{ needs.version.outputs.version }}"
+          awk -v v="$V" '$0 == "## "v {f=1; next} /^## / {f=0} f' src/apps/CHANGELOG.md > notes.md
+          printf '\n---\nAndroid and Android TV: the .apk. iPhone: add the source https://jace-media.vercel.app/api/altstore to AltStore or SideStore. LG TV: the .ipk. Instructions: https://jace-media.vercel.app/apps\n' >> notes.md
+          ls -la artifacts
+      - uses: softprops/action-gh-release@v3
+        with:
+          tag_name: apps-v${{ needs.version.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: Jace Media apps ${{ needs.version.outputs.version }}
+          body_path: notes.md
+          files: artifacts/*

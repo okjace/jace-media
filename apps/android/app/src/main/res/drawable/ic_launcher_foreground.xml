@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Jace Media mark (the J with a little feed), centered in the adaptive icon's safe area. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <group android:scaleX="0.6" android:scaleY="0.6" android:pivotX="256" android:pivotY="256">
+        <path
+            android:pathData="M280,128v168a74,74 0,0 1,-141 31"
+            android:strokeColor="#0C1410"
+            android:strokeWidth="52"
+            android:strokeLineCap="round" />
+        <path android:fillColor="#0C1410" android:pathData="M376,152m-32,0a32,32 0,1 1,64 0a32,32 0,1 1,-64 0" />
+        <path
+            android:pathData="M360,240h48M360,320h48"
+            android:strokeColor="#0C1410"
+            android:strokeWidth="38"
+            android:strokeLineCap="round" />
+    </group>
+</vector>

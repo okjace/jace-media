@@ -31,6 +31,21 @@ Next.js 16 (App Router), TypeScript, Tailwind 4 and Postgres, hosted on Vercel.
 - **Reposts, quotes, polls, and notifications** on Jace posts.
 - **Profiles**: your handle is always your Jace username. Your name and picture start as your Jace ones and can be changed just for Jace Media.
 
+## Apps
+
+Phone and TV apps live in [`apps/`](apps) and are built by GitHub Actions ([`.github/workflows/apps.yml`](.github/workflows/apps.yml)).
+Each shows the live site, so Jace Media updates reach them without an app update.
+
+- **Android** phones, tablets, and **Android TV / Google TV / Fire TV** (`apps/android`, Kotlin): fullscreen video, uploads,
+  downloads, back button, TV launcher banner. Release builds are signed with the key from `packaging/android_keystore.py`
+  (run it once; it saves the key as GitHub secrets and keeps a private backup in `local/`).
+- **iPhone and iPad** (`apps/ios`, SwiftUI, built unsigned on GitHub's Macs): install with AltStore or SideStore. Their source,
+  `https://jace-media.vercel.app/api/altstore`, keeps it updated.
+- **LG TVs** (`apps/webos`): a webOS package of the site in TV mode.
+- **Apple TV**: tvOS can't run web views, so use AirPlay from the iPhone app.
+- Updates: the apps read `/api/app-version` and offer updates automatically (each launch) or manually (Get the app page).
+- Release: bump `apps/VERSION`, add notes to `apps/CHANGELOG.md`, push to main.
+
 ## Recommendations
 
 YouTube doesn't let other apps see its recommendations, so Jace Media builds its own from the same kinds of signals ([`lib/recommend.ts`](lib/recommend.ts)):

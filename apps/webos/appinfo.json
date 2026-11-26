@@ -1,0 +1,15 @@
+{
+  "id": "com.okjace.jacemedia",
+  "version": "1.0.0",
+  "vendor": "okjace",
+  "type": "web",
+  "main": "index.html",
+  "title": "Jace Media",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "splashBackground": "splash.png",
+  "bgColor": "#111317",
+  "iconColor": "#3ddc84",
+  "resolution": "1920x1080",
+  "requiredPermissions": []
+}
