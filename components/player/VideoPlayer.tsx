@@ -153,6 +153,10 @@ export function VideoPlayer({
   const nativeSrc = source === "jace" ? src : privateSrc?.url;
   const [armed, setArmed] = useState(source === "jace" || compact || !ext.privacy || autoStart);
   const [cc, setCc] = useState(false);
+  /** Caption size: -1 small, 0 normal, 1 large, 2 huge (YouTube's fontSize steps). */
+  const [ccSize, setCcSize] = useState<number>(() => stored("captionSize", 1));
+  const [ccStyle, setCcStyle] = useState<"box" | "outline">(() => stored("captionStyle", "box"));
+  const [cue, setCue] = useState("");
   const [ready, setReady] = useState(false);
   const [started, setStarted] = useState(false);
   const [playing, setPlaying] = useState(false);
@@ -320,18 +324,9 @@ export function VideoPlayer({
             };
             applySaved();
             setReady(true);
+            // Captions on from last time: switched on once the video is actually playing (see onStateChange).
             if (stored("captions", false)) {
-              p.loadModule("captions");
-              const lang = navigator.language.slice(0, 2);
-              const pick = () => {
-                try {
-                  const list = (p.getOption("captions", "tracklist") as { languageCode: string }[] | undefined) ?? [];
-                  const track = list.find((t) => t.languageCode.startsWith(lang)) ?? list.find((t) => t.languageCode.startsWith("en")) ?? list[0];
-                  if (track) p.setOption("captions", "track", { languageCode: track.languageCode });
-                } catch {}
-              };
-              setTimeout(pick, 800);
-              setTimeout(pick, 2500);
+              captionsPending.current = true;
               setCc(true);
             }
             if (activeRef.current) p.playVideo();
@@ -340,6 +335,10 @@ export function VideoPlayer({
             setPlaying(data === YT_STATE.PLAYING || data === YT_STATE.BUFFERING);
             setWaiting(data === YT_STATE.BUFFERING);
             if (data === YT_STATE.PLAYING) setStarted(true);
+            if (data === YT_STATE.PLAYING && captionsPending.current && yt.current) {
+              captionsPending.current = false;
+              ytCaptionsOnRef.current(yt.current);
+            }
             if (data === YT_STATE.ENDED) {
               // Shorts loop; everything else ends.
               if (short) yt.current?.seekTo(0, true);
@@ -537,6 +536,8 @@ export function VideoPlayer({
     [ext.rememberSpeed],
   );
 
+  const captionsPending = useRef(false);
+  const ytCaptionsOnRef = useRef<(p: YTPlayer) => void>(() => {});
   const ytCaptionsOn = useCallback((p: YTPlayer) => {
     p.loadModule("captions");
     const pickTrack = () => {
@@ -549,9 +550,18 @@ export function VideoPlayer({
     };
     // The track list only appears once the module has loaded.
     pickTrack();
+    setTimeout(() => {
+      try {
+        p.setOption("captions", "fontSize", stored("captionSize", 1));
+      } catch {}
+    }, 2500);
     setTimeout(pickTrack, 600);
     setTimeout(pickTrack, 1800);
   }, []);
+
+  useEffect(() => {
+    ytCaptionsOnRef.current = ytCaptionsOn;
+  }, [ytCaptionsOn]);
 
   const toggleCaptions = useCallback(() => {
     const v = videoEl.current;
@@ -559,7 +569,8 @@ export function VideoPlayer({
       const next = !cc;
       const tracks = [...v.textTracks];
       const pick = tracks.find((t) => t.language.startsWith(navigator.language.slice(0, 2))) ?? tracks[0];
-      for (const t of tracks) t.mode = next && t === pick ? "showing" : "disabled";
+      // "hidden": the browser keeps time, Jace Media draws the words (see the caption overlay).
+      for (const t of tracks) t.mode = next && t === pick ? "hidden" : "disabled";
       setCc(next && !!pick);
       store("captions", next);
       return;
@@ -575,6 +586,37 @@ export function VideoPlayer({
     setCc(next);
     store("captions", next);
   }, [cc, mode, ytCaptionsOn]);
+
+  const changeCaptionSize = useCallback(
+    (n: number) => {
+      setCcSize(n);
+      store("captionSize", n);
+      try {
+        if (mode === "youtube" && cc) yt.current?.setOption("captions", "fontSize", n);
+      } catch {}
+    },
+    [mode, cc],
+  );
+
+  // Our own captions for native playback: follow the active cue.
+  useEffect(() => {
+    const v = videoEl.current;
+    if (!v || mode !== "native" || !cc) {
+      setCue("");
+      return;
+    }
+    const track = [...v.textTracks].find((t) => t.mode === "hidden");
+    if (!track) return;
+    const update = () =>
+      setCue(
+        [...(track.activeCues ?? [])]
+          .map((c) => (c as VTTCue).text.replace(/<[^>]+>/g, ""))
+          .join("\n"),
+      );
+    track.addEventListener("cuechange", update);
+    update();
+    return () => track.removeEventListener("cuechange", update);
+  }, [cc, mode, nativeSrc]);
 
   // Leaving the page while a video plays: it keeps going in the mini player.
   const handoff = useRef<{ playing: boolean; time: number }>({ playing: false, time: 0 });
@@ -792,10 +834,28 @@ export function VideoPlayer({
           </video>
         ) : (
           // YouTube's frame is taller than the box, so its title bar and logo sit outside it.
+          // With captions on it fits the box exactly, because YouTube draws captions at its bottom edge.
           <div
             ref={ytHost}
-            className={`absolute inset-x-0 -bottom-[120px] -top-[120px] [&_iframe]:h-full [&_iframe]:w-full ${ytClickThrough ? "" : "pointer-events-none"}`}
+            className={`absolute ${cc ? "inset-0" : "inset-x-0 -bottom-[120px] -top-[120px]"} [&_iframe]:h-full [&_iframe]:w-full ${ytClickThrough ? "" : "pointer-events-none"}`}
           />
+        )}
+        {/* Captions Jace Media draws itself (Jace videos and private playback). */}
+        {mode === "native" && cc && cue && (
+          <div
+            className="pointer-events-none absolute inset-x-0 z-[5] flex justify-center px-[6%] text-center transition-[bottom] duration-200"
+            style={{ bottom: showUi || !playing ? "4.75rem" : "6%" }}
+            aria-live="polite"
+          >
+            <span
+              className={`whitespace-pre-line font-medium leading-snug text-white ${
+                ccStyle === "box" ? "rounded-md bg-black/75 px-[.5em] py-[.15em] [box-decoration-break:clone]" : "[text-shadow:0_0_4px_#000,0_2px_3px_#000,0_0_1px_#000]"
+              }`}
+              style={{ fontSize: `calc(${[0.8, 1, 1.3, 1.65][ccSize + 1] ?? 1.3} * clamp(13px, 2.1vw, 30px))` }}
+            >
+              {cue}
+            </span>
+          </div>
         )}
 
         {covered && posterUrl && (
@@ -1012,6 +1072,38 @@ export function VideoPlayer({
                         </button>
                       ))}
                     </div>
+                    <p className="px-2 pb-1 pt-1 text-xs text-white/60">Caption size</p>
+                    <div className="grid grid-cols-4 gap-1 px-1 pb-2">
+                      {[
+                        [-1, "S"],
+                        [0, "M"],
+                        [1, "L"],
+                        [2, "XL"],
+                      ].map(([n, label]) => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => changeCaptionSize(n as number)}
+                          className={`rounded-lg py-1.5 text-xs ${n === ccSize ? "bg-accent font-medium text-on-accent" : "hover:bg-white/10"}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    {mode === "native" && (
+                      <div className="grid grid-cols-2 gap-1 px-1 pb-2">
+                        {(["box", "outline"] as const).map((st) => (
+                          <button
+                            key={st}
+                            type="button"
+                            onClick={() => (setCcStyle(st), store("captionStyle", st))}
+                            className={`rounded-lg py-1.5 text-xs ${st === ccStyle ? "bg-accent font-medium text-on-accent" : "hover:bg-white/10"}`}
+                          >
+                            {st === "box" ? "▭ Box" : "A Outline"}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     {source === "youtube" && (
                       <label
                         className="flex cursor-pointer items-center justify-between gap-2 rounded-lg px-2 py-2 hover:bg-white/10"
