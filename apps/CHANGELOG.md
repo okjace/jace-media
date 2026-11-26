@@ -3,6 +3,15 @@
 The apps show the live Jace Media site, so new Jace Media features arrive without an app update. These are
 changes to the apps themselves.
 
+## 1.1.0
+
+- TVs (LG and Android TV) open Jace Media's own TV interface: a side menu, big rows of videos, its own
+  player controls, made for the remote (Back, OK, arrows, number and media buttons).
+- Sign in on a TV by scanning a QR code with your phone.
+- Who's watching? Pick a profile; lock any profile with a 4-number PIN. Type it with the remote's number
+  buttons, use private entry (nothing on screen), or approve on your phone instead.
+- The new Jace Media icon everywhere.
+
 ## 1.0.0
 
 - First apps: Android phones and tablets, Android TV / Google TV / Fire TV, iPhone and iPad (AltStore or

@@ -174,7 +174,9 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        val start = intent?.data?.takeIf { it.host == "jace-media.vercel.app" }?.toString() ?: BuildConfig.SITE
+        // TVs open Jace Media's own TV interface (made for the remote); phones open the full site.
+        val home = if (isTv) "${BuildConfig.SITE}/tv" else BuildConfig.SITE
+        val start = intent?.data?.takeIf { it.host == "jace-media.vercel.app" }?.toString() ?: home
         if (savedInstanceState == null) web.loadUrl(start) else web.restoreState(savedInstanceState)
         if (updater.automatic) updater.check(manual = false)
     }

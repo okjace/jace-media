@@ -14,6 +14,9 @@ import { followedRss } from "@/lib/rss";
 import { channelFeed, channelInfo, channelUploads, search, searchChannels, searchShorts, videoDetail } from "@/lib/youtube";
 import { dislikes, withDeArrow } from "@/lib/ytextras";
 import { sponsorSegments } from "@/lib/sponsorblock";
+import { liveNow } from "@/lib/golive";
+import { pinnedAmong } from "@/lib/tvpin";
+import { youtubeLive } from "@/lib/live";
 import type { FeedItem, VideoCard } from "@/lib/types";
 
 /**
@@ -108,7 +111,8 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       }
       case "me": {
         const [{ current, others }, services, ext] = await Promise.all([getAccountList(), getServices(), getExtensions()]);
-        const fix = <T extends { picture: string | null }>(a: T) => ({ ...a, picture: abs(a.picture) });
+        const pinned = await pinnedAmong([current, ...others].flatMap((a) => (a ? [a.sub] : [])));
+        const fix = <T extends { sub: string; picture: string | null }>(a: T) => ({ ...a, picture: abs(a.picture), hasPin: pinned.has(a.sub) });
         return json({ account: current ? fix(current) : null, others: others.map(fix), services, extensions: ext });
       }
       case "home": {
@@ -132,6 +136,14 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
           channels: subs.map((s) => ({ kind: s.kind, ref: s.ref, name: s.name, picture: abs(s.picture), folder: s.folder ?? null })),
           videos: entries.flatMap((e) => (e.kind === "video" ? [video(e.video)] : [])),
           posts: entries.flatMap((e) => (e.kind === "post" ? [post(e.item)] : [])),
+        });
+      }
+      case "live": {
+        const taste = await getTaste();
+        const [own, yt] = await Promise.all([liveNow().catch(() => []), taste.services.includes("youtube") ? youtubeLive(24).catch(() => []) : []]);
+        return json({
+          jace: own.map((s) => ({ ...s, thumbnail: abs(s.thumbnail), host: { ...s.host, picture: abs(s.host.picture) } })),
+          youtube: (await filterVideos(yt)).map(video),
         });
       }
       case "history": {

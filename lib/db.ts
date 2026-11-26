@@ -221,6 +221,19 @@ const SCHEMA = [
     created_at BIGINT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS stream_chat_by ON stream_chat (stream_id, created_at)`,
+  // Signing in a TV by scanning a code with your phone.
+  `CREATE TABLE IF NOT EXISTS tv_links (
+    code TEXT PRIMARY KEY,
+    sealed TEXT,
+    created_at BIGINT NOT NULL
+  )`,
+  // What a TV code is for: signing the TV in, or unlocking a PIN-locked profile.
+  `ALTER TABLE tv_links ADD COLUMN IF NOT EXISTS purpose TEXT NOT NULL DEFAULT 'signin'`,
+  `ALTER TABLE tv_links ADD COLUMN IF NOT EXISTS sub TEXT`,
+  // A profile's TV PIN (scrypt), and wrong tries.
+  `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS tv_pin TEXT`,
+  `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS tv_pin_fails INT NOT NULL DEFAULT 0`,
+  `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS tv_pin_until BIGINT NOT NULL DEFAULT 0`,
   // Data sent to viewers through Cloudflare each month, to stay inside the free 1,000 GB.
   `CREATE TABLE IF NOT EXISTS stream_usage (
     month TEXT PRIMARY KEY,

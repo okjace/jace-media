@@ -14,8 +14,9 @@
     <img src="largeIcon.png" alt="" />
     <p id="status">Opening Jace Media…</p>
     <script>
-      // Jace Media for LG TVs: the live website (always the newest version), in its TV mode.
-      var SITE = "https://jace-media.vercel.app/";
+      // Jace Media for LG TVs: Jace Media's own TV interface, made for the remote
+      // (served from the website, so it's always the newest version).
+      var SITE = "https://jace-media.vercel.app/tv";
       if (navigator.onLine === false) {
         document.getElementById("status").textContent = "Connect your TV to the internet to use Jace Media.";
         window.addEventListener("online", function () { location.replace(SITE); });
