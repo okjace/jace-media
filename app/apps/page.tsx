@@ -45,7 +45,7 @@ export default async function AppsPage() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5">
       <PageTitle title="Get the app">
-        Jace Media for your phone and TV. The apps always show the newest Jace Media, and update themselves when the app part changes.
+        Jace Media for your phone, TV, and computer. The apps always show the newest Jace Media, and update themselves when the app part changes.
       </PageTitle>
 
       <AppUpdateSettings />
@@ -110,7 +110,7 @@ export default async function AppsPage() {
           </li>
           <li>Developer Mode lasts 50 hours at a time; press Extend in the Developer Mode app to keep it.</li>
         </ol>
-        <p className="text-xs text-muted">Or skip installing: open the TV&apos;s web browser and go to jace-media.vercel.app. It switches to TV mode.</p>
+        <p className="text-xs text-muted">Or skip installing: open the TV&apos;s web browser and go to jace-media.vercel.app/tv.</p>
       </Card>
 
       <Card icon="🍎" title="Apple TV">
@@ -120,10 +120,25 @@ export default async function AppsPage() {
         </p>
       </Card>
 
-      <Card icon="💻" title="Computers">
-        <p className="text-sm text-muted">
-          In Chrome or Edge, choose <b>Install app</b> in Jace Media&apos;s sidebar (or the install icon in the address bar). On a Mac with Safari, choose File →
-          Add to Dock.
+      <Card icon="💻" title="Windows, Mac, and Linux">
+        <p className="text-sm text-muted">A small, fast app (a few MB): it uses your computer&apos;s own web engine instead of bundling a whole browser.</p>
+        <div className="flex flex-col gap-3">
+          <Download file={r.windows} label="Download for Windows" />
+          <Download file={r.mac} label="Download for Mac" />
+          <Download file={r.linux} label="Download for Linux (AppImage)" />
+          {r.linuxDeb && (
+            <a href={r.linuxDeb.url} className="self-start text-sm text-accent hover:underline">
+              Linux .deb (Debian, Ubuntu)
+            </a>
+          )}
+        </div>
+        <ol className={steps}>
+          <li>Windows: open the setup file. If SmartScreen appears, choose More info → Run anyway.</li>
+          <li>Mac: open the .dmg and drag Jace Media to Applications. The first time, right-click it → Open.</li>
+          <li>Linux: make the AppImage runnable (right-click → Properties → Allow executing) and open it.</li>
+        </ol>
+        <p className="text-xs text-muted">
+          Or install it from your browser: in Chrome or Edge, choose <b>Install app</b> in Jace Media&apos;s sidebar; on a Mac with Safari, File → Add to Dock.
         </p>
       </Card>
     </div>

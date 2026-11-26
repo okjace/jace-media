@@ -11,6 +11,7 @@ changes to the apps themselves.
 - Who's watching? Pick a profile; lock any profile with a 4-number PIN. Type it with the remote's number
   buttons, use private entry (nothing on screen), or approve on your phone instead.
 - The new Jace Media icon everywhere.
+- New: Jace Media for Windows, Mac, and Linux, a small, fast app (a few MB) made with Tauri.
 
 ## 1.0.0
 

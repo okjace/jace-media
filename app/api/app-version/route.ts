@@ -6,7 +6,7 @@ export async function GET(): Promise<NextResponse> {
   const r = await appReleases();
   const pick = (f: typeof r.android) => (f ? { version: f.version, versionCode: f.versionCode, url: f.url, notes: f.notes } : null);
   return NextResponse.json(
-    { android: pick(r.android), ios: pick(r.ios), webos: pick(r.webos), releases: r.page },
+    { android: pick(r.android), ios: pick(r.ios), webos: pick(r.webos), windows: pick(r.windows), mac: pick(r.mac), linux: pick(r.linux), releases: r.page },
     { headers: { "Cache-Control": "public, max-age=300, s-maxage=600" } },
   );
 }

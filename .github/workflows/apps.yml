@@ -1,5 +1,5 @@
 # Builds the Jace Media apps on GitHub's computers: Android (phones, tablets, Android TV), iPhone/iPad
-# (unsigned, for AltStore / SideStore), and LG TV (webOS). Every run uploads the builds as artifacts.
+# (unsigned, for AltStore / SideStore), LG TV (webOS), and desktop (Windows, Mac, Linux, with Tauri). Every run uploads the builds as artifacts.
 # A push to main with a new apps/VERSION publishes a GitHub Release "apps-v<version>" with all three,
 # which the apps' update checks (/api/app-version) and the AltStore source (/api/altstore) read.
 name: Apps
@@ -12,6 +12,11 @@ on:
 
 permissions:
   contents: read
+
+# A newer push replaces a build that's still running.
+concurrency:
+  group: apps-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   version:
@@ -122,9 +127,75 @@ jobs:
           name: webos
           path: dist/*.ipk
 
+  # Windows, Mac, and Linux: Tauri wraps the site in a small native window using the computer's own web
+  # engine. Unsigned, so Windows SmartScreen and macOS Gatekeeper ask before the first open.
+  desktop:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            name: linux
+            args: ""
+          - os: windows-latest
+            name: windows
+            args: ""
+          - os: macos-14
+            name: mac
+            args: --target universal-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.name == 'mac' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - name: Linux libraries
+        if: matrix.name == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Build
+        shell: bash
+        run: |
+          V="${{ needs.version.outputs.version }}"
+          cd apps/desktop
+          node -e "const fs=require('fs');const f='src-tauri/tauri.conf.json';const c=JSON.parse(fs.readFileSync(f,'utf8'));c.version='$V';fs.writeFileSync(f,JSON.stringify(c,null,2))"
+          npx -y @tauri-apps/cli@2 icon app-icon.png
+          npx -y @tauri-apps/cli@2 build ${{ matrix.args }}
+      - name: Name the installers
+        shell: bash
+        run: |
+          V="${{ needs.version.outputs.version }}"
+          T=apps/desktop/src-tauri/target
+          mkdir -p dist
+          case "${{ matrix.name }}" in
+            linux)
+              cp $T/release/bundle/appimage/*.AppImage "dist/JaceMedia-$V-linux.AppImage"
+              cp $T/release/bundle/deb/*.deb "dist/JaceMedia-$V-linux.deb"
+              cp $T/release/bundle/rpm/*.rpm "dist/JaceMedia-$V-linux.rpm" || true ;;
+            windows)
+              cp $T/release/bundle/nsis/*-setup.exe "dist/JaceMedia-$V-windows-setup.exe"
+              cp $T/release/bundle/msi/*.msi "dist/JaceMedia-$V-windows.msi" ;;
+            mac)
+              cp $T/universal-apple-darwin/release/bundle/dmg/*.dmg "dist/JaceMedia-$V-mac.dmg" ;;
+          esac
+          ls -la dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-${{ matrix.name }}
+          path: dist/*
+
   release:
-    if: needs.version.outputs.publish == 'true'
-    needs: [version, android, ios, webos]
+    # Phones and TVs must all build; a desktop build that fails is left out rather than holding up the rest.
+    if: ${{ !cancelled() && needs.version.outputs.publish == 'true' && needs.android.result == 'success' && needs.ios.result == 'success' && needs.webos.result == 'success' }}
+    needs: [version, android, ios, webos, desktop]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -140,7 +211,7 @@ jobs:
         run: |
           V="${{ needs.version.outputs.version }}"
           awk -v v="$V" '$0 == "## "v {f=1; next} /^## / {f=0} f' src/apps/CHANGELOG.md > notes.md
-          printf '\n---\nAndroid and Android TV: the .apk. iPhone: add the source https://jace-media.vercel.app/api/altstore to AltStore or SideStore. LG TV: the .ipk. Instructions: https://jace-media.vercel.app/apps\n' >> notes.md
+          printf '\n---\nAndroid and Android TV: the .apk. iPhone: add the source https://jace-media.vercel.app/api/altstore to AltStore or SideStore. LG TV: the .ipk. Windows: the -setup.exe. Mac: the .dmg (right-click → Open the first time). Linux: the .AppImage or .deb. Instructions: https://jace-media.vercel.app/apps\n' >> notes.md
           ls -la artifacts
       - uses: softprops/action-gh-release@v3
         with:
