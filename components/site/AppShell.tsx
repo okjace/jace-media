@@ -36,6 +36,7 @@ const YOU: NavItem[] = [
   { href: "/library", label: "Library", icon: "library", signedIn: true },
   { href: "/playlists/watch-later", label: "Watch Later", icon: "history", signedIn: true },
   { href: "/playlists", label: "Playlists", icon: "feed", signedIn: true },
+  { href: "/studio", label: "Your videos", icon: "videos", signedIn: true },
   { href: "/import", label: "Import from YouTube", icon: "import", signedIn: true },
   { href: "/extensions", label: "Extensions", icon: "puzzle" },
   { href: "/services", label: "Choose services", icon: "services" },
@@ -259,6 +260,17 @@ export function AppShell({ children }: { children: ReactNode }) {
         <button type="button" onClick={() => setMobileSearch(true)} aria-label="Search" className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-foreground/[.07] md:hidden">
           <Icon name="search" />
         </button>
+        {current && (
+          <Link
+            href="/upload"
+            aria-label="Upload a video"
+            title="Upload a video"
+            className="flex h-9 items-center gap-1.5 rounded-full border border-line px-2.5 text-sm font-medium transition-colors hover:bg-foreground/[.06] sm:px-3.5"
+          >
+            <Icon name="plus" size={18} />
+            <span className="hidden md:inline">Upload</span>
+          </Link>
+        )}
         <NotificationBell />
         <ThemeToggle />
         <AccountMenu />

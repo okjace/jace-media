@@ -81,7 +81,7 @@ export default async function ForYouPage() {
           Sign in and import your YouTube history to get recommendations made for you.
         </p>
       )}
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex flex-col gap-4">
           {on("jace") && <Composer />}
           <ShortsShelf shorts={shorts} />

@@ -27,7 +27,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
     if (!f) return;
     setError(null);
     try {
-      setPicture(await shrinkImage(f, 400, 0.9));
+      setPicture(await shrinkImage(f, 400));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't read that picture.");
     }

@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash, randomBytes } from "crypto";
-import type { JaceVideo, JaceVideoDetail } from "./types";
+import type { JaceVideo, JaceVideoDetail, Visibility } from "./types";
 
 /**
  * Server-side client for Jace: "Sign in with Jace" (OAuth 2.0 with PKCE) and
@@ -180,4 +180,45 @@ export async function getVideo(token: string | null, id: string): Promise<JaceVi
 /** Comments on a Jace video as the signed-in person (they show on JaceTube too). */
 export async function addVideoComment(token: string, videoId: string, body: string): Promise<void> {
   await call(token, `/api/oauth/videos/${encodeURIComponent(videoId)}/comments`, { method: "POST", body: JSON.stringify({ body }) });
+}
+
+// ---------- Uploading and managing your own videos ----------
+
+/** Every video the signed-in person owns, in every visibility. */
+export async function listMyVideos(token: string, before?: string): Promise<VideoPage> {
+  const params = new URLSearchParams({ limit: "100" });
+  if (before) params.set("before", before);
+  const body = (await call(token, `/api/oauth/videos/mine?${params}`)) as { videos?: JaceVideo[]; next_before?: string | null };
+  if (!Array.isArray(body.videos)) throw new JaceUnavailable("videos response had no list.");
+  return { videos: body.videos, nextBefore: body.next_before ?? null };
+}
+
+export type UploadTicket = { path: string; upload_url: string; method: "PUT"; headers: Record<string, string>; public_url: string };
+
+/** A signed address on Jace's storage; the browser sends the file there itself. */
+export async function startUpload(
+  token: string,
+  file: { kind: "video" | "thumbnail"; filename: string; content_type: string; size: number },
+): Promise<UploadTicket> {
+  return (await call(token, "/api/oauth/videos/uploads", { method: "POST", body: JSON.stringify(file) })) as UploadTicket;
+}
+
+export type NewVideo = { path: string; title: string; description?: string; visibility?: Visibility; thumbnail_path?: string };
+
+/** Publishes an uploaded file as a Jace video. */
+export async function createVideo(token: string, video: NewVideo): Promise<{ video: JaceVideoDetail; created: boolean }> {
+  return (await call(token, "/api/oauth/videos", { method: "POST", body: JSON.stringify(video) })) as { video: JaceVideoDetail; created: boolean };
+}
+
+export async function updateVideo(
+  token: string,
+  id: string,
+  patch: { title?: string; description?: string; visibility?: Visibility },
+): Promise<JaceVideoDetail> {
+  const data = (await call(token, `/api/oauth/videos/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) })) as { video: JaceVideoDetail };
+  return data.video;
+}
+
+export async function deleteVideo(token: string, id: string): Promise<void> {
+  await call(token, `/api/oauth/videos/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
