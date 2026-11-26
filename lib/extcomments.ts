@@ -6,7 +6,7 @@ import type { FeedItem, Profile } from "./types";
 
 /** Jace Media comments on posts from other networks. They live here; the other network never sees them. */
 
-export const EXT_NETWORKS = ["bluesky", "mastodon", "lemmy", "hackernews"] as const;
+export const EXT_NETWORKS = ["bluesky", "mastodon", "lemmy", "hackernews", "youtube"] as const;
 export type ExtCommentNetwork = (typeof EXT_NETWORKS)[number];
 const MAX = 500;
 

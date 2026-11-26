@@ -141,14 +141,15 @@ export async function videoDetail(id: string): Promise<YouTubeVideoDetail | null
     const res = await fetch(url, { next: { revalidate: 3600 }, signal: AbortSignal.timeout(8_000) });
     if (!res.ok) return null;
     const data = (await res.json()) as { title?: string; author_name?: string; author_url?: string };
+    const [channelId, page] = await Promise.all([data.author_url ? channelIdForUrl(data.author_url) : null, watchPageInfo(id)]);
     return {
       id,
       title: data.title ?? "YouTube video",
-      description: "",
-      channelId: data.author_url ? await channelIdForUrl(data.author_url) : null,
+      description: page?.description ?? "",
+      channelId: channelId ?? page?.channelId ?? null,
       channelName: data.author_name ?? "YouTube",
-      publishedAt: null,
-      views: null,
+      publishedAt: page?.publishedAt ?? null,
+      views: page?.views ?? null,
       likes: null,
     };
   } catch {
@@ -261,4 +262,69 @@ export function parseYouTubeVideo(input: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * A video's description, view count, and date from its public page (used when
+ * there's no API key; cached for an hour).
+ */
+async function watchPageInfo(id: string): Promise<{ description: string; views: number | null; publishedAt: string | null; channelId: string | null } | null> {
+  try {
+    const res = await fetch(`https://www.youtube.com/watch?v=${id}&hl=en`, {
+      headers: { "Accept-Language": "en", Cookie: "CONSENT=YES+1" },
+      next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const str = (key: string) => {
+      const m = html.match(new RegExp(`"${key}":"((?:[^"\\\\]|\\\\.)*)"`));
+      if (!m) return null;
+      try {
+        return JSON.parse(`"${m[1]}"`) as string;
+      } catch {
+        return null;
+      }
+    };
+    const views = str("viewCount");
+    const date = str("publishDate") ?? str("uploadDate");
+    const channel = str("channelId");
+    return {
+      description: str("shortDescription") ?? "",
+      views: views && /^\d+$/.test(views) ? Number(views) : null,
+      publishedAt: date && !Number.isNaN(Date.parse(date)) ? new Date(date).toISOString() : null,
+      channelId: channel && CHANNEL_ID.test(channel) ? channel : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export type YouTubeComment = { id: string; author: string; authorPicture: string | null; text: string; likes: number; publishedAt: string; replies: number };
+
+/** Top comments on a YouTube video (needs YOUTUBE_API_KEY; otherwise null). */
+export async function youtubeComments(id: string, limit = 30): Promise<YouTubeComment[] | null> {
+  if (!KEY || !VIDEO_ID.test(id)) return null;
+  const data = await api<{
+    items: {
+      id: string;
+      snippet: {
+        totalReplyCount: number;
+        topLevelComment: { snippet: { authorDisplayName: string; authorProfileImageUrl?: string; textOriginal: string; likeCount: number; publishedAt: string } };
+      };
+    }[];
+  }>("commentThreads", { part: "snippet", videoId: id, order: "relevance", maxResults: String(Math.min(limit, 100)), textFormat: "plainText" });
+  if (!data) return null;
+  return data.items.map((c) => {
+    const t = c.snippet.topLevelComment.snippet;
+    return {
+      id: c.id,
+      author: t.authorDisplayName,
+      authorPicture: t.authorProfileImageUrl ?? null,
+      text: t.textOriginal,
+      likes: t.likeCount,
+      publishedAt: t.publishedAt,
+      replies: c.snippet.totalReplyCount,
+    };
+  });
 }

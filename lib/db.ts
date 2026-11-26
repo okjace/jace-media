@@ -147,6 +147,29 @@ const SCHEMA = [
     added_at BIGINT NOT NULL,
     PRIMARY KEY (playlist_id, source, video_id)
   )`,
+  // Reposts and quotes: a snapshot of the original post (any network), and its key ("jace:<id>", "bluesky:<uri>", …).
+  `ALTER TABLE posts ADD COLUMN IF NOT EXISTS quote TEXT`,
+  `ALTER TABLE posts ADD COLUMN IF NOT EXISTS quote_key TEXT`,
+  `CREATE INDEX IF NOT EXISTS posts_quote_key ON posts (quote_key)`,
+  // Polls: {"options": [...], "endsAt": ms}.
+  `ALTER TABLE posts ADD COLUMN IF NOT EXISTS poll TEXT`,
+  `CREATE TABLE IF NOT EXISTS poll_votes (
+    post_id TEXT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    sub TEXT NOT NULL,
+    option INT NOT NULL,
+    created_at BIGINT NOT NULL,
+    PRIMARY KEY (post_id, sub)
+  )`,
+  `CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY,
+    sub TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    actor_sub TEXT NOT NULL,
+    post_id TEXT,
+    read BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at BIGINT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS notifications_inbox ON notifications (sub, created_at DESC)`,
 ];
 
 // One connection per process. Next.js can load this module more than once

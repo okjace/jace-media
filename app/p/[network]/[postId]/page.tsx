@@ -11,7 +11,7 @@ import { blueskyThread, hnThread, lemmyThread, mastodonThread, type Thread } fro
 
 export const dynamic = "force-dynamic";
 
-const LABEL = { bluesky: "Bluesky", mastodon: "Mastodon", lemmy: "Lemmy", hackernews: "Hacker News" } as const;
+const LABEL = { bluesky: "Bluesky", mastodon: "Mastodon", lemmy: "Lemmy", hackernews: "Hacker News", youtube: "YouTube" } as const;
 
 async function load(network: string, id: string): Promise<Thread | null> {
   switch (network) {

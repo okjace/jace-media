@@ -12,6 +12,9 @@ import { authorHref, placeHref, postHref } from "@/lib/links";
 import { rate } from "@/lib/rate-client";
 import type { FeedItem } from "@/lib/types";
 import { NetworkBadge } from "./NetworkBadge";
+import { PollView } from "./PollView";
+import { QuotedPost } from "./QuotedPost";
+import { RepostButton } from "./RepostButton";
 import { RichText } from "./RichText";
 
 const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
@@ -123,7 +126,8 @@ export function PostCard({
 
   async function remove() {
     if (!confirm(isComment ? "Delete this comment?" : "Delete this post? This can't be undone.")) return;
-    const res = await fetch(isComment ? `/api/ext-comments?id=${item.id}` : `/api/posts/${item.id}`, { method: "DELETE" });
+    const target = item.repostedBy ? item.repostedBy.repostId : item.id;
+    const res = await fetch(isComment ? `/api/ext-comments?id=${target}` : `/api/posts/${target}`, { method: "DELETE" });
     if (res.ok) {
       setDeleted(true);
       router.refresh();
@@ -140,6 +144,20 @@ export function PostCard({
 
   return (
     <article className={`rounded-2xl border border-line bg-panel transition-colors ${isComment ? "p-3" : "p-4 hover:border-foreground/20"}`}>
+      {item.repostedBy && (
+        <p className="mb-2 flex items-center gap-2 pl-[52px] text-xs font-medium text-muted">
+          <span aria-hidden="true">↻</span>
+          <Link href={item.repostedBy.url} className="hover:text-foreground hover:underline">
+            {item.repostedBy.name}
+          </Link>
+          reposted
+          {item.repostedBy.canDelete && (
+            <button type="button" onClick={remove} className="ml-auto rounded-full px-2 py-0.5 hover:bg-danger/10 hover:text-danger">
+              Undo
+            </button>
+          )}
+        </p>
+      )}
       <header className="flex items-start gap-3">
         <MaybeLink href={author}>
           <Avatar name={item.author.name} src={item.author.picture} size={isComment ? 32 : 40} />
@@ -222,6 +240,8 @@ export function PostCard({
             })}
           </div>
         )}
+        {item.poll && isJace && <PollView postId={item.id} poll={item.poll} />}
+        {item.quote && <QuotedPost item={item.quote} />}
         {item.link && (
           // Shared articles are the one thing that opens elsewhere.
           <a
@@ -266,6 +286,7 @@ export function PostCard({
               </span>
             )
           )}
+          <RepostButton item={item} count={isJace && counts && item.stats.reposts ? compact.format(item.stats.reposts) : undefined} />
           {linkToThread && (
             <Link href={thread} className="flex items-center gap-1.5 rounded-full px-2.5 py-1 hover:bg-foreground/[.06] hover:text-foreground">
               <span aria-hidden="true">💬</span>
@@ -274,7 +295,7 @@ export function PostCard({
             </Link>
           )}
           <span className="flex-1" />
-          {item.canDelete && (
+          {item.canDelete && !item.repostedBy && (
             <button type="button" onClick={remove} className="rounded-full px-2.5 py-1 text-xs hover:bg-danger/10 hover:text-danger">
               Delete
             </button>

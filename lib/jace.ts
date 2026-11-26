@@ -176,3 +176,8 @@ export async function getVideo(token: string | null, id: string): Promise<JaceVi
     throw err;
   }
 }
+
+/** Comments on a Jace video as the signed-in person (they show on JaceTube too). */
+export async function addVideoComment(token: string, videoId: string, body: string): Promise<void> {
+  await call(token, `/api/oauth/videos/${encodeURIComponent(videoId)}/comments`, { method: "POST", body: JSON.stringify({ body }) });
+}

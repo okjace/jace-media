@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Avatar } from "@/components/Avatar";
 import { SourceBadge, VideoRow } from "@/components/videos/VideoGrid";
 import { Description } from "@/components/videos/Description";
+import { VideoComments } from "@/components/videos/VideoComments";
 import { FollowButton } from "@/components/actions/FollowButton";
 import { RecordWatch } from "@/components/actions/RecordWatch";
 import { SaveButton } from "@/components/actions/SaveButton";
@@ -85,6 +86,7 @@ export default async function JaceWatchPage({ params, searchParams }: PageProps<
           )}
           text={video.description}
         />
+        <VideoComments source="jace" id={video.id} jace={video} />
       </div>
       <aside className="flex w-full shrink-0 flex-col gap-3 lg:w-[360px]">
         <h2 className="font-semibold">Up next</h2>

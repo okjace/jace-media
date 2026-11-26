@@ -88,6 +88,8 @@ export type Network = "jace" | "bluesky" | "mastodon" | "lemmy" | "hackernews";
 export type Media = { kind: "image" | "video"; url: string; thumb?: string | null; alt?: string };
 
 /** A post from any network, in one shape so every tab can show it the same way. */
+export type Poll = { options: string[]; counts: number[]; total: number; myVote: number | null; endsAt: string; ended: boolean };
+
 export type FeedItem = {
   network: Network;
   id: string;
@@ -105,6 +107,11 @@ export type FeedItem = {
   place?: string | null;
   /** Jace posts only. */
   authorSub?: string;
+  /** A quoted (or reposted) post, from any network. */
+  quote?: FeedItem | null;
+  /** Set when this is a plain repost: who reposted it, and the repost's own id. */
+  repostedBy?: { name: string; handle: string; url: string; repostId: string; canDelete: boolean } | null;
+  poll?: Poll | null;
   likedByMe?: boolean;
   canDelete?: boolean;
 };

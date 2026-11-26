@@ -10,6 +10,7 @@ import type { Service } from "@/lib/services";
 import { AccountMenu } from "./AccountMenu";
 import { Icon, type IconName } from "./icons";
 import { Logo } from "./Logo";
+import { NotificationBell } from "./NotificationBell";
 import { ThemeToggle } from "./ThemeToggle";
 
 type NavItem = { href: string; label: string; icon: IconName; needs?: Service[]; signedIn?: boolean; avatar?: string | null };
@@ -251,6 +252,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <button type="button" onClick={() => setMobileSearch(true)} aria-label="Search" className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-foreground/[.07] md:hidden">
           <Icon name="search" />
         </button>
+        <NotificationBell />
         <ThemeToggle />
         <AccountMenu />
         {mobileSearch && (

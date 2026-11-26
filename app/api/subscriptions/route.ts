@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { readJson, requireViewer } from "@/lib/auth";
 import { isSubKind, setFolder, subscribe, unsubscribe, validRef } from "@/lib/library";
+import { notify } from "@/lib/notifications";
 
 /** Follow (POST) or unfollow (DELETE) a channel, person, or community on any service. */
 async function handle(req: Request, on: boolean): Promise<NextResponse> {
@@ -18,6 +19,7 @@ async function handle(req: Request, on: boolean): Promise<NextResponse> {
       name: typeof name === "string" && name.trim() ? name.trim() : ref,
       picture: typeof picture === "string" && /^(https:\/\/|\/api\/images\/)/.test(picture) ? picture : null,
     });
+    if (kind === "jace") await notify(ref, "follow", viewer.sub, null);
   } else {
     await unsubscribe(viewer.sub, kind, ref);
   }
