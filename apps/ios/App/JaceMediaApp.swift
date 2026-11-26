@@ -2,11 +2,14 @@ import AVFoundation
 import SwiftUI
 import WebKit
 
-/// Jace Media for iPhone and iPad: the website, full screen, with what an app
-/// adds: inline and picture-in-picture video, uploads, swipe back, pull to
-/// refresh, opening other websites in Safari, and update checks.
+/// Jace Media for iPhone and iPad, native: Home, Shorts, Subscriptions,
+/// Search, and You are SwiftUI screens on Jace Media's app API, with Apple's
+/// player for Jace videos and YouTube's privacy-enhanced player for YouTube.
+/// Posting, uploading, going live, and settings open the site, signed in.
 @main
 struct JaceMediaApp: App {
+    @StateObject private var session = SessionStore()
+
     init() {
         // Videos keep their sound when the phone is on silent, and can keep playing in picture-in-picture.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
@@ -14,18 +17,69 @@ struct JaceMediaApp: App {
 
     var body: some Scene {
         WindowGroup {
-            WebView()
-                .ignoresSafeArea(.container, edges: .bottom)
-                .background(Color(red: 0x11 / 255, green: 0x13 / 255, blue: 0x17 / 255))
+            RootView()
+                .environmentObject(session)
                 .preferredColorScheme(.dark)
+                .tint(jaceGreen)
+                .task { await session.loadMe() }
         }
+    }
+}
+
+struct RootView: View {
+    @EnvironmentObject var session: SessionStore
+    @State private var checkedUpdates = false
+
+    var body: some View {
+        TabView {
+            AppTab(title: "Home", icon: "house.fill") { HomeView() }
+            AppTab(title: "Shorts", icon: "play.rectangle.on.rectangle.fill") { ShortsView() }
+            AppTab(title: "Subscriptions", icon: "rectangle.stack.fill") { SubscriptionsView() }
+            AppTab(title: "Search", icon: "magnifyingglass") { SearchView() }
+            AppTab(title: "You", icon: "person.crop.circle.fill") { YouView() }
+        }
+        .background(jaceBackground)
+        .onAppear {
+            guard !checkedUpdates, Updates.automatic else { return }
+            checkedUpdates = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                if let view = UIApplication.shared.connectedScenes.compactMap({ ($0 as? UIWindowScene)?.keyWindow }).first {
+                    Updates.check(manual: false, from: view)
+                }
+            }
+        }
+    }
+}
+
+/// One tab: its own navigation stack, so going back stays inside the tab.
+struct AppTab<Content: View>: View {
+    let title: String
+    let icon: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        NavigationStack {
+            content()
+                .background(jaceBackground)
+                .navigationDestination(for: Route.self) { route in
+                    switch route {
+                    case let .watch(source, id): WatchView(source: source, id: id)
+                    case let .channel(id, name): ChannelView(id: id, name: name)
+                    case let .web(path, title): WebScreen(path: path, title: title)
+                    }
+                }
+        }
+        .tabItem { Label(title, systemImage: icon) }
     }
 }
 
 let site = URL(string: "https://jace-media.vercel.app")!
 let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
 
+/// The full Jace Media site in the app (for posting, uploading, going live, and settings).
 struct WebView: UIViewRepresentable {
+    var start: URL = site
+
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -63,8 +117,7 @@ struct WebView: UIViewRepresentable {
         web.scrollView.refreshControl = refresh
         context.coordinator.web = web
 
-        web.load(URLRequest(url: site))
-        if Updates.automatic { Updates.check(manual: false, from: web) }
+        web.load(URLRequest(url: start))
         return web
     }
 
