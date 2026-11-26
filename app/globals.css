@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+/*
+ * Jace colors, the same as Jace, JaceTube, and Jace Social: cool greys with a green accent. Dark is
+ * the default; <html data-theme="light"> switches to the matching light set
+ * (see ThemeToggle and the inline script in app/layout.tsx).
+ */
+@custom-variant dark (&:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *));
+
+:root {
+  --background: #111317;
+  --foreground: #e6e8eb;
+  --panel: #1c1f26;
+  --line: #2a2f38;
+  --muted: #8b919c;
+  --accent: #3ddc84;
+  --accent-hover: #5ae69a;
+  --on-accent: #0c1410;
+  --danger: #f87171;
+  --warn: #fbbf24;
+  --yt: #ff4e45;
+  --bsky: #4f9dff;
+  --masto: #8c8dff;
+  --lemmy: #2fd4a7;
+  --hn: #ff7a1a;
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --background: #f4f5f7;
+  --foreground: #16181d;
+  --panel: #ffffff;
+  --line: #dfe2e7;
+  --muted: #5d6470;
+  --accent: #1f9d5a;
+  --accent-hover: #188049;
+  --on-accent: #ffffff;
+  --danger: #dc2626;
+  --warn: #b45309;
+  --yt: #e62117;
+  --bsky: #0866ff;
+  --masto: #563acc;
+  --lemmy: #0f8f6c;
+  --hn: #e05d00;
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-panel: var(--panel);
+  --color-line: var(--line);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-on-accent: var(--on-accent);
+  --color-danger: var(--danger);
+  --color-warn: var(--warn);
+  --color-yt: var(--yt);
+  --color-bsky: var(--bsky);
+  --color-masto: var(--masto);
+  --color-lemmy: var(--lemmy);
+  --color-hn: var(--hn);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* Horizontal chip rows scroll without a visible scrollbar. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
