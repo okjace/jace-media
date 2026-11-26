@@ -73,8 +73,8 @@ export function ImportWizard() {
               </a>
               .
             </li>
-            <li>Under &quot;Multiple formats&quot;, set history to <b>JSON</b> (HTML works too). You can untick &quot;videos&quot; to make it much smaller.</li>
-            <li>Create the export, download the .zip when Google emails you, and choose it here.</li>
+            <li>Under &quot;Multiple formats&quot;, set history to <b>JSON</b> (HTML works too). Untick &quot;videos&quot; to make it much smaller and faster (big exports work too).</li>
+            <li>Create the export, download the .zip when Google emails you, and choose it here. If Google split it into several .zip files, choose them all at once.</li>
           </ol>
           <div className="flex flex-wrap gap-2">
             <input ref={zip} type="file" accept=".zip,.json,.csv,.html" multiple className="hidden" onChange={(e) => read(e.target.files)} />
@@ -97,7 +97,12 @@ export function ImportWizard() {
           <p className="text-xs text-muted">The export is read on your device. Only your subscriptions, watch history, and likes are sent to Jace Media.</p>
         </>
       )}
-      {step.kind === "reading" && <p className="text-sm">Reading your export…</p>}
+      {step.kind === "reading" && (
+        <div className="flex items-center gap-3 text-sm">
+          <span className="h-5 w-5 animate-spin rounded-full border-2 border-foreground/20 border-t-accent" aria-hidden="true" />
+          Reading your export… Big exports with videos can take a minute or two. Keep this tab open.
+        </div>
+      )}
       {step.kind === "ready" && (
         <>
           <p className="font-medium">Found in your export:</p>

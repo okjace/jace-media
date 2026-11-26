@@ -18,7 +18,8 @@ export type TakeoutData = { subscriptions: TakeoutSubscription[]; history: Takeo
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 const CHANNEL_ID = /^UC[A-Za-z0-9_-]{22}$/;
 const WANTED = /\.(csv|json|html)$/i;
-const MAX_ZIP_BYTES = 1024 * 1024 * 1024;
+/** Text files bigger than this are skipped (watch history is usually a few MB). */
+const MAX_TEXT_BYTES = 300 * 1024 * 1024;
 
 type Entry = { path: string; text: () => Promise<string> };
 
@@ -143,12 +144,50 @@ function parseLiked(text: string): string[] {
     .filter((id) => VIDEO_ID.test(id));
 }
 
+/**
+ * Reads the zip a piece at a time, so exports of any size work (Takeout zips
+ * with your uploaded videos can be many GB). Only the small text files are
+ * unpacked; videos stream past without being kept.
+ */
 async function unzip(file: File): Promise<Entry[]> {
-  if (file.size > MAX_ZIP_BYTES) throw new Error(`${file.name} is over 1 GB. Extract it first, then choose the folder.`);
-  const { unzipSync, strFromU8 } = await import("fflate");
-  // Only the small text files; video files in the export are skipped.
-  const files = unzipSync(new Uint8Array(await file.arrayBuffer()), { filter: (f) => WANTED.test(f.name) && f.originalSize < 200 * 1024 * 1024 });
-  return Object.entries(files).map(([path, data]) => ({ path, text: async () => strFromU8(data) }));
+  const { Unzip, UnzipInflate, strFromU8 } = await import("fflate");
+  const entries: Entry[] = [];
+  const pending: Promise<void>[] = [];
+  const zip = new Unzip();
+  zip.register(UnzipInflate);
+  zip.onfile = (f) => {
+    if (!WANTED.test(f.name) || (f.originalSize ?? 0) > MAX_TEXT_BYTES) return;
+    const chunks: Uint8Array[] = [];
+    pending.push(
+      new Promise((resolve, reject) => {
+        f.ondata = (err, data, final) => {
+          if (err) return reject(err);
+          chunks.push(data);
+          if (!final) return;
+          const all = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+          let at = 0;
+          for (const c of chunks) {
+            all.set(c, at);
+            at += c.length;
+          }
+          entries.push({ path: f.name, text: async () => strFromU8(all) });
+          resolve();
+        };
+      }),
+    );
+    f.start();
+  };
+  const reader = file.stream().getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) {
+      zip.push(new Uint8Array(0), true);
+      break;
+    }
+    zip.push(value);
+  }
+  await Promise.all(pending);
+  return entries;
 }
 
 export async function readTakeout(input: File[]): Promise<TakeoutData> {
