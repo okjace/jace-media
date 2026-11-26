@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { MixedFeed } from "@/components/feed/MixedFeed";
-import { HomeFeedButton } from "@/components/HomeFeedButton";
-import { PageTitle } from "@/components/PageTitle";
+import { FeedPage } from "@/components/feed/FeedPage";
 import { getViewer } from "@/lib/auth";
 import { buildFeed, getFeed } from "@/lib/customfeeds";
 
@@ -21,24 +18,5 @@ export default async function CustomFeedPage({ params }: PageProps<"/feeds/[feed
   const feed = await getFeed(viewer.sub, (await params).feedId);
   if (!feed) notFound();
   const entries = await buildFeed(feed.rules, 80);
-  return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <div className="flex items-start justify-between gap-3">
-        <PageTitle title={feed.name}>
-          {feed.rules.only === "subscriptions" ? "Only what you follow" : "From everywhere"} ·{" "}
-          {feed.rules.sort === "latest" ? "newest first" : "recommended for you"}
-        </PageTitle>
-        <div className="flex shrink-0 gap-2">
-          <HomeFeedButton feedId={feed.id} />
-          <Link href={`/feeds?edit=${feed.id}`} className="rounded-full border border-line px-4 py-1.5 text-sm hover:bg-foreground/[.05]">
-            Edit feed
-          </Link>
-        </div>
-      </div>
-      <MixedFeed
-        entries={entries}
-        empty={feed.rules.only === "subscriptions" ? "Nothing new from the people and channels you follow." : "Nothing matches this feed right now."}
-      />
-    </div>
-  );
+  return <FeedPage feed={feed} entries={entries} />;
 }

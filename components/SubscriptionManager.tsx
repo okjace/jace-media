@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmDialog } from "@/components/ui/Dialog";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Avatar } from "@/components/Avatar";
@@ -30,9 +31,19 @@ export function SubscriptionManager({ initial }: { initial: Subscription[] }) {
   }
 
   async function remove(s: Subscription) {
-    if (!confirm(`Unsubscribe from ${s.name}?`)) return;
+    if (!(await confirmDialog({ title: `Unsubscribe from ${s.name}?`, confirm: "Unsubscribe", danger: true }))) return;
     setSubs((list) => list.filter((x) => !(x.kind === s.kind && x.ref === s.ref)));
     await fetch("/api/subscriptions", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s) });
+    router.refresh();
+  }
+
+  async function removeAll() {
+    if (!(await confirmDialog({ title: `Unsubscribe from all ${subs.length}?`, message: "This can't be undone.", confirm: "Unsubscribe from all", danger: true }))) return;
+    const res = await fetch("/api/library/reset", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ parts: ["subscriptions"] }) });
+    if (res.ok) {
+      setSubs([]);
+      showNotice({ kind: "info", text: "You've unsubscribed from everyone." });
+    } else showNotice({ kind: "error", text: "Couldn't do that. Try again." });
     router.refresh();
   }
 
@@ -56,6 +67,11 @@ export function SubscriptionManager({ initial }: { initial: Subscription[] }) {
           aria-label="New folder name"
           className="h-10 w-48 rounded-full border border-line bg-panel px-4 text-sm outline-none focus:border-accent"
         />
+        {subs.length > 0 && (
+          <button type="button" onClick={removeAll} className="h-10 rounded-full border border-danger/40 px-4 text-sm text-danger hover:bg-danger/10">
+            Unsubscribe from all
+          </button>
+        )}
       </div>
       {newFolder.trim() && <p className="text-xs text-muted">Now pick &quot;{newFolder.trim()}&quot; in the folder menu next to any subscription.</p>}
       <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-2xl border border-line bg-panel">

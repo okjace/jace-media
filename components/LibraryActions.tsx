@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmDialog } from "@/components/ui/Dialog";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/components/AppProvider";
 
@@ -8,7 +9,7 @@ export function LibraryActions({ hidden }: { hidden: number }) {
   const router = useRouter();
   const { showNotice } = useApp();
   async function run(url: string, question: string, done: string) {
-    if (!confirm(question)) return;
+    if (!(await confirmDialog({ title: question, confirm: "Yes", danger: true }))) return;
     const res = await fetch(url, { method: "DELETE" });
     showNotice(res.ok ? { kind: "info", text: done } : { kind: "error", text: "Couldn't do that. Try again." });
     router.refresh();

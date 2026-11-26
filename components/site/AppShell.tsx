@@ -42,6 +42,7 @@ const YOU: NavItem[] = [
   { href: "/extensions", label: "Extensions", icon: "puzzle" },
   { href: "/apps", label: "Get the app", icon: "import" },
   { href: "/services", label: "Choose services", icon: "services" },
+  { href: "/setup", label: "Replay setup", icon: "services" },
   { href: "/settings", label: "Edit profile", icon: "settings", signedIn: true },
 ];
 

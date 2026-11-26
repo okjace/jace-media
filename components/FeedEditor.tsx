@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmDialog } from "@/components/ui/Dialog";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { useApp } from "@/components/AppProvider";
@@ -94,7 +95,7 @@ export function FeedEditor({ feed, onDone }: { feed?: CustomFeed; onDone?: () =>
   }
 
   async function remove() {
-    if (!feed || !confirm(`Delete "${feed.name}"?`)) return;
+    if (!feed || !(await confirmDialog({ title: `Delete "${feed.name}"?`, confirm: "Delete", danger: true }))) return;
     await fetch(`/api/feeds/${feed.id}`, { method: "DELETE" });
     router.push("/feeds");
     router.refresh();

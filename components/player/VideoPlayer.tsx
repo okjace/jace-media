@@ -760,7 +760,7 @@ export function VideoPlayer({
   );
 
   return (
-    <div className={`relative ${short ? "h-full w-full" : "w-full"}`}>
+    <div data-no-menu className={`relative ${short ? "h-full w-full" : "w-full"}`}>
       {ext.ambient && !compact && posterUrl && (
         // Ambient glow: the poster, blurred, behind the player.
         // eslint-disable-next-line @next/next/no-img-element

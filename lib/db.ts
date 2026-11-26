@@ -157,6 +157,9 @@ const SCHEMA = [
   `ALTER TABLE posts ADD COLUMN IF NOT EXISTS poll TEXT`,
   // Pictures stored on Jace's storage (just their address), and a video in a post ({source, id, title, thumbnail, src}).
   `ALTER TABLE posts ADD COLUMN IF NOT EXISTS image_url TEXT`,
+  // When a post or comment was last edited (shown as "edited").
+  `ALTER TABLE posts ADD COLUMN IF NOT EXISTS edited_at BIGINT`,
+  `ALTER TABLE ext_comments ADD COLUMN IF NOT EXISTS edited_at BIGINT`,
   `ALTER TABLE posts ADD COLUMN IF NOT EXISTS video TEXT`,
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT`,
   `CREATE TABLE IF NOT EXISTS poll_votes (

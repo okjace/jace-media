@@ -216,7 +216,7 @@ export async function dislikeCount(source: "youtube" | "jace", id: string): Prom
   return Number(rows[0]?.n ?? 0);
 }
 
-export async function hide(sub: string, kind: "video" | "channel", ref: string): Promise<void> {
+export async function hide(sub: string, kind: "video" | "channel" | "post" | "author", ref: string): Promise<void> {
   await q(`INSERT INTO hidden (sub, kind, ref, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`, [sub, kind, ref, Date.now()]);
 }
 
@@ -248,4 +248,22 @@ export async function fillSubscriptionPictures(sub: string, subs: Subscription[]
     await q(`UPDATE subscriptions SET picture = $3 WHERE sub = $1 AND kind = 'youtube' AND ref = $2`, [sub, ref, picture]);
   }
   return subs.map((s) => (s.kind === "youtube" && pictures.has(s.ref) ? { ...s, picture: pictures.get(s.ref)! } : s));
+}
+
+/** The parts of your library that can be reset. */
+export const RESET_PARTS = ["history", "likes", "playlists", "hidden", "subscriptions", "feeds", "ratings"] as const;
+export type ResetPart = (typeof RESET_PARTS)[number];
+
+/** Deletes the chosen parts of your library. Your posts and comments stay. */
+export async function resetLibrary(sub: string, parts: ResetPart[]): Promise<void> {
+  const sql: Record<ResetPart, string[]> = {
+    history: [`DELETE FROM watch_history WHERE sub = $1`],
+    likes: [`DELETE FROM video_likes WHERE sub = $1`],
+    playlists: [`DELETE FROM playlist_items WHERE playlist_id IN (SELECT id FROM playlists WHERE sub = $1)`, `DELETE FROM playlists WHERE sub = $1`],
+    hidden: [`DELETE FROM hidden WHERE sub = $1`],
+    subscriptions: [`DELETE FROM subscriptions WHERE sub = $1`],
+    feeds: [`DELETE FROM feeds WHERE sub = $1`],
+    ratings: [`DELETE FROM content_ratings WHERE sub = $1`],
+  };
+  for (const part of parts) for (const statement of sql[part]) await q(statement, [sub]);
 }

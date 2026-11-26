@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import type { NextResponse } from "next/server";
 import { jaceConfigured } from "./jace";
 
@@ -76,8 +76,13 @@ export function parseAccounts(raw: string | undefined): Accounts {
 }
 
 /** Every remembered account and which one is in use. For server components and route handlers. */
+/** The native apps send their (encrypted) session in this header instead of a cookie. */
+export const APP_SESSION_HEADER = "x-jace-media-session";
+
 async function getAccountsUncached(): Promise<Accounts> {
-  return parseAccounts((await cookies()).get(ACCOUNTS_COOKIE)?.value);
+  const cookie = (await cookies()).get(ACCOUNTS_COOKIE)?.value;
+  if (cookie) return parseAccounts(cookie);
+  return parseAccounts((await headers()).get(APP_SESSION_HEADER) ?? undefined);
 }
 
 /** The account in use, with its token, or null. */

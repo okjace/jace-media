@@ -16,7 +16,7 @@ export function isExtNetwork(v: unknown): v is ExtCommentNetwork {
 
 export async function listExtComments(network: ExtCommentNetwork, postId: string, viewer: { sub: string; isAdmin: boolean } | null): Promise<FeedItem[]> {
   const rows = await q(
-    `SELECT c.id, c.body, c.created_at, c.author_sub, pr.* FROM ext_comments c JOIN profiles pr ON pr.sub = c.author_sub
+    `SELECT c.id, c.body, c.created_at, c.edited_at, c.author_sub, pr.* FROM ext_comments c JOIN profiles pr ON pr.sub = c.author_sub
      WHERE c.network = $1 AND c.post_id = $2 AND pr.banned = FALSE ORDER BY c.created_at ASC LIMIT 300`,
     [network, postId],
   );
@@ -33,6 +33,8 @@ export async function listExtComments(network: ExtCommentNetwork, postId: string
       createdAt: new Date(Number(r.created_at)).toISOString(),
       stats: {},
       canDelete: !!viewer && (viewer.sub === r.author_sub || viewer.isAdmin),
+      canEdit: !!viewer && viewer.sub === r.author_sub,
+      editedAt: r.edited_at ? new Date(Number(r.edited_at)).toISOString() : null,
     } satisfies FeedItem;
   });
 }
@@ -71,4 +73,16 @@ export async function extCommentCounts(keys: { network: string; id: string }[]):
     [keys.map((k) => k.id)],
   );
   return new Map(rows.map((r) => [`${r.network}:${r.post_id}`, Number(r.n)]));
+}
+
+/** Changes the words of your own comment. */
+export async function editExtComment(author: { sub: string; muted: boolean }, id: string, text: string): Promise<{ ok: true } | { error: string }> {
+  if (author.muted) return { error: "Your Jace account is muted, so you can't edit comments right now." };
+  const rows = await q(`SELECT author_sub FROM ext_comments WHERE id = $1`, [id]);
+  if (!rows[0] || rows[0].author_sub !== author.sub) return { error: "You can only edit your own comments." };
+  const body = text.replace(/\r\n/g, "\n").trim();
+  if (!body) return { error: "A comment can't be empty." };
+  if (body.length > MAX) return { error: `Comments can be up to ${MAX} characters.` };
+  await q(`UPDATE ext_comments SET body = $2, edited_at = $3 WHERE id = $1`, [id, body, Date.now()]);
+  return { ok: true };
 }

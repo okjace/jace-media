@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * Jace colors, the same as Jace, JaceTube, and Jace Social: cool greys with a green accent. Dark is
+ * Jace colors, the same as Jace: cool greys with a green accent. Dark is
  * the default; <html data-theme="light"> switches to the matching light set
  * (see ThemeToggle and the inline script in app/layout.tsx).
  */
@@ -111,4 +111,9 @@ html.tv :focus-visible {
   outline: 4px solid var(--accent);
   outline-offset: 3px;
   border-radius: 12px;
+}
+
+@keyframes jm-pop {
+  from { opacity: 0; transform: translateY(8px) scale(.97); }
+  to { opacity: 1; transform: none; }
 }

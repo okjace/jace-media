@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Suspense } from "react";
 import { AppProvider } from "@/components/AppProvider";
 import { AppShell } from "@/components/site/AppShell";
+import { DialogHost } from "@/components/ui/Dialog";
 import { getAccountList, getViewer } from "@/lib/auth";
 import { listFeeds } from "@/lib/customfeeds";
 import { fillSubscriptionPictures, listSubscriptions } from "@/lib/library";
@@ -18,7 +19,6 @@ export const metadata: Metadata = {
   title: { default: "Jace Media", template: "%s · Jace Media" },
   description: "Jace posts, YouTube and Jace videos, Bluesky, Mastodon, Lemmy, Hacker News, news sites, and live games in one place, with no ads.",
   appleWebApp: { capable: true, title: "Jace Media", statusBarStyle: "black-translucent" },
-  icons: { apple: "/icon-192.png" },
 };
 
 export const viewport: Viewport = {
@@ -64,6 +64,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           <Suspense>
             <AppShell>{children}</AppShell>
           </Suspense>
+          <DialogHost />
         </AppProvider>
       </body>
     </html>

@@ -2,7 +2,7 @@ import "server-only";
 import type { VideoCard, YouTubeVideoDetail } from "./types";
 
 /**
- * YouTube, read on the server. With YOUTUBE_API_KEY set, JaceTube uses the
+ * YouTube, read on the server. With YOUTUBE_API_KEY set, Jace Media uses the
  * YouTube Data API for trending videos, search, and view counts. Without one
  * it still works from YouTube's public pieces that need no key: channel RSS
  * feeds (a channel's latest 15 uploads, used for subscriptions) and oEmbed

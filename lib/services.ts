@@ -16,6 +16,9 @@ export type Service = (typeof SERVICES)[number]["id"];
 
 export const ALL_SERVICES: Service[] = SERVICES.map((s) => s.id);
 
+/** What a new person starts with: YouTube, Jace videos, and Jace posts. */
+export const DEFAULT_SERVICES: Service[] = ["youtube", "jacevideos", "jace"];
+
 export function isService(value: unknown): value is Service {
   return typeof value === "string" && (ALL_SERVICES as string[]).includes(value);
 }
@@ -29,18 +32,18 @@ const ADDED_LATER: Service[] = ["rss", "jacelive", "twitch"];
  * is still read, with the later services added.
  */
 export function parseServices(raw: string | null | undefined): Service[] {
-  if (!raw) return ALL_SERVICES;
+  if (!raw) return DEFAULT_SERVICES;
   try {
     const value = JSON.parse(raw);
     if (Array.isArray(value)) {
       const kept = ALL_SERVICES.filter((s) => value.includes(s) || ADDED_LATER.includes(s));
-      return kept.length ? kept : ALL_SERVICES;
+      return kept.length ? kept : DEFAULT_SERVICES;
     }
     const off = Array.isArray(value?.off) ? (value.off as unknown[]) : [];
     const kept = ALL_SERVICES.filter((s) => !off.includes(s));
-    return kept.length ? kept : ALL_SERVICES;
+    return kept.length ? kept : DEFAULT_SERVICES;
   } catch {
-    return ALL_SERVICES;
+    return DEFAULT_SERVICES;
   }
 }
 

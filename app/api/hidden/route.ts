@@ -7,10 +7,10 @@ export async function POST(req: Request): Promise<NextResponse> {
   const viewer = await requireViewer();
   if (viewer instanceof NextResponse) return viewer;
   const { kind, ref } = await readJson(req);
-  if ((kind !== "video" && kind !== "channel") || typeof ref !== "string" || ref.length > 200) {
+  if (!["video", "channel", "post", "author"].includes(kind as string) || typeof ref !== "string" || ref.length > 200) {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
   }
-  await hide(viewer.sub, kind, ref);
+  await hide(viewer.sub, kind as "video" | "channel" | "post" | "author", ref);
   return NextResponse.json({ ok: true });
 }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmDialog } from "@/components/ui/Dialog";
 import Link from "next/link";
 import { useState } from "react";
 import { useApp } from "@/components/AppProvider";
@@ -20,7 +21,7 @@ export function StudioList({ initial }: { initial: JaceVideo[] }) {
   }
 
   async function remove(v: JaceVideo) {
-    if (!confirm(`Delete "${v.title}" from Jace? This can't be undone.`)) return;
+    if (!(await confirmDialog({ title: `Delete "${v.title}" from Jace?`, message: "This can't be undone.", confirm: "Delete", danger: true }))) return;
     const res = await fetch(`/api/videos/${v.id}`, { method: "DELETE" });
     if (res.ok) setVideos((list) => list.filter((x) => x.id !== v.id));
     else showNotice({ kind: "error", text: "Couldn't delete that. Try again." });

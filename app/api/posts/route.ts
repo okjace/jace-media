@@ -7,7 +7,7 @@ import { getCurrent } from "@/lib/session";
 import type { PostVideo } from "@/lib/types";
 import { parseYouTubeVideo, VIDEO_ID } from "@/lib/youtube";
 
-/** A Jace video's link anywhere in the text (Jace Media or JaceTube watch pages). */
+/** A Jace video's link anywhere in the text (Jace Media watch pages). */
 const JACE_LINK = /https?:\/\/[^\s]*\/watch\/jace\/([A-Za-z0-9_-]{6,64})/;
 
 /** The video for a post: the one uploaded with it, or the first YouTube or Jace video linked in it. */

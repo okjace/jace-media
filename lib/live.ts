@@ -1,5 +1,6 @@
 import "server-only";
 import type { VideoCard } from "./types";
+import type { Service } from "./services";
 
 /**
  * Live: games happening now on Jace Live, Twitch streams (with
@@ -133,3 +134,6 @@ export async function youtubeLive(limit = 12): Promise<VideoCard[]> {
     duration: "PT0S",
   }));
 }
+
+/** Services that can't work on this server (no keys), so they're never offered. */
+export const UNAVAILABLE_SERVICES: Service[] = hasTwitch ? [] : ["twitch"];

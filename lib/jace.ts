@@ -149,7 +149,7 @@ export async function getUserInfo(token: string): Promise<UserInfo> {
   };
 }
 
-// ---------- Videos (read only; uploading lives in JaceTube) ----------
+// ---------- Videos  ----------
 
 export type VideoPage = { videos: JaceVideo[]; nextBefore: string | null };
 
@@ -177,7 +177,7 @@ export async function getVideo(token: string | null, id: string): Promise<JaceVi
   }
 }
 
-/** Comments on a Jace video as the signed-in person (they show on JaceTube too). */
+/** Comments on a Jace video as the signed-in person. */
 export async function addVideoComment(token: string, videoId: string, body: string): Promise<void> {
   await call(token, `/api/oauth/videos/${encodeURIComponent(videoId)}/comments`, { method: "POST", body: JSON.stringify({ body }) });
 }
@@ -223,7 +223,7 @@ export async function deleteVideo(token: string, id: string): Promise<void> {
   await call(token, `/api/oauth/videos/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
-/** Likes or unlikes a Jace video as the signed-in person (counts on JaceTube too). */
+/** Likes or unlikes a Jace video as the signed-in person. */
 export async function setVideoLike(token: string, id: string, liked: boolean): Promise<{ likes: number; liked_by_me: boolean }> {
   return (await call(token, `/api/oauth/videos/${encodeURIComponent(id)}/likes`, { method: liked ? "POST" : "DELETE" })) as { likes: number; liked_by_me: boolean };
 }

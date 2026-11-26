@@ -1,8 +1,9 @@
 "use client";
 
+import { confirmDialog } from "@/components/ui/Dialog";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Avatar } from "@/components/Avatar";
 import { signInHref, useApp } from "@/components/AppProvider";
 import { FollowButton } from "@/components/actions/FollowButton";
@@ -10,6 +11,8 @@ import { followTarget } from "@/lib/follow";
 import { timeAgo } from "@/lib/format";
 import { authorHref, placeHref, postHref } from "@/lib/links";
 import { rate } from "@/lib/rate-client";
+import { copyText, MenuAt, useContextMenu, type MenuItem } from "@/components/ui/ContextMenu";
+import { MarkdownToolbar } from "./MarkdownToolbar";
 import type { FeedItem } from "@/lib/types";
 import { NetworkBadge } from "./NetworkBadge";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
@@ -21,51 +24,6 @@ import { RichText } from "./RichText";
 
 const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
 const SITE: Record<string, string> = { bluesky: "Bluesky", mastodon: "Mastodon", lemmy: "Lemmy", hackernews: "Hacker News", rss: "the site" };
-
-/** The ⋯ menu on a post: rate it appropriate or inappropriate. */
-function PostMenu({ target, onHide }: { target: string; onHide: () => void }) {
-  const { current, showNotice } = useApp();
-  const [open, setOpen] = useState(false);
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
-  if (!current) return null;
-  async function rateIt(rating: 1 | -1) {
-    setOpen(false);
-    if (!(await rate(target, rating))) return;
-    if (rating === -1) {
-      onHide();
-      showNotice({ kind: "info", text: "Thanks. It's hidden for you, and your rating helps hide it for others." });
-    } else showNotice({ kind: "info", text: "Thanks for rating it appropriate." });
-  }
-  return (
-    <div ref={box} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-label="More"
-        aria-expanded={open}
-        className="flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-foreground/[.08] hover:text-foreground"
-      >
-        ⋯
-      </button>
-      {open && (
-        <div role="menu" className="absolute right-0 top-9 z-30 w-56 overflow-hidden rounded-xl border border-line bg-panel py-1 text-sm shadow-xl shadow-black/30">
-          <button type="button" role="menuitem" onClick={() => rateIt(1)} className="block w-full px-4 py-2 text-left hover:bg-foreground/[.06]">
-            👍 Rate appropriate
-          </button>
-          <button type="button" role="menuitem" onClick={() => rateIt(-1)} className="block w-full px-4 py-2 text-left text-danger hover:bg-danger/10">
-            🚩 Rate inappropriate
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
 
 /** Jace and Lemmy posts are written in Markdown; other networks' posts are plain text. */
 function Body({ item, text }: { item: FeedItem; text: string }) {
@@ -110,10 +68,19 @@ export function PostCard({
   const [liked, setLiked] = useState(!!item.likedByMe);
   const [likes, setLikes] = useState(item.stats.likes ?? 0);
   const [deleted, setDeleted] = useState(false);
+  const [body, setBody] = useState(item.text);
+  const [editedAt, setEditedAt] = useState(item.editedAt ?? null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
+  const editBox = useRef<HTMLTextAreaElement>(null);
+  const moreButton = useRef<HTMLButtonElement>(null);
   const isJace = item.network === "jace";
   const isComment = variant === "comment";
   const thread = postHref(item);
   const author = authorHref(item);
+  const isArticle = item.network === "rss";
   const counts = !extensions.hideCounts;
 
   async function toggleLike() {
@@ -136,7 +103,7 @@ export function PostCard({
   }
 
   async function remove() {
-    if (!confirm(isComment ? "Delete this comment?" : "Delete this post? This can't be undone.")) return;
+    if (!(await confirmDialog({ title: isComment ? "Delete this comment?" : "Delete this post?", message: isComment ? undefined : "This can't be undone.", confirm: "Delete", danger: true }))) return;
     const target = item.repostedBy ? item.repostedBy.repostId : item.id;
     const res = await fetch(isComment ? `/api/ext-comments?id=${target}` : `/api/posts/${target}`, { method: "DELETE" });
     if (res.ok) {
@@ -145,17 +112,86 @@ export function PostCard({
     } else showNotice({ kind: "error", text: "Couldn't delete that." });
   }
 
+  const canEdit = !!item.canEdit && !item.repostedBy && (isJace || isComment);
+  const editLimit = isComment ? 1000 : 3000;
+
+  async function saveEdit() {
+    const next = draft.trim();
+    if (next === body.trim()) return setEditing(false);
+    setSaving(true);
+    const res = await fetch(isComment ? `/api/ext-comments?id=${encodeURIComponent(item.id)}` : `/api/posts/${item.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body: next }),
+    });
+    setSaving(false);
+    if (res.ok) {
+      setBody(next);
+      setEditedAt(new Date().toISOString());
+      setEditing(false);
+    } else {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      showNotice({ kind: "error", text: data.error ?? "Couldn't save your edit." });
+    }
+  }
+
+  async function hidePost(kind: "post" | "author") {
+    const res = await fetch("/api/hidden", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind, ref: kind === "post" ? `${item.network}:${item.id}` : `${item.network}:${item.author.handle}` }),
+    });
+    if (res.ok) {
+      setDeleted(true);
+      showNotice({ kind: "info", text: kind === "post" ? "Got it. You won't see this post again." : `You won't see posts from ${item.author.name} anymore.` });
+    } else showNotice({ kind: "error", text: "Couldn't hide that." });
+  }
+
+  async function rateIt(rating: 1 | -1) {
+    if (!(await rate(`${item.network}:${item.id}`, rating))) return;
+    if (rating === -1) {
+      setDeleted(true);
+      showNotice({ kind: "info", text: "Thanks. It's hidden for you, and your rating helps hide it for others." });
+    } else showNotice({ kind: "info", text: "Thanks for rating it appropriate." });
+  }
+
+  /** The post's menu: right-click it, press and hold it, or press ⋯. */
+  const menuItems = (): MenuItem[] => {
+    const list: MenuItem[] = [];
+    const link = thread && !isComment ? `${window.location.origin}${thread}` : item.url;
+    if (canEdit) list.push({ label: "Edit", icon: "✏️", onSelect: () => (setDraft(body), setEditing(true)) });
+    if (item.canDelete) list.push({ label: item.repostedBy?.canDelete ? "Undo repost" : "Delete", icon: "🗑", danger: true, onSelect: remove });
+    if (list.length) list.push("divider");
+    if (thread && !isComment && !isArticle) list.push({ label: "Open in new tab", icon: "↗", href: thread, newTab: true });
+    if (author) list.push({ label: `Go to ${item.author.name}`, icon: "👤", href: author });
+    if (body) list.push({ label: "Copy text", icon: "📋", onSelect: async () => showNotice((await copyText(body)) ? { kind: "info", text: "Text copied." } : { kind: "error", text: "Couldn't copy." }) });
+    if (link) {
+      list.push({ label: "Copy link", icon: "🔗", onSelect: async () => showNotice((await copyText(link)) ? { kind: "info", text: "Link copied." } : { kind: "error", text: "Couldn't copy the link." }) });
+      if ("share" in navigator) list.push({ label: "Share…", icon: "📤", onSelect: () => navigator.share({ title: item.title ?? item.author.name, url: link }).catch(() => {}) });
+    }
+    if (!isJace && item.url) list.push({ label: `Open on ${SITE[item.network] ?? "the site"}`, icon: "🌐", href: item.url, newTab: true });
+    const mine = isJace && item.authorSub === current?.sub;
+    if (current && !isComment && !mine) {
+      list.push("divider");
+      list.push({ label: "Not interested", icon: "🚫", onSelect: () => hidePost("post") });
+      list.push({ label: `Hide posts from ${item.author.name}`, icon: "⊘", onSelect: () => hidePost("author") });
+      list.push({ label: "Rate appropriate", icon: "👍", onSelect: () => rateIt(1) });
+      list.push({ label: "Rate inappropriate", icon: "🚩", danger: true, onSelect: () => rateIt(-1) });
+    }
+    return list;
+  };
+  const context = useContextMenu(menuItems);
+
   if (deleted) return null;
 
   const images = item.media.slice(0, 4);
   const target = followTarget(item);
   const canFollow = !isComment && !!target && !(isJace && item.authorSub === current?.sub);
-  const isArticle = item.network === "rss";
   const clickable = linkToThread && !isComment && !isArticle;
-  const text = linkToThread && item.text.length > 900 ? `${item.text.slice(0, 900)}…` : item.text;
+  const text = linkToThread && body.length > 900 ? `${body.slice(0, 900)}…` : body;
 
   return (
-    <article className={`rounded-2xl border border-line bg-panel transition-colors ${isComment ? "p-3" : "p-4 hover:border-foreground/20"}`}>
+    <article {...(editing ? {} : context.props)} className={`rounded-2xl border border-line bg-panel transition-colors ${isComment ? "p-3" : "p-4 hover:border-foreground/20"}`}>
       {item.repostedBy && (
         <p className="mb-2 flex items-center gap-2 pl-[52px] text-xs font-medium text-muted">
           <span aria-hidden="true">↻</span>
@@ -193,10 +229,30 @@ export function PostCard({
                 {timeAgo(item.createdAt)}
               </time>
             </MaybeLink>
+            {editedAt && (
+              <span title={`Edited ${new Date(editedAt).toLocaleString()}`} suppressHydrationWarning>
+                · edited
+              </span>
+            )}
           </div>
         </div>
         {canFollow && <FollowButton target={target!} initial={followed} size="sm" />}
-        {!isComment && <PostMenu target={`${item.network}:${item.id}`} onHide={() => setDeleted(true)} />}
+        <button
+          ref={moreButton}
+          type="button"
+          onClick={() => {
+            const r = moreButton.current!.getBoundingClientRect();
+            setMenuAt(menuAt ? null : { x: r.right - 224, y: r.bottom + 4 });
+          }}
+          aria-label="More"
+          aria-haspopup="menu"
+          aria-expanded={!!menuAt}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-foreground/[.08] hover:text-foreground"
+        >
+          ⋯
+        </button>
+        {menuAt && <MenuAt x={menuAt.x} y={menuAt.y} items={menuItems()} onClose={() => setMenuAt(null)} />}
+        {context.menu}
       </header>
 
       <div className={`space-y-2 ${isComment ? "mt-2 pl-11" : "mt-3"}`}>
@@ -205,7 +261,41 @@ export function PostCard({
             {item.title}
           </MaybeLink>
         )}
-        {text &&
+        {editing ? (
+          <div className="flex flex-col gap-2" data-no-menu>
+            {(isJace || item.network === "lemmy") && <MarkdownToolbar target={editBox} onChange={setDraft} />}
+            <textarea
+              ref={editBox}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setEditing(false);
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void saveEdit();
+              }}
+              rows={Math.min(12, Math.max(3, draft.split("\n").length + 1))}
+              maxLength={editLimit}
+              autoFocus
+              className="w-full rounded-xl border border-line bg-background px-3 py-2 text-[15px] outline-none focus:border-accent"
+            />
+            <div className="flex items-center gap-2">
+              <span className="text-xs tabular-nums text-muted">
+                {draft.length}/{editLimit}
+              </span>
+              <span className="flex-1" />
+              <button type="button" onClick={() => setEditing(false)} className="h-8 rounded-full border border-line px-4 text-sm hover:bg-foreground/[.05]">
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveEdit}
+                disabled={saving}
+                className="h-8 rounded-full bg-accent px-4 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50"
+              >
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        ) : text &&
           (clickable ? (
             // Opens the post, except when a link inside the text was clicked.
             <div
@@ -284,11 +374,16 @@ export function PostCard({
       </div>
 
       {isComment ? (
-        item.canDelete && (
+        (item.canDelete || canEdit) && !editing && (
           <div className="mt-1 flex justify-end">
-            <button type="button" onClick={remove} className="rounded-full px-2 py-1 text-xs text-muted hover:bg-danger/10 hover:text-danger">
+            {canEdit && (
+              <button type="button" onClick={() => (setDraft(body), setEditing(true))} className="rounded-full px-2 py-1 text-xs text-muted hover:bg-foreground/[.06] hover:text-foreground">
+                Edit
+              </button>
+            )}
+            {item.canDelete && <button type="button" onClick={remove} className="rounded-full px-2 py-1 text-xs text-muted hover:bg-danger/10 hover:text-danger">
               Delete
-            </button>
+            </button>}
           </div>
         )
       ) : (
@@ -322,6 +417,11 @@ export function PostCard({
             </Link>
           )}
           <span className="flex-1" />
+          {canEdit && !editing && (
+            <button type="button" onClick={() => (setDraft(body), setEditing(true))} className="rounded-full px-2.5 py-1 text-xs hover:bg-foreground/[.06] hover:text-foreground">
+              Edit
+            </button>
+          )}
           {item.canDelete && !item.repostedBy && (
             <button type="button" onClick={remove} className="rounded-full px-2.5 py-1 text-xs hover:bg-danger/10 hover:text-danger">
               Delete

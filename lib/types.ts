@@ -111,6 +111,10 @@ export type FeedItem = {
   place?: string | null;
   /** Jace posts only. */
   authorSub?: string;
+  /** When it was last edited, if ever. */
+  editedAt?: string | null;
+  /** You wrote it, so you can edit it. */
+  canEdit?: boolean;
   /** A quoted (or reposted) post, from any network. */
   quote?: FeedItem | null;
   /** Set when this is a plain repost: who reposted it, and the repost's own id. */

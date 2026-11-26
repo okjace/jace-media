@@ -89,12 +89,6 @@ export default async function JaceWatchPage({ params, searchParams }: PageProps<
             >
               <span aria-hidden="true">⬇</span> Download
             </a>
-            <a
-              href={`https://jacetube.vercel.app/watch/jace/${video.id}`}
-              className="flex h-9 items-center rounded-full bg-foreground/[.07] px-4 text-sm font-medium transition-colors hover:bg-foreground/[.12]"
-            >
-              Comment on JaceTube
-            </a>
           </div>
         </div>
         <Description

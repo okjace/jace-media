@@ -5,7 +5,7 @@ import type { NextResponse } from "next/server";
 import { q } from "./db";
 import { parseExtensions, type Extensions } from "./extensions";
 import { getCurrent } from "./session";
-import { ALL_SERVICES, parseServices, serializeServices, type Service } from "./services";
+import { DEFAULT_SERVICES, parseServices, serializeServices, type Service } from "./services";
 
 /**
  * Preferences: which services to show, and which extensions are on. Signed
@@ -15,6 +15,8 @@ import { ALL_SERVICES, parseServices, serializeServices, type Service } from "./
 
 export const SERVICES_COOKIE = "jm_services";
 export const EXTENSIONS_COOKIE = "jm_extensions";
+/** Set once the first-run setup is finished or skipped. */
+export const SETUP_COOKIE = "jm_setup";
 
 const COOKIE = { path: "/", sameSite: "lax" as const, maxAge: 60 * 60 * 24 * 365, httpOnly: true };
 
@@ -41,7 +43,7 @@ export const getExtensions = cache(async (): Promise<Extensions> => {
 });
 
 export async function saveServices(res: NextResponse, services: Service[]): Promise<void> {
-  const value = serializeServices(services.length ? services : ALL_SERVICES);
+  const value = serializeServices(services.length ? services : DEFAULT_SERVICES);
   res.cookies.set(SERVICES_COOKIE, value, COOKIE);
   const current = await getCurrent();
   if (current) await q(`UPDATE profiles SET services = $2 WHERE sub = $1`, [current.sub, value]);
@@ -52,4 +54,15 @@ export async function saveExtensions(res: NextResponse, extensions: Extensions):
   res.cookies.set(EXTENSIONS_COOKIE, value, COOKIE);
   const current = await getCurrent();
   if (current) await q(`UPDATE profiles SET extensions = $2 WHERE sub = $1`, [current.sub, value]);
+}
+
+/** Whether to show the first-run setup: nobody here has set anything up yet. */
+export async function needsSetup(): Promise<boolean> {
+  const store = await cookies();
+  if (store.get(SETUP_COOKIE)?.value || store.get(SERVICES_COOKIE)?.value) return false;
+  return !(await accountPrefs())?.services;
+}
+
+export function markSetupDone(res: NextResponse): void {
+  res.cookies.set(SETUP_COOKIE, "1", COOKIE);
 }

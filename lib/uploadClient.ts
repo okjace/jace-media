@@ -3,7 +3,7 @@
 import type { JaceVideoDetail, Visibility } from "./types";
 
 /**
- * Uploads go straight from the browser to Jace's storage: JaceTube's server
+ * Uploads go straight from the browser to Jace's storage: Jace Media's server
  * asks Jace for a signed upload URL (/api/uploads), the browser sends the
  * file there, and then /api/videos publishes it as a Jace video.
  */
@@ -145,7 +145,7 @@ export function captureThumbnail(file: Blob, atSeconds = 1): Promise<Blob | null
     video.playsInline = true;
     video.preload = "auto";
     video.onloadedmetadata = () => {
-      video.currentTime = Math.min(atSeconds, Math.max(0, (video.duration || 0) / 3));
+      video.currentTime = Math.min(atSeconds, Math.max(0, (video.duration || 0) - 0.1));
     };
     video.onseeked = () => {
       const scale = Math.min(1, 1280 / (video.videoWidth || 1280));

@@ -14,7 +14,7 @@ export function redirectUri(req: NextRequest): string {
 /** Only same-site paths, so `next` can't be used as an open redirect. */
 export function safeNext(value: string | null | undefined): string {
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) return "/";
-  if (value.startsWith("/api/")) return "/";
+  if (value.startsWith("/api/")) return value === "/api/app/done" ? value : "/";
   return value;
 }
 

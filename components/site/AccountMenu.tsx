@@ -170,6 +170,7 @@ export function AccountMenu() {
               ["/import", "Import from YouTube"],
               ["/services", "Choose services"],
               ["/feeds", "Your feeds"],
+              ["/setup", "Replay setup"],
             ].map(([href, label]) => (
               <Link key={href} href={href} onClick={() => setOpen(false)} role="menuitem" className="rounded-xl px-3 py-2 hover:bg-foreground/[.05]">
                 {label}

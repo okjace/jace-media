@@ -1,21 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The Jace Media mark (the J with a little feed), centered in the adaptive icon's safe area. -->
+<!-- The Jace Media mark (stacked feed cards with a play button), centered in the adaptive icon's safe area. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="512"
     android:viewportHeight="512">
-    <group android:scaleX="0.6" android:scaleY="0.6" android:pivotX="256" android:pivotY="256">
-        <path
-            android:pathData="M280,128v168a74,74 0,0 1,-141 31"
-            android:strokeColor="#0C1410"
-            android:strokeWidth="52"
-            android:strokeLineCap="round" />
-        <path android:fillColor="#0C1410" android:pathData="M376,152m-32,0a32,32 0,1 1,64 0a32,32 0,1 1,-64 0" />
-        <path
-            android:pathData="M360,240h48M360,320h48"
-            android:strokeColor="#0C1410"
-            android:strokeWidth="38"
-            android:strokeLineCap="round" />
+    <group android:scaleX="0.62" android:scaleY="0.62" android:pivotX="256" android:pivotY="256">
+        <group android:rotation="-12" android:pivotX="272" android:pivotY="182">
+            <path android:fillColor="#3DDC84" android:fillAlpha="0.22"
+                android:pathData="M188,92h168a40,40 0,0 1,40 40v100a40,40 0,0 1,-40 40h-168a40,40 0,0 1,-40 -40v-100a40,40 0,0 1,40 -40z" />
+        </group>
+        <group android:rotation="-6" android:pivotX="260" android:pivotY="222">
+            <path android:fillColor="#3DDC84" android:fillAlpha="0.45"
+                android:pathData="M174,128h172a42,42 0,0 1,42 42v104a42,42 0,0 1,-42 42h-172a42,42 0,0 1,-42 -42v-104a42,42 0,0 1,42 -42z" />
+        </group>
+        <path android:fillColor="#3DDC84"
+            android:pathData="M156,176h200a52,52 0,0 1,52 52v128a52,52 0,0 1,-52 52h-200a52,52 0,0 1,-52 -52v-128a52,52 0,0 1,52 -52z" />
+        <path android:fillColor="#0C1410"
+            android:pathData="M226,236c0,-14 15,-23 27,-16l80,46c12,7 12,25 0,32l-80,46c-12,7 -27,-2 -27,-16z" />
     </group>
 </vector>

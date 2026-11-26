@@ -10,9 +10,9 @@ export const metadata: Metadata = { title: "Upload a video" };
 export default async function UploadPage() {
   const viewer = await getViewer();
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-5xl">
       <PageTitle title="Upload a video">
-        It&apos;s saved on your Jace account as a Jace video, with no ads, and shows on JaceTube too. Up to 5 GB.{" "}
+        It&apos;s saved on your Jace account as a Jace video, with no ads. Preview and edit it first: trim, cut, crop, rotate, filters, speed, sound, text, and quality. Up to 5 GB.{" "}
         <Link href="/studio" className="text-accent hover:underline">
           Your videos
         </Link>

@@ -1,18 +1,19 @@
 "use client";
 
+import { confirmDialog, promptDialog } from "@/components/ui/Dialog";
 import { useRouter } from "next/navigation";
 
 /** Rename or delete a playlist. */
 export function PlaylistActions({ id, name }: { id: string; name: string }) {
   const router = useRouter();
   async function rename() {
-    const next = prompt("Rename playlist", name);
+    const next = await promptDialog({ title: "Rename playlist", value: name, maxLength: 100, confirm: "Rename" });
     if (!next || next === name) return;
     await fetch(`/api/playlists/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: next }) });
     router.refresh();
   }
   async function remove() {
-    if (!confirm(`Delete "${name}"? The videos stay where they are.`)) return;
+    if (!(await confirmDialog({ title: `Delete "${name}"?`, message: "The videos stay where they are.", confirm: "Delete", danger: true }))) return;
     await fetch(`/api/playlists/${id}`, { method: "DELETE" });
     router.push("/playlists");
     router.refresh();

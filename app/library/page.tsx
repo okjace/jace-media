@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { FollowButton } from "@/components/actions/FollowButton";
 import { LibraryActions } from "@/components/LibraryActions";
+import { ResetLibrary } from "@/components/ResetLibrary";
 import { Avatar } from "@/components/Avatar";
 import { PageTitle } from "@/components/PageTitle";
 import { getViewer } from "@/lib/auth";
@@ -92,6 +93,7 @@ export default async function LibraryPage() {
           </ul>
         )}
       </section>
+      <ResetLibrary counts={{ history: counts.history, likes: counts.liked, subscriptions: counts.subs, hidden: counts.hidden }} />
     </div>
   );
 }

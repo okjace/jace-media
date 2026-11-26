@@ -1,53 +1,26 @@
 import Link from "next/link";
-import { MixedFeed } from "@/components/feed/MixedFeed";
+import { redirect } from "next/navigation";
+import { needsSetup } from "@/lib/prefs";
+import { FeedPage } from "@/components/feed/FeedPage";
+import { HomeLayout } from "@/components/feed/HomeLayout";
 import { getViewer } from "@/lib/auth";
 import { buildFeed, getFeed } from "@/lib/customfeeds";
-import { Composer } from "@/components/feed/Composer";
-import { FeedList } from "@/components/feed/FeedList";
-import { ContinueWatching } from "@/components/videos/ContinueWatching";
-import { VideoGrid } from "@/components/videos/VideoGrid";
 import { jacePosts } from "@/lib/feeds";
-import { watchHref } from "@/lib/format";
 import { getTaste, rankPosts, recommendedVideos } from "@/lib/recommend";
 import { NETWORKS } from "@/lib/social";
 import { followedRss } from "@/lib/rss";
 import { withDeArrow } from "@/lib/ytextras";
-import type { FeedItem, VideoCard } from "@/lib/types";
+import type { FeedItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-
-function ShortsShelf({ shorts }: { shorts: VideoCard[] }) {
-  if (shorts.length === 0) return null;
-  return (
-    <section className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold">Shorts</h2>
-        <Link href="/shorts" className="text-sm text-accent hover:underline">
-          Watch Shorts
-        </Link>
-      </div>
-      <div className="no-scrollbar -mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
-        {shorts.map((s) => (
-          <Link key={`${s.source}:${s.id}`} href={watchHref(s)} className="group w-36 shrink-0">
-            <div className="aspect-[9/16] overflow-hidden rounded-xl bg-panel">
-              {s.thumbnail && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={s.thumbnail} alt="" loading="lazy" referrerPolicy="no-referrer" className="h-full w-full object-cover transition-transform group-hover:scale-[1.03]" />
-              )}
-            </div>
-            <p className="mt-1.5 line-clamp-2 text-sm font-medium leading-snug">{s.title}</p>
-          </Link>
-        ))}
-      </div>
-    </section>
-  );
-}
 
 /**
  * For you: recommended videos, Shorts, and posts from every service you
  * turned on, ranked for you (see lib/recommend.ts).
  */
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ for?: string }> }) {
+  // First time here: the setup screen.
+  if (await needsSetup()) redirect("/setup");
   // Your chosen custom feed, if you picked one as Home (For you is one tap away).
   const taste = await getTaste();
   if (taste.ext.homeFeed && (await searchParams).for !== "you") {
@@ -56,23 +29,16 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     if (feed) {
       const entries = await buildFeed(feed.rules, 80);
       return (
-        <div className="mx-auto flex max-w-3xl flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">{feed.name}</h1>
-              <p className="text-sm text-muted">Your Home feed</p>
-            </div>
-            <div className="flex gap-2">
-              <Link href="/?for=you" className="rounded-full border border-line px-4 py-1.5 text-sm hover:bg-foreground/[.05]">
-                For you
-              </Link>
-              <Link href={`/feeds?edit=${feed.id}`} className="rounded-full border border-line px-4 py-1.5 text-sm hover:bg-foreground/[.05]">
-                Edit feed
-              </Link>
-            </div>
-          </div>
-          <MixedFeed entries={entries} empty="Nothing in this feed right now." />
-        </div>
+        <FeedPage
+          feed={feed}
+          entries={entries}
+          subtitle="Your Home feed"
+          actions={
+            <Link href="/?for=you" className="rounded-full border border-line px-4 py-1.5 text-sm hover:bg-foreground/[.05]">
+              For you
+            </Link>
+          }
+        />
       );
     }
   }
@@ -99,50 +65,19 @@ async function ForYou() {
   const ranked = rankPosts(posts, taste, 60);
 
   return (
-    <div className="flex flex-col gap-8">
-      <ContinueWatching />
-      {videos.length > 0 && (
-        <section className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Recommended videos</h2>
-            <Link href="/videos" className="text-sm text-accent hover:underline">
-              More videos
-            </Link>
-          </div>
-          <VideoGrid videos={videos.slice(0, 6)} />
-        </section>
-      )}
-      {!taste.signedIn && (
-        <p className="rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-muted">
-          Sign in and import your YouTube history to get recommendations made for you.
-        </p>
-      )}
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="flex flex-col gap-4">
-          {on("jace") && <Composer />}
-          <ShortsShelf shorts={shorts} />
-          <FeedList items={ranked.slice(0, 30)} empty="Nothing to show right now. Turn on more services in Choose services." />
-          {videos.length > 6 && (
-            <section className="flex flex-col gap-4">
-              <h2 className="text-lg font-semibold">More for you</h2>
-              <VideoGrid videos={videos.slice(6)} />
-            </section>
-          )}
-          {ranked.length > 30 && <FeedList items={ranked.slice(30)} />}
-        </div>
-        <aside className="hidden flex-col gap-3 text-sm lg:sticky lg:top-32 lg:flex lg:self-start">
-          <div className="rounded-2xl border border-line bg-panel p-4">
-            <p className="font-semibold">Make it yours</p>
-            <ul className="mt-2 flex flex-col gap-1.5 text-muted">
-              <li><Link href="/import" className="hover:text-foreground">↳ Import from YouTube</Link></li>
-              <li><Link href="/services" className="hover:text-foreground">↳ Choose services</Link></li>
-              <li><Link href="/feeds" className="hover:text-foreground">↳ Make a custom feed</Link></li>
-              <li><Link href="/library" className="hover:text-foreground">↳ Your library</Link></li>
-            </ul>
-          </div>
-          <p className="px-1 text-xs text-muted">No ads on Jace Media, ever.</p>
-        </aside>
-      </div>
-    </div>
+    <HomeLayout
+      videos={videos}
+      shorts={shorts}
+      posts={ranked}
+      composer={on("jace")}
+      empty="Nothing to show right now. Turn on more services in Choose services."
+      notice={
+        !taste.signedIn && (
+          <p className="rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-muted">
+            Sign in and import your YouTube history to get recommendations made for you.
+          </p>
+        )
+      }
+    />
   );
 }

@@ -14,7 +14,7 @@ const POLL_DAYS = [1, 3, 7];
 type Viewer = { sub: string; isAdmin: boolean } | null;
 
 const SELECT = `
-  SELECT p.id, p.parent_id, p.body, p.image_id, p.image_url, p.video, p.created_at, p.author_sub, p.quote, p.poll,
+  SELECT p.id, p.parent_id, p.body, p.image_id, p.image_url, p.video, p.created_at, p.edited_at, p.author_sub, p.quote, p.poll,
     pr.sub, pr.handle, pr.jace_name, pr.jace_picture, pr.display_name, pr.avatar_id, pr.bio, pr.is_admin, pr.muted,
     (SELECT count(*) FROM likes l WHERE l.post_id = p.id)::int AS like_count,
     (SELECT count(*) FROM posts r WHERE r.parent_id = p.id)::int AS reply_count,
@@ -88,6 +88,8 @@ function toItem(r: Record<string, unknown>, viewer: Viewer): FeedItem & { parent
     poll: toPoll(r),
     likedByMe: !!r.liked,
     canDelete,
+    canEdit: !!viewer && viewer.sub === r.author_sub,
+    editedAt: r.edited_at ? new Date(Number(r.edited_at)).toISOString() : null,
   };
 }
 
@@ -256,4 +258,17 @@ export async function vote(sub: string, id: string, option: number): Promise<Pol
 export async function postCount(sub: string): Promise<number> {
   const rows = await q(`SELECT count(*)::int AS n FROM posts WHERE author_sub = $1 AND parent_id IS NULL`, [sub]);
   return Number(rows[0]?.n ?? 0);
+}
+
+/** Changes the words of your own post or reply (pictures, videos, polls, and quotes stay). */
+export async function editPost(author: Profile, id: string, text: string): Promise<{ ok: true } | { error: string }> {
+  if (author.muted) return { error: "Your Jace account is muted, so you can't edit posts right now." };
+  const rows = await q(`SELECT author_sub, image_id, image_url, video, poll, quote FROM posts WHERE id = $1`, [id]);
+  const post = rows[0];
+  if (!post || post.author_sub !== author.sub) return { error: "You can only edit your own posts." };
+  const body = text.replace(/\r\n/g, "\n").trim();
+  if (body.length > MAX_POST) return { error: `Posts can be up to ${MAX_POST} characters.` };
+  if (!body && !post.image_id && !post.image_url && !post.video && !post.poll && !post.quote) return { error: "A post can't be empty." };
+  await q(`UPDATE posts SET body = $2, edited_at = $3 WHERE id = $1`, [id, body, Date.now()]);
+  return { ok: true };
 }

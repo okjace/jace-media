@@ -19,6 +19,18 @@ const myRatings = cache(async (): Promise<Map<string, number>> => {
   }
 });
 
+/** Posts you said you're not interested in, and people whose posts you hid. */
+const myHidden = cache(async (): Promise<Set<string>> => {
+  const viewer = await getViewer();
+  if (!viewer) return new Set();
+  try {
+    const rows = await q(`SELECT kind, ref FROM hidden WHERE sub = $1 AND kind IN ('post', 'author')`, [viewer.sub]);
+    return new Set(rows.map((r) => `${r.kind}|${r.ref}`));
+  } catch {
+    return new Set();
+  }
+});
+
 async function votes(targets: string[]): Promise<Map<string, { good: number; bad: number }>> {
   if (targets.length === 0) return new Map();
   try {
@@ -46,7 +58,9 @@ async function filter<T>(items: T[], key: (x: T) => string, text: (x: T) => stri
   });
 }
 
-export function filterPosts(items: FeedItem[]): Promise<FeedItem[]> {
+export async function filterPosts(items: FeedItem[]): Promise<FeedItem[]> {
+  const hidden = await myHidden();
+  if (hidden.size) items = items.filter((p) => !hidden.has(`post|${p.network}:${p.id}`) && !hidden.has(`author|${p.network}:${p.author.handle}`));
   return filter(items, (p) => `${p.network}:${p.id}`, (p) => `${p.title ?? ""} ${p.text} ${p.author.name}`);
 }
 
