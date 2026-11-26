@@ -30,9 +30,10 @@ export async function jaceLiveGames(): Promise<JaceLiveGame[] | null> {
   return data?.games ?? null;
 }
 
-/** Popular question sets to host. */
-export async function jaceLiveSets(): Promise<JaceLiveSet[]> {
-  const data = await getJson<{ sets: JaceLiveSet[] }>(`${JACE_LIVE_URL}/api/live/discover?sort=popular`, { next: { revalidate: 600 } });
+/** Popular question sets to host (or ones matching a search). */
+export async function jaceLiveSets(q?: string): Promise<JaceLiveSet[]> {
+  const search = q ? `&q=${encodeURIComponent(q.slice(0, 60))}` : "";
+  const data = await getJson<{ sets: JaceLiveSet[] }>(`${JACE_LIVE_URL}/api/live/discover?sort=popular${search}`, { next: { revalidate: 600 } });
   return (data?.sets ?? []).slice(0, 12);
 }
 

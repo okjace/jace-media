@@ -14,7 +14,7 @@ const CATEGORIES = Object.keys(SEGMENT_INFO) as SegmentCategory[];
 /** Turn extensions on and off. Saved right away. */
 export function ExtensionsPanel({ initial }: { initial: Extensions }) {
   const router = useRouter();
-  const { current, showNotice } = useApp();
+  const { current, showNotice, invidious } = useApp();
   const [ext, setExt] = useState(initial);
 
   async function save(next: Extensions) {
@@ -56,7 +56,7 @@ export function ExtensionsPanel({ initial }: { initial: Extensions }) {
         <section key={group} className="flex flex-col gap-3">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted">{group}</h2>
           <ul className="flex flex-col gap-2">
-            {EXTENSIONS.filter((e) => e.group === group).map((e) => (
+            {EXTENSIONS.filter((e) => e.group === group && (e.id !== "privatePlayback" || invidious)).map((e) => (
               <li key={e.id} className="rounded-2xl border border-line bg-panel p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">

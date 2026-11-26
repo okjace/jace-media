@@ -19,7 +19,8 @@ export type ExtensionId =
   | "rememberSpeed"
   | "ambient"
   | "hideCounts"
-  | "miniPlayer";
+  | "miniPlayer"
+  | "privatePlayback";
 
 export type ExtensionInfo = {
   id: ExtensionId;
@@ -38,6 +39,14 @@ export const EXTENSIONS: ExtensionInfo[] = [
     group: "Ads and privacy",
     defaultOn: true,
     credit: { name: "SponsorBlock", url: "https://sponsor.ajay.app" },
+  },
+  {
+    id: "privatePlayback",
+    name: "Private playback",
+    blurb: "YouTube videos play through this site's Invidious server in Jace Media's own player: YouTube never sees you, and there are no YouTube ads. Only shows when the site has an Invidious server.",
+    group: "Ads and privacy",
+    defaultOn: true,
+    credit: { name: "Invidious", url: "https://invidious.io" },
   },
   {
     id: "privacy",

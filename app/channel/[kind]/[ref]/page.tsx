@@ -13,7 +13,7 @@ import { blueskyProfile, hnUserProfile, lemmyCommunityProfile, lemmyUserProfile,
 import type { FeedItem, VideoCard } from "@/lib/types";
 import { withDeArrow } from "@/lib/ytextras";
 import { fetchFeed } from "@/lib/rss";
-import { channelFeed, CHANNEL_ID } from "@/lib/youtube";
+import { channelFeed, channelInfo, channelUploads, CHANNEL_ID, hasYouTubeApi } from "@/lib/youtube";
 
 export const dynamic = "force-dynamic";
 
@@ -28,9 +28,9 @@ const NETWORK_LABEL: Record<string, string> = {
   rss: "News & blogs",
 };
 
-type Loaded = { profile: ExtProfile | (Omit<ExtProfile, "network" | "follow"> & { network: string; follow: { kind: string; ref: string; name: string; picture: string | null } | null }); posts: FeedItem[]; videos: VideoCard[] };
+type Loaded = { profile: ExtProfile | (Omit<ExtProfile, "network" | "follow"> & { network: string; follow: { kind: string; ref: string; name: string; picture: string | null } | null }); posts: FeedItem[]; videos: VideoCard[]; more?: boolean };
 
-async function load(kind: string, ref: string): Promise<Loaded | null> {
+async function load(kind: string, ref: string, pages = 1): Promise<Loaded | null> {
   switch (kind) {
     case "bluesky":
     case "mastodon":
@@ -69,7 +69,42 @@ async function load(kind: string, ref: string): Promise<Loaded | null> {
     }
     case "youtube": {
       if (!CHANNEL_ID.test(ref)) return null;
-      const feed = await channelFeed(ref);
+      // With a YouTube API key: the channel's real details and every upload, 50 per page.
+      const [info, feed] = await Promise.all([hasYouTubeApi ? channelInfo(ref) : null, channelFeed(ref)]);
+      if (info) {
+        const videos: VideoCard[] = [];
+        let token: string | undefined;
+        let more = false;
+        for (let i = 0; i < Math.min(pages, 20); i++) {
+          const page = await channelUploads(info.uploads, token);
+          if (!page) break;
+          videos.push(...page.videos);
+          token = page.next ?? undefined;
+          more = !!page.next;
+          if (!token) break;
+        }
+        // The channel's feed knows exactly which recent videos are Shorts.
+        const shorts = new Set((feed?.videos ?? []).filter((v) => v.short).map((v) => v.id));
+        return {
+          profile: {
+            network: "youtube",
+            name: info.name,
+            handle: info.handle ?? "YouTube channel",
+            picture: info.picture,
+            banner: info.banner,
+            bio: info.description,
+            stats: [
+              ...(info.subscribers !== null ? [{ label: "subscribers", value: info.subscribers }] : []),
+              ...(info.videoCount !== null ? [{ label: "videos", value: info.videoCount }] : []),
+            ],
+            url: `https://www.youtube.com/channel/${ref}`,
+            follow: { kind: "youtube", ref, name: info.name, picture: info.picture },
+          },
+          posts: [],
+          videos: videos.map((v) => (shorts.has(v.id) ? { ...v, short: true } : v)),
+          more,
+        };
+      }
       if (!feed) return null;
       return {
         profile: {
@@ -128,11 +163,13 @@ export default async function ChannelPage({ params, searchParams }: PageProps<"/
     const p = await getProfile(ref).catch(() => null);
     if (p) redirect(`/u/${encodeURIComponent(p.handle)}`);
   }
-  const [data, taste, ext] = await Promise.all([load(kind, ref), getTaste(), getExtensions()]);
+  const sp = await searchParams;
+  const pages = Math.max(1, Math.min(20, Number(sp.pages) || 1));
+  const [data, taste, ext] = await Promise.all([load(kind, ref, pages), getTaste(), getExtensions()]);
   if (!data) notFound();
   const { profile } = data;
-  const tab = (await searchParams).tab === "shorts" ? "shorts" : "videos";
-  const hasShorts = data.videos.some((v) => v.short) && !ext.hideShorts;
+  const tab = sp.tab === "shorts" ? "shorts" : "videos";
+  const hasShorts = (data.videos.some((v) => v.short) || tab === "shorts") && !ext.hideShorts;
   const videos = await withDeArrow(data.videos.filter((v) => (tab === "shorts" ? v.short : !v.short)));
   const followed = !!profile.follow && taste.following.has(`${profile.follow.kind}:${profile.follow.ref.toLowerCase()}`);
   const chip = (on: boolean) => `rounded-lg px-3 py-1.5 text-sm font-medium ${on ? "bg-foreground text-background" : "bg-foreground/[.07] hover:bg-foreground/[.12]"}`;
@@ -189,6 +226,17 @@ export default async function ChannelPage({ params, searchParams }: PageProps<"/
             </div>
           )}
           {videos.length ? <VideoGrid videos={videos} /> : <EmptyState title="Nothing here yet" />}
+          {data.more && (
+            <div className="flex justify-center">
+              <Link
+                href={`?tab=${tab}&pages=${pages + 1}`}
+                scroll={false}
+                className="rounded-full border border-line px-5 py-2 text-sm font-medium hover:bg-foreground/[.05]"
+              >
+                Show more
+              </Link>
+            </div>
+          )}
         </section>
       )}
       {data.posts.length > 0 && (

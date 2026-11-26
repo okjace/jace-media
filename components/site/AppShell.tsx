@@ -232,6 +232,17 @@ export function AppShell({ children }: { children: ReactNode }) {
     setDrawer(false);
   }, [pathname]);
 
+  // Shorts fill the screen: the page itself doesn't scroll (no scrollbar), only the Shorts do.
+  useEffect(() => {
+    if (!fullBleed) return;
+    const html = document.documentElement;
+    const before = html.style.overflow;
+    html.style.overflow = "hidden";
+    return () => {
+      html.style.overflow = before;
+    };
+  }, [fullBleed]);
+
   function toggleMenu() {
     if (window.matchMedia("(min-width: 1024px)").matches) {
       setWide((w) => {

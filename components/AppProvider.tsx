@@ -20,13 +20,15 @@ type AppState = {
   feeds: FeedTab[];
   extensions: Extensions;
   subs: SidebarSub[];
+  /** The site has an Invidious server for private playback. */
+  invidious: boolean;
   mini: MiniVideo | null;
   setMini: (v: MiniVideo | null) => void;
   notice: Notice | null;
   showNotice: (notice: Notice | null) => void;
 };
 
-const AppContext = createContext<AppState>({ current: null, others: [], services: [], feeds: [], extensions: DEFAULT_EXTENSIONS, subs: [], mini: null, setMini: () => {}, notice: null, showNotice: () => {} });
+const AppContext = createContext<AppState>({ current: null, others: [], services: [], feeds: [], extensions: DEFAULT_EXTENSIONS, subs: [], invidious: false, mini: null, setMini: () => {}, notice: null, showNotice: () => {} });
 
 export function useApp(): AppState {
   return useContext(AppContext);
@@ -58,6 +60,7 @@ export function AppProvider({
   feeds,
   extensions,
   subs,
+  invidious = false,
   autoSignIn,
   children,
 }: {
@@ -67,6 +70,7 @@ export function AppProvider({
   feeds: FeedTab[];
   extensions: Extensions;
   subs: SidebarSub[];
+  invidious?: boolean;
   autoSignIn: boolean;
   children: ReactNode;
 }) {
@@ -123,7 +127,7 @@ export function AppProvider({
     }
   }, [pathname]);
 
-  return <AppContext.Provider value={{ current, others, services, feeds, extensions, subs, mini, setMini, notice, showNotice }}>{children}</AppContext.Provider>;
+  return <AppContext.Provider value={{ current, others, services, feeds, extensions, subs, invidious, mini, setMini, notice, showNotice }}>{children}</AppContext.Provider>;
 }
 
 export function Notices() {

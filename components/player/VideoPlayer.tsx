@@ -121,7 +121,7 @@ export function VideoPlayer({
   onClose,
 }: Props) {
   const router = useRouter();
-  const { extensions: ext, current, setMini } = useApp();
+  const { extensions: ext, current, setMini, invidious } = useApp();
   const mini = variant === "mini";
   const short = variant === "short";
   const compact = short || variant === "mini";
@@ -141,6 +141,12 @@ export function VideoPlayer({
   const seekingRef = useRef(false);
 
   // Privacy mode: YouTube's player isn't loaded until you press play.
+  // How it plays: "native" is our own <video> (Jace videos, and YouTube through
+  // Invidious with Private playback); "youtube" is YouTube's player behind our controls.
+  const wantsPrivate = source === "youtube" && invidious && ext.privatePlayback;
+  const [mode, setMode] = useState<"native" | "youtube" | "pending">(source === "jace" ? "native" : wantsPrivate ? "pending" : "youtube");
+  const [privateSrc, setPrivateSrc] = useState<{ url: string; captions: { label: string; lang: string; url: string }[] } | null>(null);
+  const nativeSrc = source === "jace" ? src : privateSrc?.url;
   const [armed, setArmed] = useState(source === "jace" || compact || !ext.privacy || autoStart);
   const [cc, setCc] = useState(false);
   const [ready, setReady] = useState(false);
@@ -190,9 +196,33 @@ export function VideoPlayer({
     }
   }, [short, compact, startAt, ext.rememberSpeed, ext.resume, posKey]);
 
+  // ----- Private playback: get the streams from Invidious -----
+  useEffect(() => {
+    if (!wantsPrivate) return;
+    let stop = false;
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setMode("pending");
+    setPrivateSrc(null);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    fetch(`/api/private/${id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { sources: { url: string }[]; captions: { label: string; lang: string; url: string }[]; live: boolean } | null) => {
+        if (stop) return;
+        if (d && d.sources.length && !d.live) {
+          setPrivateSrc({ url: d.sources[0].url, captions: d.captions });
+          setMode("native");
+          setArmed(true); // nothing goes to YouTube, so no need to wait for a click
+        } else setMode("youtube");
+      })
+      .catch(() => !stop && setMode("youtube"));
+    return () => {
+      stop = true;
+    };
+  }, [id, wantsPrivate]);
+
   // ----- Jace: a plain <video> -----
   useEffect(() => {
-    if (source !== "jace") return;
+    if (mode !== "native") return;
     const v = videoEl.current;
     if (!v) return;
     engine.current = {
@@ -242,11 +272,11 @@ export function VideoPlayer({
     return () => {
       for (const [name, fn] of events) v.removeEventListener(name, fn);
     };
-  }, [source, src, applySaved]);
+  }, [mode, nativeSrc, applySaved]);
 
   // ----- YouTube: created once, reused for every video after that -----
   useEffect(() => {
-    if (source !== "youtube" || !armed || !ytHost.current) return;
+    if (mode !== "youtube" || !armed || !ytHost.current) return;
     let cancelled = false;
     const mount = document.createElement("div");
     ytHost.current.appendChild(mount);
@@ -317,7 +347,7 @@ export function VideoPlayer({
     };
     // applySaved changes per video; the player itself is made once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source, armed, short]);
+  }, [mode, armed, short]);
 
   // A new video in the same player (Shorts swipes): reset and load it, no new player.
   useEffect(() => {
@@ -330,13 +360,13 @@ export function VideoPlayer({
     setError(null);
     setCountdown(null);
     /* eslint-enable react-hooks/set-state-in-effect */
-    if (source === "youtube" && yt.current && loadedId.current !== id) {
+    if (mode === "youtube" && yt.current && loadedId.current !== id) {
       loadedId.current = id;
       if (activeRef.current) yt.current.loadVideoById(id);
       else yt.current.cueVideoById(id);
       applySaved();
     }
-  }, [id, source, applySaved]);
+  }, [id, mode, applySaved]);
 
   // Shorts play when on screen and pause when not.
   useEffect(() => {
@@ -494,6 +524,16 @@ export function VideoPlayer({
   );
 
   const toggleCaptions = useCallback(() => {
+    const v = videoEl.current;
+    if (mode === "native" && v) {
+      const next = !cc;
+      const tracks = [...v.textTracks];
+      const pick = tracks.find((t) => t.language.startsWith(navigator.language.slice(0, 2))) ?? tracks[0];
+      for (const t of tracks) t.mode = next && t === pick ? "showing" : "disabled";
+      setCc(next && !!pick);
+      store("captions", next);
+      return;
+    }
     const p = yt.current;
     if (!p) return;
     const next = !cc;
@@ -501,7 +541,7 @@ export function VideoPlayer({
     else p.unloadModule("captions");
     setCc(next);
     store("captions", next);
-  }, [cc]);
+  }, [cc, mode]);
 
   // Leaving the page while a video plays: it keeps going in the mini player.
   const handoff = useRef<{ playing: boolean; time: number }>({ playing: false, time: 0 });
@@ -519,10 +559,29 @@ export function VideoPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  // iPhone can't make a page element fullscreen: our own <video> uses iPhone's
+  // video fullscreen, and YouTube's player fills the whole window instead.
+  const [fillWindow, setFillWindow] = useState(false);
   const toggleFullscreen = useCallback(() => {
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    else box.current?.requestFullscreen().catch(() => {});
-  }, []);
+    if (fillWindow) {
+      setFillWindow(false);
+      return;
+    }
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+      return;
+    }
+    const el = box.current as (HTMLDivElement & { webkitRequestFullscreen?: () => void }) | null;
+    if (el?.requestFullscreen && document.fullscreenEnabled) {
+      el.requestFullscreen().catch(() => setFillWindow(true));
+    } else if (el?.webkitRequestFullscreen) {
+      el.webkitRequestFullscreen();
+    } else {
+      const v = videoEl.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
+      if (mode === "native" && v?.webkitEnterFullscreen) v.webkitEnterFullscreen();
+      else setFillWindow(true);
+    }
+  }, [fillWindow, mode]);
 
   const pip = useCallback(() => {
     const v = videoEl.current;
@@ -530,6 +589,28 @@ export function VideoPlayer({
     if (document.pictureInPictureElement) document.exitPictureInPicture().catch(() => {});
     else v.requestPictureInPicture().catch(() => {});
   }, []);
+
+  // Press and hold the video for 2x speed; let go to go back.
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const held = useRef(false);
+  const [boost, setBoost] = useState(false);
+  const holdStart = useCallback(() => {
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    holdTimer.current = setTimeout(() => {
+      const e = engine.current;
+      if (!e || e.paused()) return;
+      held.current = true;
+      e.rate(2);
+      setBoost(true);
+    }, 400);
+  }, []);
+  const holdEnd = useCallback(() => {
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    if (held.current) {
+      engine.current?.rate(rate);
+      setBoost(false);
+    }
+  }, [rate]);
 
   const poke = useCallback(() => {
     setControls(true);
@@ -556,7 +637,7 @@ export function VideoPlayer({
       else if (k === "ArrowDown") changeVolume(volume - 0.05);
       else if (k === "m" || k === "M") toggleMute();
       else if (k === "f" || k === "F") toggleFullscreen();
-      else if ((k === "c" || k === "C") && source === "youtube") toggleCaptions();
+      else if (k === "c" || k === "C") toggleCaptions();
       else if (k === "Home") seekTo(0);
       else if (k === "End") seekTo(eng.duration());
       else if (/^[0-9]$/.test(k)) seekTo((eng.duration() * Number(k)) / 10);
@@ -599,7 +680,7 @@ export function VideoPlayer({
   const showUi = controls || !playing || menu;
   const hoverSegment = hover ? segments.find((s) => hover.t >= s.start && hover.t < s.end) : undefined;
   // YouTube's frame stays hidden behind the poster until the video is really playing (and again once it ends).
-  const covered = source === "youtube" && (!armed || !started || ended);
+  const covered = mode === "pending" || (mode === "youtube" && (!armed || !started || ended));
   const btn = "flex h-10 w-10 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/15 hover:text-white";
 
   const seekBar = (
@@ -658,20 +739,24 @@ export function VideoPlayer({
         onPointerLeave={() => playing && setControls(false)}
         className={`group/player relative select-none overflow-hidden bg-black ${short ? "h-full w-full" : mini ? "aspect-video w-full rounded-xl" : "aspect-video w-full sm:rounded-2xl"} ${
           fullscreen ? "!aspect-auto h-screen !rounded-none" : ""
-        } ${!showUi && playing ? "cursor-none" : ""}`}
+        } ${fillWindow ? "!fixed !inset-0 !z-[200] !aspect-auto !h-[100dvh] !w-screen !rounded-none" : ""} ${!showUi && playing ? "cursor-none" : ""}`}
         aria-label={`Video player: ${title}`}
         role="region"
       >
-        {source === "jace" ? (
+        {mode === "native" ? (
           <video
             ref={videoEl}
-            src={src}
+            src={nativeSrc}
             poster={posterUrl ?? undefined}
             loop={short}
             playsInline
             preload="metadata"
             className="h-full w-full object-contain"
-          />
+          >
+            {privateSrc?.captions.map((c) => (
+              <track key={c.url} kind="subtitles" src={c.url} srcLang={c.lang} label={c.label} />
+            ))}
+          </video>
         ) : (
           // YouTube's frame is taller than the box, so its title bar and logo sit outside it.
           <div
@@ -689,12 +774,23 @@ export function VideoPlayer({
         <button
           type="button"
           aria-label={playing ? "Pause" : "Play"}
-          onClick={toggle}
+          onClick={() => {
+            if (held.current) {
+              held.current = false;
+              return;
+            }
+            toggle();
+          }}
+          onPointerDown={holdStart}
+          onPointerUp={holdEnd}
+          onPointerCancel={holdEnd}
+          onPointerLeave={holdEnd}
+          onContextMenu={(e) => e.preventDefault()}
           onDoubleClick={compact ? undefined : toggleFullscreen}
           className={`absolute inset-0 h-full w-full cursor-[inherit] ${ytClickThrough ? "pointer-events-none" : ""}`}
         />
 
-        {(waiting || (armed && !ready && source === "youtube")) && !error && (
+        {(waiting || mode === "pending" || (armed && !ready && mode === "youtube")) && !error && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <span className="h-12 w-12 animate-spin rounded-full border-4 border-white/25 border-t-white" />
           </div>
@@ -721,6 +817,11 @@ export function VideoPlayer({
         )}
         {error && <div className="absolute inset-0 flex items-center justify-center bg-black/85 p-6 text-center text-sm text-white">{error}</div>}
 
+        {boost && (
+          <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-full bg-black/75 px-3 py-1 text-sm font-semibold text-white backdrop-blur">
+            2× ▶▶
+          </div>
+        )}
         {toast && (
           <div className="absolute right-3 top-3 z-10 flex items-center gap-2 rounded-full bg-black/80 py-1.5 pl-4 pr-1.5 text-sm text-white backdrop-blur">
             {toast.text}
@@ -835,7 +936,7 @@ export function VideoPlayer({
                 </span>
               )}
               {rate !== 1 && <span className="px-1 text-xs text-white/80">{rate}×</span>}
-              {source === "youtube" && (
+              {(mode === "youtube" || (privateSrc?.captions.length ?? 0) > 0) && (
                 <button
                   type="button"
                   onClick={toggleCaptions}
@@ -881,13 +982,13 @@ export function VideoPlayer({
                   </div>
                 )}
               </div>
-              {source === "jace" && (
+              {mode === "native" && (
                 <button type="button" onClick={pip} aria-label="Picture in picture" className={btn}>
                   <Icon d={ICONS.pip} />
                 </button>
               )}
               <button type="button" onClick={toggleFullscreen} aria-label={fullscreen ? "Exit full screen (f)" : "Full screen (f)"} className={btn}>
-                <Icon d={fullscreen ? ICONS.exitFull : ICONS.full} />
+                <Icon d={fullscreen || fillWindow ? ICONS.exitFull : ICONS.full} />
               </button>
             </div>
           </div>

@@ -328,3 +328,103 @@ export async function youtubeComments(id: string, limit = 30): Promise<YouTubeCo
     };
   });
 }
+
+// ---------- Channels (with a YouTube API key) ----------
+
+/** Channel pictures and banners load through Jace Media too (app/api/yt-image). */
+export function ytImage(url: string | null | undefined): string | null {
+  return url ? `/api/yt-image?u=${encodeURIComponent(url)}` : null;
+}
+
+export type ChannelInfo = {
+  id: string;
+  name: string;
+  handle: string | null;
+  description: string;
+  picture: string | null;
+  banner: string | null;
+  subscribers: number | null;
+  videoCount: number | null;
+  uploads: string;
+};
+
+/** A channel's name, picture, banner, numbers, and its uploads playlist. */
+export async function channelInfo(id: string): Promise<ChannelInfo | null> {
+  if (!CHANNEL_ID.test(id)) return null;
+  const data = await api<{
+    items: {
+      id: string;
+      snippet: { title: string; description: string; customUrl?: string; thumbnails?: Record<string, { url: string }> };
+      statistics?: { subscriberCount?: string; videoCount?: string; hiddenSubscriberCount?: boolean };
+      brandingSettings?: { image?: { bannerExternalUrl?: string } };
+      contentDetails?: { relatedPlaylists?: { uploads?: string } };
+    }[];
+  }>("channels", { part: "snippet,statistics,brandingSettings,contentDetails", id });
+  const c = data?.items?.[0];
+  if (!c) return null;
+  const t = c.snippet.thumbnails;
+  const banner = c.brandingSettings?.image?.bannerExternalUrl;
+  return {
+    id: c.id,
+    name: c.snippet.title,
+    handle: c.snippet.customUrl ?? null,
+    description: c.snippet.description,
+    picture: ytImage(t?.high?.url ?? t?.medium?.url ?? t?.default?.url),
+    banner: ytImage(banner ? `${banner}=w1600-fcrop64=1,00005a57ffffa5a8-k-c0xffffffff-no-nd-rj` : null),
+    subscribers: c.statistics?.hiddenSubscriberCount ? null : c.statistics?.subscriberCount ? Number(c.statistics.subscriberCount) : null,
+    videoCount: c.statistics?.videoCount ? Number(c.statistics.videoCount) : null,
+    // Every channel has an "uploads" playlist with all its public videos ("UU…").
+    uploads: c.contentDetails?.relatedPlaylists?.uploads ?? `UU${id.slice(2)}`,
+  };
+}
+
+/** One page (50) of a channel's uploads, newest first, and the token for the next page. */
+export async function channelUploads(uploads: string, pageToken?: string): Promise<{ videos: VideoCard[]; next: string | null } | null> {
+  if (!/^UU[A-Za-z0-9_-]{22}$/.test(uploads)) return null;
+  const params: Record<string, string> = { part: "contentDetails", playlistId: uploads, maxResults: "50" };
+  if (pageToken && /^[A-Za-z0-9_-]{1,100}$/.test(pageToken)) params.pageToken = pageToken;
+  const page = await api<{ items: { contentDetails: { videoId: string } }[]; nextPageToken?: string }>("playlistItems", params);
+  if (!page) return null;
+  const ids = page.items.map((i) => i.contentDetails.videoId);
+  const byId = new Map((await videosById(ids)).map((v) => [v.id, v]));
+  const videos = ids.map((id) => byId.get(id)).filter((v): v is ApiVideo => !!v).map(toCard);
+  return { videos, next: page.nextPageToken ?? null };
+}
+
+export type ChannelResult = { id: string; name: string; description: string; picture: string | null };
+
+/** YouTube channels matching a search. */
+export async function searchChannels(q: string, limit = 12): Promise<ChannelResult[]> {
+  const data = await api<{ items: { id: { channelId?: string }; snippet: { title: string; description: string; thumbnails?: Record<string, { url: string }> } }[] }>(
+    "search",
+    { part: "snippet", type: "channel", q, maxResults: String(Math.min(limit, 25)), safeSearch: "moderate" },
+  );
+  return (data?.items ?? [])
+    .filter((i) => i.id.channelId)
+    .map((i) => ({
+      id: i.id.channelId!,
+      name: i.snippet.title,
+      description: i.snippet.description,
+      picture: ytImage(i.snippet.thumbnails?.medium?.url ?? i.snippet.thumbnails?.default?.url),
+    }));
+}
+
+/** Live streams matching a search. */
+export async function searchLive(q: string, limit = 12): Promise<VideoCard[]> {
+  const data = await api<{ items: { id: { videoId?: string }; snippet: { title: string; channelId: string; channelTitle: string; publishedAt: string } }[] }>(
+    "search",
+    { part: "snippet", type: "video", eventType: "live", q, maxResults: String(Math.min(limit, 25)), safeSearch: "moderate" },
+  );
+  return (data?.items ?? [])
+    .filter((i) => i.id.videoId)
+    .map((i) => ({
+      source: "youtube",
+      id: i.id.videoId!,
+      title: decode(i.snippet.title),
+      thumbnail: thumbnailFor(i.id.videoId!),
+      channelId: i.snippet.channelId,
+      channelName: i.snippet.channelTitle,
+      publishedAt: i.snippet.publishedAt,
+      duration: "PT0S",
+    }));
+}

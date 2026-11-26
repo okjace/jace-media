@@ -7,6 +7,7 @@ import { getAccountList, getViewer } from "@/lib/auth";
 import { listFeeds } from "@/lib/customfeeds";
 import { listSubscriptions } from "@/lib/library";
 import { getExtensions, getServices } from "@/lib/prefs";
+import { invidiousConfigured } from "@/lib/invidious";
 import { shouldAutoSignIn } from "@/lib/session";
 import "./globals.css";
 
@@ -54,7 +55,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="flex min-h-full flex-col">
-        <AppProvider current={current} others={others} services={services} feeds={feeds} extensions={extensions} subs={subs} autoSignIn={autoSignIn}>
+        <AppProvider current={current} others={others} services={services} feeds={feeds} extensions={extensions} subs={subs} invidious={invidiousConfigured} autoSignIn={autoSignIn}>
           <Suspense>
             <AppShell>{children}</AppShell>
           </Suspense>
