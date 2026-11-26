@@ -21,6 +21,8 @@ Next.js 16 (App Router), TypeScript, Tailwind 4 and Postgres, hosted on Vercel.
   - Ads read inside YouTube videos (sponsors, self-promotion, "like and subscribe") are skipped automatically using [SponsorBlock](https://sponsor.ajay.app), and marked on the seek bar. You can undo a skip.
   - Posts marked #ad, #sponsored, or "paid partnership" are left out of every feed.
   - YouTube videos play in YouTube's privacy-enhanced player (youtube-nocookie.com) with no YouTube suggestions or overlays. YouTube can still run its own ads inside its player on some videos; removing those would mean bypassing YouTube's player, which its terms don't allow. If one appears, the player's settings let you press YouTube's "Skip ad".
+- **Private playback** (optional): YouTube videos play through your own Invidious server, so YouTube never sees viewers. Free setup: [docs/PRIVATE-PLAYBACK.md](docs/PRIVATE-PLAYBACK.md).
+- **Upload videos** to Jace (up to 5 GB) from Jace Media, with a Shorts option, and manage them under Your videos.
 - **Sign in with Jace**, automatically, plus an account switcher for every Jace account used on the device.
 - **Live**: open Jace Live games to join and popular sets to host, YouTube live streams (with a YouTube API key), and Twitch streams with chat (with a Twitch API key; Twitch's player shows Twitch's own ads).
 - **News & blogs**: follow any website by its address (its RSS or Atom feed is found automatically), with one-tap suggestions; articles show in Subscriptions, For you, and custom feeds.
