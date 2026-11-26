@@ -121,7 +121,7 @@ export function FeedEditor({ feed, onDone }: { feed?: CustomFeed; onDone?: () =>
       <div className="flex flex-col gap-2">
         <span className="text-sm font-medium">Services</span>
         <div className="grid gap-2 sm:grid-cols-2">
-          {SERVICES.map((s) => (
+          {SERVICES.filter((s) => s.id !== "twitch" && s.id !== "jacelive").map((s) => (
             <label key={s.id} className="flex items-center gap-2 rounded-xl border border-line px-3 py-2 text-sm">
               <input type="checkbox" checked={rules.services.includes(s.id)} onChange={() => toggle(s.id)} className="accent-[var(--accent)]" />
               {s.label}

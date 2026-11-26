@@ -6,7 +6,8 @@ import { useApp } from "@/components/AppProvider";
 import { SERVICES, type Service } from "@/lib/services";
 
 /** Turn services on and off. Saved right away. */
-export function ServicesPicker({ initial }: { initial: Service[] }) {
+/** hidden: services this server can't offer (e.g. Twitch without its key). */
+export function ServicesPicker({ initial, hidden = [] }: { initial: Service[]; hidden?: Service[] }) {
   const router = useRouter();
   const { current, showNotice } = useApp();
   const [on, setOn] = useState<Service[]>(initial);
@@ -37,7 +38,7 @@ export function ServicesPicker({ initial }: { initial: Service[] }) {
   return (
     <div className="flex flex-col gap-3">
       <ul className="flex flex-col divide-y divide-line rounded-2xl border border-line bg-panel">
-        {SERVICES.map((s) => {
+        {SERVICES.filter((s) => !hidden.includes(s.id)).map((s) => {
           const checked = on.includes(s.id);
           return (
             <li key={s.id}>

@@ -91,7 +91,7 @@ export default async function LivePage() {
         </section>
       )}
 
-      {on("twitch") && (
+      {on("twitch") && hasTwitch && (
         <section className="flex flex-col gap-4">
           <h2 className="flex items-center gap-2 text-lg font-semibold">
             Twitch <LiveBadge />
