@@ -101,6 +101,8 @@ const SCHEMA = [
     created_at BIGINT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS feeds_owner ON feeds (sub, created_at)`,
+  // Shared feeds: anyone with the link can see them and save a copy.
+  `ALTER TABLE feeds ADD COLUMN IF NOT EXISTS shared BOOLEAN NOT NULL DEFAULT FALSE`,
   // Subscription folders ("Gaming", "Music", …); null means no folder.
   `ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS folder TEXT`,
   // Jace Media comments on posts from other networks (Bluesky, Mastodon, …).

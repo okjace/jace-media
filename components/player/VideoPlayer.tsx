@@ -157,6 +157,8 @@ export function VideoPlayer({
   const [ccSize, setCcSize] = useState<number>(() => stored("captionSize", 1));
   const [ccStyle, setCcStyle] = useState<"box" | "outline">(() => stored("captionStyle", "box"));
   const [cue, setCue] = useState("");
+  const captionsPending = useRef(false);
+  const ytCaptionsOnRef = useRef<(p: YTPlayer) => void>(() => {});
   const [ready, setReady] = useState(false);
   const [started, setStarted] = useState(false);
   const [playing, setPlaying] = useState(false);
@@ -536,8 +538,6 @@ export function VideoPlayer({
     [ext.rememberSpeed],
   );
 
-  const captionsPending = useRef(false);
-  const ytCaptionsOnRef = useRef<(p: YTPlayer) => void>(() => {});
   const ytCaptionsOn = useCallback((p: YTPlayer) => {
     p.loadModule("captions");
     const pickTrack = () => {

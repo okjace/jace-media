@@ -2,10 +2,24 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { HomeFeedButton } from "@/components/HomeFeedButton";
 import { HomeLayout } from "@/components/feed/HomeLayout";
+import { ShareFeedButton } from "@/components/ShareFeed";
 import type { CustomFeed, Entry } from "@/lib/customfeeds";
 
 /** A custom feed, laid out exactly like Home. */
-export function FeedPage({ feed, entries, subtitle, actions }: { feed: CustomFeed; entries: Entry[]; subtitle?: string; actions?: ReactNode }) {
+export function FeedPage({
+  feed,
+  entries,
+  subtitle,
+  actions,
+  readOnly = false,
+}: {
+  feed: CustomFeed;
+  entries: Entry[];
+  subtitle?: string;
+  actions?: ReactNode;
+  /** Someone else's shared feed: no Edit, Share, or Home buttons. */
+  readOnly?: boolean;
+}) {
   const videos = entries.flatMap((e) => (e.kind === "video" && !e.video.short ? [e.video] : []));
   const shorts = entries.flatMap((e) => (e.kind === "video" && e.video.short ? [e.video] : []));
   const posts = entries.flatMap((e) => (e.kind === "post" ? [e.item] : []));
@@ -22,10 +36,15 @@ export function FeedPage({ feed, entries, subtitle, actions }: { feed: CustomFee
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
             {actions}
-            <HomeFeedButton feedId={feed.id} />
-            <Link href={`/feeds?edit=${feed.id}`} className="rounded-full border border-line px-4 py-1.5 text-sm hover:bg-foreground/[.05]">
-              Edit feed
-            </Link>
+            {!readOnly && (
+              <>
+                <ShareFeedButton feedId={feed.id} initial={!!feed.shared} />
+                <HomeFeedButton feedId={feed.id} />
+                <Link href={`/feeds?edit=${feed.id}`} className="rounded-full border border-line px-4 py-1.5 text-sm hover:bg-foreground/[.05]">
+                  Edit feed
+                </Link>
+              </>
+            )}
           </div>
         </div>
       }

@@ -26,7 +26,7 @@ export type FeedRules = {
   folder: string | null;
 };
 
-export type CustomFeed = { id: string; name: string; rules: FeedRules };
+export type CustomFeed = { id: string; name: string; rules: FeedRules; shared?: boolean };
 
 export type Entry = { kind: "post"; item: FeedItem } | { kind: "video"; video: VideoCard };
 
@@ -61,8 +61,10 @@ export async function listFeeds(sub: string): Promise<CustomFeed[]> {
 }
 
 export async function getFeed(sub: string, id: string): Promise<CustomFeed | null> {
-  const rows = await q(`SELECT id, name, rules FROM feeds WHERE sub = $1 AND id = $2`, [sub, id]);
-  return rows[0] ? { id: rows[0].id as string, name: rows[0].name as string, rules: cleanRules(JSON.parse(rows[0].rules as string)) } : null;
+  const rows = await q(`SELECT id, name, rules, shared FROM feeds WHERE sub = $1 AND id = $2`, [sub, id]);
+  return rows[0]
+    ? { id: rows[0].id as string, name: rows[0].name as string, rules: cleanRules(JSON.parse(rows[0].rules as string)), shared: !!rows[0].shared }
+    : null;
 }
 
 function cleanName(name: unknown): string | null {
@@ -84,6 +86,27 @@ export async function saveFeed(sub: string, input: { id?: string; name: unknown;
   const id = randomUUID();
   await q(`INSERT INTO feeds (id, sub, name, rules, created_at) VALUES ($1, $2, $3, $4, $5)`, [id, sub, name, JSON.stringify(rules), Date.now()]);
   return { id, name, rules };
+}
+
+/** Turns sharing on or off for one of your feeds. */
+export async function setShared(sub: string, id: string, shared: boolean): Promise<boolean> {
+  const done = await q(`UPDATE feeds SET shared = $3 WHERE sub = $1 AND id = $2 RETURNING id`, [sub, id, shared]);
+  return done.length > 0;
+}
+
+/** A feed someone shared, with who made it. */
+export async function getSharedFeed(id: string): Promise<(CustomFeed & { ownerSub: string }) | null> {
+  if (!/^[0-9a-f-]{36}$/.test(id)) return null;
+  const rows = await q(`SELECT id, sub, name, rules FROM feeds WHERE id = $1 AND shared = TRUE`, [id]);
+  const r = rows[0];
+  return r ? { id: r.id as string, name: r.name as string, rules: cleanRules(JSON.parse(r.rules as string)), shared: true, ownerSub: r.sub as string } : null;
+}
+
+/** Saves a copy of a shared feed to your feeds. */
+export async function copySharedFeed(sub: string, id: string): Promise<CustomFeed | { error: string }> {
+  const feed = await getSharedFeed(id);
+  if (!feed) return { error: "That feed isn't shared anymore." };
+  return saveFeed(sub, { name: feed.name, rules: feed.rules });
 }
 
 export async function deleteFeed(sub: string, id: string): Promise<void> {
