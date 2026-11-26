@@ -6,6 +6,7 @@ import { EmptyState, VideoGrid } from "@/components/videos/VideoGrid";
 import { interleave, jaceVideos } from "@/lib/data";
 import { getTaste, latestVideos, rankVideos, videoCandidates } from "@/lib/recommend";
 import { hasYouTubeApi, parseYouTubeVideo, search } from "@/lib/youtube";
+import { withDeArrow } from "@/lib/ytextras";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Videos" };
@@ -42,6 +43,7 @@ export default async function VideosPage({ searchParams }: { searchParams: Promi
     videos = sort === "latest" ? latestVideos(pool, taste, 48) : rankVideos(pool, taste, 48);
   }
 
+  videos = await withDeArrow(videos);
   const chip = (active: boolean) =>
     `rounded-full px-3.5 py-1.5 text-sm ${active ? "bg-foreground text-background" : "bg-foreground/[.06] hover:bg-foreground/[.1]"}`;
   const href = (patch: Record<string, string>) => {

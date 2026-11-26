@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { NextResponse, type NextRequest } from "next/server";
 import { getProfile, getProfiles, summary } from "./profiles";
 import { getAccounts, getCurrent } from "./session";
@@ -18,7 +19,7 @@ export function safeNext(value: string | null | undefined): string {
 }
 
 /** The signed-in person's Jace Media profile, or null. */
-export async function getViewer(): Promise<Profile | null> {
+async function getViewerUncached(): Promise<Profile | null> {
   const current = await getCurrent();
   if (!current) return null;
   try {
@@ -30,7 +31,7 @@ export async function getViewer(): Promise<Profile | null> {
 }
 
 /** The account menu: the current account first, then the others. */
-export async function getAccountList(): Promise<{ current: AccountSummary | null; others: AccountSummary[] }> {
+async function getAccountListUncached(): Promise<{ current: AccountSummary | null; others: AccountSummary[] }> {
   const { current, accounts } = await getAccounts();
   if (accounts.length === 0) return { current: null, others: [] };
   let profiles: Map<string, Profile>;
@@ -59,3 +60,9 @@ export async function readJson(req: Request): Promise<Record<string, unknown>> {
   const body = await req.json().catch(() => null);
   return body && typeof body === "object" && !Array.isArray(body) ? (body as Record<string, unknown>) : {};
 }
+
+/** Cached for the length of one request, so pages can ask as often as they like. */
+export const getViewer = cache(getViewerUncached);
+
+/** Cached for the length of one request, so pages can ask as often as they like. */
+export const getAccountList = cache(getAccountListUncached);

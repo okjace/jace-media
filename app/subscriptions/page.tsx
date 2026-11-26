@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Avatar } from "@/components/Avatar";
 import { MixedFeed } from "@/components/feed/MixedFeed";
 import { PageTitle } from "@/components/PageTitle";
 import { getViewer } from "@/lib/auth";
@@ -11,13 +10,11 @@ import { getTaste } from "@/lib/recommend";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Subscriptions" };
 
-const PLACE: Record<string, string> = {
-  youtube: "https://www.youtube.com/channel/",
-  bluesky: "https://bsky.app/profile/",
-};
+const chip = (on: boolean) =>
+  `shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${on ? "bg-foreground text-background" : "bg-foreground/[.07] hover:bg-foreground/[.12]"}`;
 
-/** Only what you follow, on every service you turned on, newest first. */
-export default async function SubscriptionsPage() {
+/** Only what you follow, on every service you turned on, newest first. Folders narrow it down. */
+export default async function SubscriptionsPage({ searchParams }: { searchParams: Promise<{ folder?: string }> }) {
   const viewer = await getViewer();
   if (!viewer) {
     return (
@@ -29,40 +26,49 @@ export default async function SubscriptionsPage() {
       </div>
     );
   }
-  const taste = await getTaste();
-  const [subs, entries] = await Promise.all([
-    listSubscriptions(viewer.sub),
-    buildFeed({ services: taste.services, only: "subscriptions", content: "all", include: [], exclude: [], sort: "latest" }, 80),
-  ]);
+  const { folder: wanted } = await searchParams;
+  const [taste, subs] = await Promise.all([getTaste(), listSubscriptions(viewer.sub)]);
+  const folders = [...new Set(subs.map((s) => s.folder).filter((f): f is string => !!f))].sort((a, b) => a.localeCompare(b));
+  const folder = wanted && folders.includes(wanted) ? wanted : null;
+  const entries = await buildFeed(
+    { services: taste.services, only: "subscriptions", content: "all", include: [], exclude: [], sort: "latest", folder },
+    80,
+  );
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <PageTitle title="Subscriptions">Only the channels, people, and communities you follow. Newest first.</PageTitle>
-      {subs.length > 0 && (
-        <div className="no-scrollbar -mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
-          {subs.slice(0, 60).map((s) => (
-            <a
-              key={`${s.kind}:${s.ref}`}
-              href={PLACE[s.kind] ? `${PLACE[s.kind]}${s.ref}` : "/library"}
-              title={`${s.name} (${s.kind})`}
-              className="flex w-16 shrink-0 flex-col items-center gap-1 text-center"
-            >
-              <Avatar name={s.name} src={s.picture} size={48} />
-              <span className="w-full truncate text-[11px] text-muted">{s.name}</span>
-            </a>
+      <div className="flex items-start justify-between gap-3">
+        <PageTitle title={folder ?? "Subscriptions"}>Only the channels, people, and communities you follow. Newest first.</PageTitle>
+        <Link href="/subscriptions/manage" className="shrink-0 rounded-full border border-line px-4 py-1.5 text-sm hover:bg-foreground/[.05]">
+          Manage
+        </Link>
+      </div>
+      {folders.length > 0 && (
+        <nav aria-label="Folders" className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1">
+          <Link href="/subscriptions" className={chip(!folder)}>
+            All
+          </Link>
+          {folders.map((f) => (
+            <Link key={f} href={`/subscriptions?folder=${encodeURIComponent(f)}`} className={chip(f === folder)}>
+              📁 {f}
+            </Link>
           ))}
-        </div>
+        </nav>
       )}
       <MixedFeed
         entries={entries}
         empty={
-          <>
-            You don&apos;t follow anyone yet. Press <b>Follow</b> on posts and <b>Subscribe</b> on videos, or{" "}
-            <Link href="/import" className="text-accent hover:underline">
-              import your YouTube subscriptions
-            </Link>
-            .
-          </>
+          subs.length === 0 ? (
+            <>
+              You don&apos;t follow anyone yet. Press <b>Follow</b> on posts and <b>Subscribe</b> on videos, or{" "}
+              <Link href="/import" className="text-accent hover:underline">
+                import your YouTube subscriptions
+              </Link>
+              .
+            </>
+          ) : (
+            "Nothing new here yet."
+          )
         }
       />
     </div>

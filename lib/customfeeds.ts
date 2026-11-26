@@ -21,6 +21,8 @@ export type FeedRules = {
   include: string[];
   exclude: string[];
   sort: "recommended" | "latest";
+  /** Subscriptions-only feeds can be narrowed to one subscription folder. */
+  folder: string | null;
 };
 
 export type CustomFeed = { id: string; name: string; rules: FeedRules };
@@ -48,6 +50,7 @@ export function cleanRules(raw: unknown): FeedRules {
     include: words(r.include),
     exclude: words(r.exclude),
     sort: r.sort === "latest" ? "latest" : "recommended",
+    folder: typeof r.folder === "string" && r.folder.trim() ? r.folder.trim().slice(0, 30) : null,
   };
 }
 
@@ -88,10 +91,12 @@ export async function deleteFeed(sub: string, id: string): Promise<void> {
 
 // ---------- Building a feed ----------
 
-async function followedPosts(services: Service[]): Promise<FeedItem[]> {
+async function followedPosts(services: Service[], folder: string | null): Promise<FeedItem[]> {
   const viewer = await getViewer();
   if (!viewer) return [];
-  const subs = await q(`SELECT kind, ref FROM subscriptions WHERE sub = $1 ORDER BY created_at DESC`, [viewer.sub]);
+  const subs = folder
+    ? await q(`SELECT kind, ref FROM subscriptions WHERE sub = $1 AND folder = $2 ORDER BY created_at DESC`, [viewer.sub, folder])
+    : await q(`SELECT kind, ref FROM subscriptions WHERE sub = $1 ORDER BY created_at DESC`, [viewer.sub]);
   const refs = (kind: string, cap: number) => subs.filter((s) => s.kind === kind).slice(0, cap).map((s) => s.ref as string);
   const tasks: Promise<FeedItem[]>[] = [];
   if (services.includes("jace")) tasks.push(jacePosts({ authorSubs: refs("jace", 500), limit: 60 }).then((r) => r.items));
@@ -135,8 +140,8 @@ export async function buildFeed(rules: FeedRules, limit = 60): Promise<Entry[]> 
   const subsOnly = rules.only === "subscriptions";
 
   const [posts, candidates] = await Promise.all([
-    wantPosts ? (subsOnly ? followedPosts(rules.services) : everyPost(rules.services)) : Promise.resolve([]),
-    wantVideos ? videoCandidates(subsOnly) : Promise.resolve([]),
+    wantPosts ? (subsOnly ? followedPosts(rules.services, rules.folder) : everyPost(rules.services)) : Promise.resolve([]),
+    wantVideos ? videoCandidates(subsOnly, subsOnly ? rules.folder : null) : Promise.resolve([]),
   ]);
 
   const keptPosts = posts.filter((p) => matches(`${p.title ?? ""} ${p.text} ${p.author.name}`, rules));

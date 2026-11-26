@@ -76,7 +76,7 @@ export default async function LibraryPage() {
                 <Link href={`/watch/${h.source}/${h.id}`} className="flex items-center gap-3 rounded-xl p-1.5 hover:bg-foreground/[.04]">
                   {h.source === "youtube" ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={`https://i.ytimg.com/vi/${h.id}/mqdefault.jpg`} alt="" loading="lazy" className="aspect-video w-32 shrink-0 rounded-lg object-cover" />
+                    <img src={`/api/yt-thumb/${h.id}?s=mqdefault`} alt="" loading="lazy" className="aspect-video w-32 shrink-0 rounded-lg object-cover" />
                   ) : (
                     <span className="flex aspect-video w-32 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">▶</span>
                   )}

@@ -10,7 +10,7 @@ import { q } from "./db";
 export type SubKind = "youtube" | "jace" | "bluesky" | "mastodon" | "lemmy";
 export const SUB_KINDS: SubKind[] = ["youtube", "jace", "bluesky", "mastodon", "lemmy"];
 
-export type Subscription = { kind: SubKind; ref: string; name: string; picture: string | null };
+export type Subscription = { kind: SubKind; ref: string; name: string; picture: string | null; folder?: string | null };
 
 export function isSubKind(v: unknown): v is SubKind {
   return typeof v === "string" && (SUB_KINDS as string[]).includes(v);
@@ -33,9 +33,15 @@ export function validRef(kind: SubKind, ref: string): boolean {
 
 export async function listSubscriptions(sub: string, kind?: SubKind): Promise<Subscription[]> {
   const rows = kind
-    ? await q(`SELECT kind, ref, name, picture FROM subscriptions WHERE sub = $1 AND kind = $2 ORDER BY lower(name)`, [sub, kind])
-    : await q(`SELECT kind, ref, name, picture FROM subscriptions WHERE sub = $1 ORDER BY kind, lower(name)`, [sub]);
-  return rows.map((r) => ({ kind: r.kind as SubKind, ref: r.ref as string, name: r.name as string, picture: (r.picture as string) ?? null }));
+    ? await q(`SELECT kind, ref, name, picture, folder FROM subscriptions WHERE sub = $1 AND kind = $2 ORDER BY lower(name)`, [sub, kind])
+    : await q(`SELECT kind, ref, name, picture, folder FROM subscriptions WHERE sub = $1 ORDER BY lower(name)`, [sub]);
+  return rows.map((r) => ({
+    kind: r.kind as SubKind,
+    ref: r.ref as string,
+    name: r.name as string,
+    picture: (r.picture as string) ?? null,
+    folder: (r.folder as string) ?? null,
+  }));
 }
 
 export async function subscribe(sub: string, s: Subscription): Promise<void> {
@@ -44,6 +50,12 @@ export async function subscribe(sub: string, s: Subscription): Promise<void> {
      ON CONFLICT (sub, kind, ref) DO UPDATE SET name = EXCLUDED.name, picture = COALESCE(EXCLUDED.picture, subscriptions.picture)`,
     [sub, s.kind, s.ref, s.name.slice(0, 120), s.picture, Date.now()],
   );
+}
+
+/** Puts a subscription in a folder (null takes it out). */
+export async function setFolder(sub: string, kind: SubKind, ref: string, folder: string | null): Promise<void> {
+  const name = folder?.replace(/\s+/g, " ").trim().slice(0, 30) || null;
+  await q(`UPDATE subscriptions SET folder = $4 WHERE sub = $1 AND kind = $2 AND ref = $3`, [sub, kind, ref, name]);
 }
 
 export async function unsubscribe(sub: string, kind: SubKind, ref: string): Promise<void> {

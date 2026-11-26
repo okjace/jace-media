@@ -259,23 +259,23 @@ export async function hackerNews(limit = 30): Promise<FeedItem[] | null> {
     `https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=${Math.min(limit, 50)}`,
   );
   if (!data) return null;
-  return data.hits
-    .sort((a, b) => b.points - a.points)
-    .map(
-      (h): FeedItem => ({
-        network: "hackernews",
-        id: h.objectID,
-        author: { name: h.author, handle: h.author, picture: null, url: `https://news.ycombinator.com/user?id=${h.author}` },
-        title: h.title,
-        text: h.story_text ? htmlToText(h.story_text).slice(0, 800) : "",
-        url: `https://news.ycombinator.com/item?id=${h.objectID}`,
-        link: h.url,
-        media: [],
-        createdAt: h.created_at,
-        stats: { score: h.points, replies: h.num_comments },
-        place: h.url ? new URL(h.url).host.replace(/^www\./, "") : null,
-      }),
-    );
+  return data.hits.sort((a, b) => b.points - a.points).map(fromHn);
+}
+
+function fromHn(h: HnHit): FeedItem {
+  return {
+    network: "hackernews",
+    id: h.objectID,
+    author: { name: h.author, handle: h.author, picture: null, url: `https://news.ycombinator.com/user?id=${h.author}` },
+    title: h.title,
+    text: h.story_text ? htmlToText(h.story_text).slice(0, 800) : "",
+    url: `https://news.ycombinator.com/item?id=${h.objectID}`,
+    link: h.url,
+    media: [],
+    createdAt: h.created_at,
+    stats: { score: h.points, replies: h.num_comments },
+    place: h.url ? new URL(h.url).host.replace(/^www\./, "") : null,
+  };
 }
 
 // ---------- Following one account or community ----------
@@ -312,3 +312,295 @@ export const NETWORKS: Record<Exclude<Network, "jace">, { label: string; load: (
   lemmy: { label: "Lemmy", load: lemmy, site: `https://${LEMMY}` },
   hackernews: { label: "Hacker News", load: hackerNews, site: "https://news.ycombinator.com" },
 };
+
+// ---------- Profiles and threads, shown natively in Jace Media ----------
+
+export type ExtNetwork = "bluesky" | "mastodon" | "lemmy" | "lemmy-user" | "hackernews";
+
+export type ExtProfile = {
+  network: ExtNetwork;
+  name: string;
+  handle: string;
+  picture: string | null;
+  banner: string | null;
+  bio: string;
+  stats: { label: string; value: number }[];
+  /** The profile on its own site. */
+  url: string;
+  /** What Follow saves (none for Hacker News and Lemmy people). */
+  follow: { kind: "bluesky" | "mastodon" | "lemmy"; ref: string; name: string; picture: string | null } | null;
+};
+
+export async function blueskyProfile(handle: string): Promise<{ profile: ExtProfile; posts: FeedItem[] } | null> {
+  const [p, posts] = await Promise.all([
+    getJson<{ handle: string; displayName?: string; avatar?: string; banner?: string; description?: string; followersCount?: number; followsCount?: number; postsCount?: number; labels?: BskyLabel[] }>(
+      `${BSKY}/app.bsky.actor.getProfile?actor=${encodeURIComponent(handle)}`,
+    ),
+    blueskyAuthor(handle, 30),
+  ]);
+  if (!p) return null;
+  if ((p.labels ?? []).some((l) => ADULT_LABELS.has(l.val))) return null;
+  return {
+    profile: {
+      network: "bluesky",
+      name: p.displayName || p.handle,
+      handle: `@${p.handle}`,
+      picture: p.avatar ?? null,
+      banner: p.banner ?? null,
+      bio: p.description ?? "",
+      stats: [
+        { label: "followers", value: p.followersCount ?? 0 },
+        { label: "following", value: p.followsCount ?? 0 },
+        { label: "posts", value: p.postsCount ?? 0 },
+      ],
+      url: `https://bsky.app/profile/${p.handle}`,
+      follow: { kind: "bluesky", ref: p.handle, name: p.displayName || p.handle, picture: p.avatar ?? null },
+    },
+    posts,
+  };
+}
+
+export async function mastodonProfile(acct: string): Promise<{ profile: ExtProfile; posts: FeedItem[] } | null> {
+  const a = await getJson<{
+    id: string;
+    acct: string;
+    display_name: string;
+    avatar: string;
+    header: string;
+    note: string;
+    url: string;
+    followers_count: number;
+    following_count: number;
+    statuses_count: number;
+  }>(`https://${MASTODON}/api/v1/accounts/lookup?acct=${encodeURIComponent(acct)}`);
+  if (!a?.id) return null;
+  const statuses = await getJson<MastoStatus[]>(`https://${MASTODON}/api/v1/accounts/${encodeURIComponent(a.id)}/statuses?limit=30&exclude_replies=true`);
+  const full = a.acct.includes("@") ? a.acct : `${a.acct}@${MASTODON}`;
+  return {
+    profile: {
+      network: "mastodon",
+      name: htmlToText(a.display_name) || a.acct,
+      handle: `@${full}`,
+      picture: a.avatar,
+      banner: a.header && !a.header.includes("missing") ? a.header : null,
+      bio: htmlToText(a.note),
+      stats: [
+        { label: "followers", value: a.followers_count },
+        { label: "following", value: a.following_count },
+        { label: "posts", value: a.statuses_count },
+      ],
+      url: a.url,
+      follow: { kind: "mastodon", ref: full, name: htmlToText(a.display_name) || a.acct, picture: a.avatar },
+    },
+    posts: (statuses ?? []).map(fromMastodon).filter((x): x is FeedItem => !!x),
+  };
+}
+
+export async function lemmyCommunityProfile(name: string): Promise<{ profile: ExtProfile; posts: FeedItem[] } | null> {
+  const [c, posts] = await Promise.all([
+    getJson<{
+      community_view: {
+        community: { name: string; title: string; description?: string; icon?: string; banner?: string; actor_id: string; nsfw: boolean };
+        counts: { subscribers: number; posts: number; comments: number };
+      };
+    }>(`https://${LEMMY}/api/v3/community?name=${encodeURIComponent(name)}`),
+    lemmyCommunity(name, 30),
+  ]);
+  const cv = c?.community_view;
+  if (!cv || cv.community.nsfw) return null;
+  const host = new URL(cv.community.actor_id).host;
+  const ref = `${cv.community.name}@${host}`;
+  return {
+    profile: {
+      network: "lemmy",
+      name: cv.community.title,
+      handle: `c/${ref}`,
+      picture: cv.community.icon ?? null,
+      banner: cv.community.banner ?? null,
+      bio: cv.community.description ?? "",
+      stats: [
+        { label: "members", value: cv.counts.subscribers },
+        { label: "posts", value: cv.counts.posts },
+      ],
+      url: cv.community.actor_id,
+      follow: { kind: "lemmy", ref, name: `c/${ref}`, picture: cv.community.icon ?? null },
+    },
+    posts,
+  };
+}
+
+export async function lemmyUserProfile(username: string): Promise<{ profile: ExtProfile; posts: FeedItem[] } | null> {
+  const u = await getJson<{
+    person_view: { person: { name: string; display_name?: string; avatar?: string; banner?: string; bio?: string; actor_id: string }; counts: { post_count: number; comment_count: number } };
+    posts: LemmyView[];
+  }>(`https://${LEMMY}/api/v3/user?username=${encodeURIComponent(username)}&limit=30&sort=New`);
+  if (!u?.person_view) return null;
+  const p = u.person_view.person;
+  return {
+    profile: {
+      network: "lemmy-user",
+      name: p.display_name || p.name,
+      handle: `@${p.name}@${new URL(p.actor_id).host}`,
+      picture: p.avatar ?? null,
+      banner: p.banner ?? null,
+      bio: p.bio ?? "",
+      stats: [
+        { label: "posts", value: u.person_view.counts.post_count },
+        { label: "comments", value: u.person_view.counts.comment_count },
+      ],
+      url: p.actor_id,
+      follow: null,
+    },
+    posts: (u.posts ?? []).map(fromLemmy).filter((x): x is FeedItem => !!x),
+  };
+}
+
+export async function hnUserProfile(id: string): Promise<{ profile: ExtProfile; posts: FeedItem[] } | null> {
+  const [u, stories] = await Promise.all([
+    getJson<{ username: string; about?: string; karma: number }>(`https://hn.algolia.com/api/v1/users/${encodeURIComponent(id)}`),
+    getJson<{ hits: HnHit[] }>(`https://hn.algolia.com/api/v1/search_by_date?tags=story,author_${encodeURIComponent(id)}&hitsPerPage=30`),
+  ]);
+  if (!u?.username) return null;
+  return {
+    profile: {
+      network: "hackernews",
+      name: u.username,
+      handle: u.username,
+      picture: null,
+      banner: null,
+      bio: u.about ? htmlToText(u.about) : "",
+      stats: [{ label: "karma", value: u.karma }],
+      url: `https://news.ycombinator.com/user?id=${u.username}`,
+      follow: null,
+    },
+    posts: (stories?.hits ?? []).map(fromHn),
+  };
+}
+
+/** A reply in a thread, with how deep it sits (0 = a direct reply). */
+export type ThreadReply = { item: FeedItem; depth: number };
+export type Thread = { post: FeedItem; replies: ThreadReply[] };
+const MAX_REPLIES = 200;
+
+type BskyThreadNode = { $type?: string; post?: BskyPost; replies?: BskyThreadNode[] };
+
+export async function blueskyThread(uri: string): Promise<Thread | null> {
+  const data = await getJson<{ thread: BskyThreadNode }>(`${BSKY}/app.bsky.feed.getPostThread?uri=${encodeURIComponent(uri)}&depth=6&parentHeight=0`);
+  const root = data?.thread?.post ? fromBsky(data.thread.post) : null;
+  if (!root) return null;
+  const replies: ThreadReply[] = [];
+  const walk = (nodes: BskyThreadNode[] | undefined, depth: number) => {
+    for (const n of nodes ?? []) {
+      if (replies.length >= MAX_REPLIES || !n.post) continue;
+      const item = fromBsky(n.post);
+      if (item) replies.push({ item, depth });
+      walk(n.replies, depth + 1);
+    }
+  };
+  walk(data!.thread.replies, 0);
+  return { post: root, replies };
+}
+
+export async function mastodonThread(id: string): Promise<Thread | null> {
+  const [status, context] = await Promise.all([
+    getJson<MastoStatus>(`https://${MASTODON}/api/v1/statuses/${encodeURIComponent(id)}`),
+    getJson<{ descendants: (MastoStatus & { in_reply_to_id: string | null })[] }>(`https://${MASTODON}/api/v1/statuses/${encodeURIComponent(id)}/context`),
+  ]);
+  const post = status ? fromMastodon(status) : null;
+  if (!post) return null;
+  const depthOf = new Map<string, number>([[id, -1]]);
+  const replies: ThreadReply[] = [];
+  for (const d of context?.descendants ?? []) {
+    const depth = (depthOf.get(d.in_reply_to_id ?? id) ?? -1) + 1;
+    depthOf.set(d.id, depth);
+    const item = fromMastodon(d);
+    if (item && replies.length < MAX_REPLIES) replies.push({ item, depth });
+  }
+  return { post, replies };
+}
+
+type LemmyCommentView = {
+  comment: { id: number; content: string; published: string; path: string; deleted: boolean; removed: boolean };
+  creator: { name: string; display_name?: string; avatar?: string; actor_id: string };
+  counts: { score: number; child_count: number };
+};
+
+export async function lemmyThread(id: string): Promise<Thread | null> {
+  if (!/^\d+$/.test(id)) return null;
+  const [p, c] = await Promise.all([
+    getJson<{ post_view: LemmyView }>(`https://${LEMMY}/api/v3/post?id=${id}`),
+    getJson<{ comments: LemmyCommentView[] }>(`https://${LEMMY}/api/v3/comment/list?post_id=${id}&sort=Hot&max_depth=6&limit=50&type_=All`),
+  ]);
+  const post = p?.post_view ? fromLemmy(p.post_view) : null;
+  if (!post) return null;
+  // Comments come flat with a path ("0.12.34"); order them as a tree.
+  const comments = (c?.comments ?? []).filter((x) => !x.comment.deleted && !x.comment.removed && !isAd(x.comment.content));
+  comments.sort((a, b) => a.comment.path.localeCompare(b.comment.path, undefined, { numeric: true }));
+  const replies = comments.slice(0, MAX_REPLIES).map(
+    (x): ThreadReply => ({
+      depth: x.comment.path.split(".").length - 2,
+      item: {
+        network: "lemmy",
+        id: String(x.comment.id),
+        author: {
+          name: x.creator.display_name || x.creator.name,
+          handle: `@${x.creator.name}@${new URL(x.creator.actor_id).host}`,
+          picture: x.creator.avatar ?? null,
+          url: x.creator.actor_id,
+        },
+        text: x.comment.content,
+        url: `https://${LEMMY}/comment/${x.comment.id}`,
+        media: [],
+        createdAt: x.comment.published.endsWith("Z") ? x.comment.published : `${x.comment.published}Z`,
+        stats: { score: x.counts.score },
+      },
+    }),
+  );
+  return { post, replies };
+}
+
+type HnItem = { id: number; author: string | null; title?: string | null; text?: string | null; url?: string | null; points?: number | null; created_at: string; children: HnItem[] };
+
+export async function hnThread(id: string): Promise<Thread | null> {
+  if (!/^\d+$/.test(id)) return null;
+  const item = await getJson<HnItem>(`https://hn.algolia.com/api/v1/items/${id}`);
+  if (!item) return null;
+  const count = (n: HnItem): number => n.children.reduce((sum, c) => sum + 1 + count(c), 0);
+  const post: FeedItem = {
+    network: "hackernews",
+    id: String(item.id),
+    author: { name: item.author ?? "[deleted]", handle: item.author ?? "", picture: null, url: null },
+    title: item.title ?? undefined,
+    text: item.text ? htmlToText(item.text) : "",
+    url: `https://news.ycombinator.com/item?id=${item.id}`,
+    link: item.url ?? null,
+    media: [],
+    createdAt: item.created_at,
+    stats: { score: item.points ?? 0, replies: count(item) },
+    place: item.url ? new URL(item.url).host.replace(/^www\./, "") : null,
+  };
+  const replies: ThreadReply[] = [];
+  const walk = (nodes: HnItem[], depth: number) => {
+    for (const n of nodes) {
+      if (replies.length >= MAX_REPLIES) return;
+      if (n.author && n.text) {
+        replies.push({
+          depth,
+          item: {
+            network: "hackernews",
+            id: String(n.id),
+            author: { name: n.author, handle: n.author, picture: null, url: null },
+            text: htmlToText(n.text),
+            url: `https://news.ycombinator.com/item?id=${n.id}`,
+            media: [],
+            createdAt: n.created_at,
+            stats: {},
+          },
+        });
+      }
+      walk(n.children ?? [], depth + 1);
+    }
+  };
+  walk(item.children ?? [], 0);
+  return { post, replies };
+}

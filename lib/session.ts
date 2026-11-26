@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 import { cookies } from "next/headers";
 import type { NextResponse } from "next/server";
@@ -75,7 +76,7 @@ export function parseAccounts(raw: string | undefined): Accounts {
 }
 
 /** Every remembered account and which one is in use. For server components and route handlers. */
-export async function getAccounts(): Promise<Accounts> {
+async function getAccountsUncached(): Promise<Accounts> {
   return parseAccounts((await cookies()).get(ACCOUNTS_COOKIE)?.value);
 }
 
@@ -132,3 +133,6 @@ export async function shouldAutoSignIn(): Promise<boolean> {
   if (parseAccounts(store.get(ACCOUNTS_COOKIE)?.value).accounts.length > 0) return false;
   return !store.get(SILENT_COOKIE)?.value && !store.get(SIGNED_OUT_COOKIE)?.value;
 }
+
+/** Cached for the length of one request, so pages can ask as often as they like. */
+export const getAccounts = cache(getAccountsUncached);

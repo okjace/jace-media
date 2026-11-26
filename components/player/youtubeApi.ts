@@ -14,6 +14,8 @@ export type YTPlayer = {
   unMute(): void;
   setPlaybackRate(rate: number): void;
   getAvailablePlaybackRates(): number[];
+  loadVideoById(videoId: string): void;
+  cueVideoById(videoId: string): void;
   destroy(): void;
 };
 

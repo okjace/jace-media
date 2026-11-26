@@ -6,6 +6,7 @@ import { jacePosts } from "@/lib/feeds";
 import { watchHref } from "@/lib/format";
 import { getTaste, rankPosts, recommendedVideos } from "@/lib/recommend";
 import { NETWORKS } from "@/lib/social";
+import { withDeArrow } from "@/lib/ytextras";
 import type { FeedItem, VideoCard } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -53,8 +54,8 @@ export default async function ForYouPage() {
   }
   const [posts, videos, shorts] = await Promise.all([
     Promise.all(postTasks).then((r) => r.flat()),
-    wantVideos ? recommendedVideos({ limit: 12 }) : Promise.resolve([]),
-    wantVideos ? recommendedVideos({ shorts: true, limit: 12 }) : Promise.resolve([]),
+    wantVideos ? recommendedVideos({ limit: 12 }).then(withDeArrow) : Promise.resolve([]),
+    wantVideos && !taste.ext.hideShorts ? recommendedVideos({ shorts: true, limit: 12 }).then(withDeArrow) : Promise.resolve([]),
   ]);
   const ranked = rankPosts(posts, taste, 60);
 

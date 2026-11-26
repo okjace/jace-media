@@ -78,9 +78,7 @@ export function watchHref(card: Pick<VideoCard, "source" | "id" | "short">): str
   return `/watch/${card.source}/${encodeURIComponent(card.id)}`;
 }
 
-/** Channels open where they live: Jace channels on JaceTube, YouTube channels on YouTube. */
+/** Channels open inside Jace Media. */
 export function channelHref(card: Pick<VideoCard, "source" | "channelId">): string {
-  return card.source === "jace"
-    ? `https://jacetube.vercel.app/channel/jace/${encodeURIComponent(card.channelId)}`
-    : `https://www.youtube.com/channel/${encodeURIComponent(card.channelId)}`;
+  return `/channel/${card.source}/${encodeURIComponent(card.channelId)}`;
 }

@@ -20,8 +20,9 @@ export const hasYouTubeApi = !!KEY;
 export const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 export const CHANNEL_ID = /^UC[A-Za-z0-9_-]{22}$/;
 
-export function thumbnailFor(id: string): string {
-  return `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+/** Thumbnails go through Jace Media (app/api/yt-thumb), so browsing never contacts YouTube. */
+export function thumbnailFor(id: string, size: "mqdefault" | "hqdefault" | "maxresdefault" = "hqdefault"): string {
+  return `/api/yt-thumb/${id}${size === "hqdefault" ? "" : `?s=${size}`}`;
 }
 
 async function api<T>(path: string, params: Record<string, string>): Promise<T | null> {
@@ -63,8 +64,8 @@ function isShortDuration(iso: string | undefined): boolean {
   return seconds > 0 && seconds <= 60;
 }
 
-function bestThumb(thumbs: Record<string, { url: string }> | undefined, id: string): string {
-  return thumbs?.maxres?.url ?? thumbs?.high?.url ?? thumbs?.medium?.url ?? thumbnailFor(id);
+function bestThumb(_thumbs: unknown, id: string): string {
+  return thumbnailFor(id);
 }
 
 function toCard(v: ApiVideo): VideoCard {

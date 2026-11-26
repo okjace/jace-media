@@ -1,7 +1,8 @@
 import "server-only";
 
 /**
- * The database: Postgres (Neon on Vercel, via DATABASE_URL). Without
+ * The database: Postgres (Neon on Vercel, via DATABASE_URL, over Neon's
+ * HTTP driver; any other Postgres URL uses postgres.js). Without
  * DATABASE_URL, local development uses PGlite, a real Postgres compiled to
  * WebAssembly and kept in ./data/pglite. Both run the same SQL.
  */
@@ -50,6 +51,8 @@ const SCHEMA = [
   )`,
   // Which services someone wants to see (a JSON list); null means all of them.
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS services TEXT`,
+  // Which extensions are on (a JSON object, see lib/extensions.ts).
+  `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS extensions TEXT`,
   // Channels, people and communities someone follows, on any service.
   // kind: youtube (channel id), jace (Jace user id), bluesky (handle), mastodon (user@server), lemmy (community@server).
   `CREATE TABLE IF NOT EXISTS subscriptions (
@@ -98,6 +101,18 @@ const SCHEMA = [
     created_at BIGINT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS feeds_owner ON feeds (sub, created_at)`,
+  // Subscription folders ("Gaming", "Music", …); null means no folder.
+  `ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS folder TEXT`,
+  // Jace Media comments on posts from other networks (Bluesky, Mastodon, …).
+  `CREATE TABLE IF NOT EXISTS ext_comments (
+    id TEXT PRIMARY KEY,
+    network TEXT NOT NULL,
+    post_id TEXT NOT NULL,
+    author_sub TEXT NOT NULL REFERENCES profiles(sub) ON DELETE CASCADE,
+    body TEXT NOT NULL,
+    created_at BIGINT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS ext_comments_post ON ext_comments (network, post_id, created_at)`,
 ];
 
 // One connection per process. Next.js can load this module more than once
@@ -109,7 +124,12 @@ let ready: Promise<Query> | null = shared.__jaceMediaDb ?? null;
 async function connect(): Promise<Query> {
   const url = process.env.DATABASE_URL || process.env.POSTGRES_URL;
   let query: Query;
-  if (url) {
+  if (url && /\.neon\.tech/.test(url)) {
+    // Neon over HTTP: one quick round trip per query, no connection to open on each cold start.
+    const { neon } = await import("@neondatabase/serverless");
+    const sql = neon(url);
+    query = async (text, params = []) => (await sql.query(text, params)) as Record<string, unknown>[];
+  } else if (url) {
     const { default: postgres } = await import("postgres");
     const sql = postgres(url, {
       prepare: false,

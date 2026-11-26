@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { EmptyState } from "@/components/videos/VideoGrid";
 import { ShortsPlayer } from "@/components/videos/ShortsPlayer";
+import { getExtensions } from "@/lib/prefs";
 import { getTaste, recommendedVideos, videoCandidates } from "@/lib/recommend";
 import type { VideoCard } from "@/lib/types";
+import { withDeArrow } from "@/lib/ytextras";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Shorts" };
@@ -10,7 +12,10 @@ export const metadata: Metadata = { title: "Shorts" };
 /** Recommended Shorts from YouTube and Jace. ?v=source:id starts with that Short. */
 export default async function ShortsPage({ searchParams }: { searchParams: Promise<{ v?: string }> }) {
   const { v } = await searchParams;
-  const taste = await getTaste();
+  const [taste, ext] = await Promise.all([getTaste(), getExtensions()]);
+  if (ext.hideShorts) {
+    return <EmptyState title="Shorts are hidden">The Hide Shorts extension is on. Turn it off in Extensions to see Shorts.</EmptyState>;
+  }
   if (!taste.services.includes("youtube") && !taste.services.includes("jacevideos")) {
     return <EmptyState title="Shorts are turned off">Turn on YouTube or Jace videos in Choose services to see Shorts.</EmptyState>;
   }
@@ -24,7 +29,7 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
       source,
       id,
       title: "Short",
-      thumbnail: source === "youtube" ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : null,
+      thumbnail: source === "youtube" ? `/api/yt-thumb/${id}` : null,
       channelId: "",
       channelName: source === "youtube" ? "YouTube" : "Jace",
       publishedAt: null,
@@ -40,5 +45,7 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
       </EmptyState>
     );
   }
-  return <ShortsPlayer shorts={shorts} />;
+  shorts = await withDeArrow(shorts);
+  const followed = [...taste.following].filter((k) => k.startsWith("youtube:") || k.startsWith("jace:"));
+  return <ShortsPlayer shorts={shorts} followed={followed} />;
 }

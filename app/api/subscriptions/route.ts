@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { readJson, requireViewer } from "@/lib/auth";
-import { isSubKind, subscribe, unsubscribe, validRef } from "@/lib/library";
+import { isSubKind, setFolder, subscribe, unsubscribe, validRef } from "@/lib/library";
 
 /** Follow (POST) or unfollow (DELETE) a channel, person, or community on any service. */
 async function handle(req: Request, on: boolean): Promise<NextResponse> {
@@ -29,4 +29,14 @@ export async function POST(req: Request) {
 }
 export async function DELETE(req: Request) {
   return handle(req, false);
+}
+
+/** Moves a subscription into a folder: { kind, ref, folder } (folder null or "" = no folder). */
+export async function PATCH(req: Request): Promise<NextResponse> {
+  const viewer = await requireViewer();
+  if (viewer instanceof NextResponse) return viewer;
+  const { kind, ref, folder } = await readJson(req);
+  if (!isSubKind(kind) || typeof ref !== "string") return NextResponse.json({ error: "Bad request." }, { status: 400 });
+  await setFolder(viewer.sub, kind, ref, typeof folder === "string" ? folder : null);
+  return NextResponse.json({ ok: true });
 }

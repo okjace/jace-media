@@ -9,7 +9,16 @@ import { shrinkImage } from "@/lib/image";
 const MAX = 500;
 
 /** Write a Jace post (or a reply, with parentId). */
-export function Composer({ parentId, placeholder }: { parentId?: string; placeholder?: string }) {
+export function Composer({
+  parentId,
+  placeholder,
+  extTarget,
+}: {
+  parentId?: string;
+  placeholder?: string;
+  /** Comment on a post from another network instead of posting. */
+  extTarget?: { network: string; postId: string };
+}) {
   const { current } = useApp();
   const router = useRouter();
   const pathname = usePathname();
@@ -22,7 +31,7 @@ export function Composer({ parentId, placeholder }: { parentId?: string; placeho
   if (!current) {
     return (
       <div className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-panel p-4 text-sm">
-        <span className="text-muted">{parentId ? "Sign in to reply." : "Sign in with Jace to post."}</span>
+        <span className="text-muted">{parentId || extTarget ? "Sign in to comment." : "Sign in with Jace to post."}</span>
         <a href={signInHref(pathname)} className="rounded-full bg-accent px-4 py-1.5 font-medium text-on-accent hover:bg-accent-hover">
           Sign in with Jace
         </a>
@@ -45,10 +54,10 @@ export function Composer({ parentId, placeholder }: { parentId?: string; placeho
     if (busy) return;
     setBusy(true);
     setError(null);
-    const res = await fetch("/api/posts", {
+    const res = await fetch(extTarget ? "/api/ext-comments" : "/api/posts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body, parentId, image }),
+      body: JSON.stringify(extTarget ? { network: extTarget.network, postId: extTarget.postId, body } : { body, parentId, image }),
     });
     const data = (await res.json().catch(() => ({}))) as { error?: string };
     setBusy(false);
@@ -71,7 +80,7 @@ export function Composer({ parentId, placeholder }: { parentId?: string; placeho
           value={body}
           onChange={(e) => setBody(e.target.value)}
           maxLength={MAX}
-          rows={parentId ? 2 : 3}
+          rows={parentId || extTarget ? 2 : 3}
           placeholder={placeholder ?? "What's happening?"}
           aria-label={parentId ? "Your reply" : "Your post"}
           className="min-h-12 flex-1 resize-y bg-transparent text-[15px] outline-none placeholder:text-muted"
@@ -91,23 +100,29 @@ export function Composer({ parentId, placeholder }: { parentId?: string; placeho
           </button>
         </div>
       )}
-      {error && <p role="alert" className="ml-[52px] mt-2 text-sm text-danger">{error}</p>}
+      {error && (
+        <p role="alert" className="ml-[52px] mt-2 text-sm text-danger">
+          {error}
+        </p>
+      )}
       <div className="mt-3 flex items-center gap-2 pl-[52px]">
         <input ref={file} type="file" accept="image/*" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
-        <button
-          type="button"
-          onClick={() => file.current?.click()}
-          className="rounded-full px-3 py-1.5 text-sm text-muted hover:bg-foreground/[.06] hover:text-foreground"
-        >
-          🖼 Picture
-        </button>
+        {!extTarget && (
+          <button
+            type="button"
+            onClick={() => file.current?.click()}
+            className="rounded-full px-3 py-1.5 text-sm text-muted hover:bg-foreground/[.06] hover:text-foreground"
+          >
+            🖼 Picture
+          </button>
+        )}
         <span className={`ml-auto text-xs ${left < 30 ? "text-warn" : "text-muted"}`}>{left}</span>
         <button
           type="submit"
           disabled={busy || (!body.trim() && !image)}
           className="rounded-full bg-accent px-5 py-1.5 text-sm font-medium text-on-accent transition-colors hover:bg-accent-hover disabled:opacity-50"
         >
-          {busy ? "Posting…" : parentId ? "Reply" : "Post"}
+          {busy ? "Posting…" : extTarget ? "Comment" : parentId ? "Reply" : "Post"}
         </button>
       </div>
     </form>

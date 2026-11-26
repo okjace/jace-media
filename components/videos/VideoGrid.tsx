@@ -62,17 +62,17 @@ export function VideoTile({ video }: { video: VideoCard }) {
       </Link>
       <div className="flex gap-3">
         {video.source === "jace" && (
-          <a href={channelHref(video)} className="mt-0.5 shrink-0" tabIndex={-1} aria-hidden="true">
+          <Link href={channelHref(video)} className="mt-0.5 shrink-0" tabIndex={-1} aria-hidden="true">
             <Avatar name={video.channelName} src={video.channelPicture} size={36} />
-          </a>
+          </Link>
         )}
         <div className="min-w-0 flex-1">
           <Link href={watchHref(video)} className="line-clamp-2 font-medium leading-snug">
             {video.title}
           </Link>
-          <a href={channelHref(video)} className="mt-1 block truncate text-sm text-muted hover:text-foreground">
+          <Link href={channelHref(video)} className="mt-1 block truncate text-sm text-muted hover:text-foreground">
             {video.channelName}
-          </a>
+          </Link>
           <p className="text-sm text-muted">
             <Meta video={video} />
           </p>

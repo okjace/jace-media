@@ -2,23 +2,27 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { DEFAULT_EXTENSIONS, type Extensions } from "@/lib/extensions";
 import type { Service } from "@/lib/services";
 import type { AccountSummary } from "@/lib/types";
 
 type Notice = { kind: "error" | "info"; text: string; signIn?: boolean };
 
 export type FeedTab = { id: string; name: string };
+export type SidebarSub = { kind: string; ref: string; name: string; picture: string | null; folder: string | null };
 
 type AppState = {
   current: AccountSummary | null;
   others: AccountSummary[];
   services: Service[];
   feeds: FeedTab[];
+  extensions: Extensions;
+  subs: SidebarSub[];
   notice: Notice | null;
   showNotice: (notice: Notice | null) => void;
 };
 
-const AppContext = createContext<AppState>({ current: null, others: [], services: [], feeds: [], notice: null, showNotice: () => {} });
+const AppContext = createContext<AppState>({ current: null, others: [], services: [], feeds: [], extensions: DEFAULT_EXTENSIONS, subs: [], notice: null, showNotice: () => {} });
 
 export function useApp(): AppState {
   return useContext(AppContext);
@@ -48,6 +52,8 @@ export function AppProvider({
   others,
   services,
   feeds,
+  extensions,
+  subs,
   autoSignIn,
   children,
 }: {
@@ -55,6 +61,8 @@ export function AppProvider({
   others: AccountSummary[];
   services: Service[];
   feeds: FeedTab[];
+  extensions: Extensions;
+  subs: SidebarSub[];
   autoSignIn: boolean;
   children: ReactNode;
 }) {
@@ -109,7 +117,7 @@ export function AppProvider({
     }
   }, [pathname]);
 
-  return <AppContext.Provider value={{ current, others, services, feeds, notice, showNotice }}>{children}</AppContext.Provider>;
+  return <AppContext.Provider value={{ current, others, services, feeds, extensions, subs, notice, showNotice }}>{children}</AppContext.Provider>;
 }
 
 export function Notices() {

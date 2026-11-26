@@ -1,12 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Suspense } from "react";
-import { AppProvider, Notices } from "@/components/AppProvider";
-import { SiteFooter } from "@/components/site/SiteFooter";
-import { SiteHeader } from "@/components/site/SiteHeader";
+import { AppProvider } from "@/components/AppProvider";
+import { AppShell } from "@/components/site/AppShell";
 import { getAccountList, getViewer } from "@/lib/auth";
 import { listFeeds } from "@/lib/customfeeds";
-import { getServices } from "@/lib/prefs";
+import { listSubscriptions } from "@/lib/library";
+import { getExtensions, getServices } from "@/lib/prefs";
 import { shouldAutoSignIn } from "@/lib/session";
 import "./globals.css";
 
@@ -28,8 +28,18 @@ export const viewport: Viewport = {
 const themeScript = `try{if(localStorage.getItem("jacemedia:theme")==="light")document.documentElement.dataset.theme="light"}catch(e){}`;
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const [{ current, others }, autoSignIn, services, viewer] = await Promise.all([getAccountList(), shouldAutoSignIn(), getServices(), getViewer()]);
-  const feeds = viewer ? (await listFeeds(viewer.sub).catch(() => [])).map((f) => ({ id: f.id, name: f.name })) : [];
+  const [{ current, others }, autoSignIn, services, extensions, viewer] = await Promise.all([
+    getAccountList(),
+    shouldAutoSignIn(),
+    getServices(),
+    getExtensions(),
+    getViewer(),
+  ]);
+  const [feedList, subList] = viewer
+    ? await Promise.all([listFeeds(viewer.sub).catch(() => []), listSubscriptions(viewer.sub).catch(() => [])])
+    : [[], []];
+  const feeds = feedList.map((f) => ({ id: f.id, name: f.name }));
+  const subs = subList.map((s) => ({ kind: s.kind, ref: s.ref, name: s.name, picture: s.picture, folder: s.folder ?? null }));
 
   return (
     <html
@@ -42,13 +52,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="flex min-h-full flex-col">
-        <AppProvider current={current} others={others} services={services} feeds={feeds} autoSignIn={autoSignIn}>
+        <AppProvider current={current} others={others} services={services} feeds={feeds} extensions={extensions} subs={subs} autoSignIn={autoSignIn}>
           <Suspense>
-            <SiteHeader />
+            <AppShell>{children}</AppShell>
           </Suspense>
-          <Notices />
-          <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-5 sm:px-6">{children}</main>
-          <SiteFooter />
         </AppProvider>
       </body>
     </html>

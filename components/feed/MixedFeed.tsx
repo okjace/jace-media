@@ -5,6 +5,7 @@ import type { Entry } from "@/lib/customfeeds";
 import { followKey, followTarget } from "@/lib/follow";
 import { duration, timeAgo, views, watchHref } from "@/lib/format";
 import { getTaste } from "@/lib/recommend";
+import { withDeArrow } from "@/lib/ytextras";
 import type { VideoCard } from "@/lib/types";
 import { PostCard } from "./PostCard";
 
@@ -43,9 +44,12 @@ export async function MixedFeed({ entries, empty }: { entries: Entry[]; empty: R
     return <div className="rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">{empty}</div>;
   }
   const taste = await getTaste();
+  const titled = await withDeArrow(entries.flatMap((e) => (e.kind === "video" ? [e.video] : [])));
+  const byKey = new Map(titled.map((v) => [`${v.source}:${v.id}`, v]));
   return (
     <div className="flex flex-col gap-3">
-      {entries.map((e) => {
+      {entries.map((entry) => {
+        const e = entry.kind === "video" ? { ...entry, video: byKey.get(`${entry.video.source}:${entry.video.id}`) ?? entry.video } : entry;
         if (e.kind === "video") return <VideoFeedCard key={`v:${e.video.source}:${e.video.id}`} video={e.video} />;
         const target = followTarget(e.item);
         return <PostCard key={`p:${e.item.network}:${e.item.id}`} item={e.item} followed={!!target && taste.following.has(followKey(target))} />;

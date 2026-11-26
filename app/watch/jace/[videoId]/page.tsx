@@ -19,8 +19,9 @@ export async function generateMetadata({ params }: PageProps<"/watch/jace/[video
 }
 
 /** Jace videos play straight from Jace's storage in the browser's own player. No ads, ever. */
-export default async function JaceWatchPage({ params }: PageProps<"/watch/jace/[videoId]">) {
+export default async function JaceWatchPage({ params, searchParams }: PageProps<"/watch/jace/[videoId]">) {
   const { videoId } = await params;
+  const autoStart = (await searchParams).play === "1";
   const video = await jaceVideo(videoId);
   if (!video) notFound();
   const [taste, viewer, upNext] = await Promise.all([getTaste(), getViewer(), recommendedVideos({ limit: 16, exclude: video.id })]);
@@ -39,13 +40,14 @@ export default async function JaceWatchPage({ params }: PageProps<"/watch/jace/[
             src={video.url}
             poster={video.thumbnail_url}
             title={video.title}
+            autoStart={autoStart}
             nextHref={upNext[0] ? watchHref(upNext[0]) : null}
             nextTitle={upNext[0]?.title ?? null}
           />
         </div>
         <h1 className="text-xl font-semibold leading-snug">{video.title}</h1>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <a href={`https://jacetube.vercel.app/channel/jace/${video.owner_id}`} className="flex min-w-0 items-center gap-3">
+          <a href={`/channel/jace/${video.owner_id}`} className="flex min-w-0 items-center gap-3">
             <Avatar name={video.owner_name} src={video.owner_picture} size={40} />
             <div className="min-w-0">
               <p className="truncate font-medium">{video.owner_name}</p>

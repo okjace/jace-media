@@ -4,7 +4,8 @@ import { getViewer } from "./auth";
 import { featuredYouTube, jaceVideos } from "./data";
 import { q } from "./db";
 import { followKey } from "./follow";
-import { getServices } from "./prefs";
+import type { Extensions } from "./extensions";
+import { getExtensions, getServices } from "./prefs";
 import type { Service } from "./services";
 import type { FeedItem, VideoCard } from "./types";
 import { channelFeed, hasYouTubeApi, search, trending } from "./youtube";
@@ -21,6 +22,7 @@ import { channelFeed, hasYouTubeApi, search, trending } from "./youtube";
 export type Taste = {
   signedIn: boolean;
   services: Service[];
+  ext: Extensions;
   /** 0..1 per channel ("youtube:UC…" or "jace:<owner id>"), from watch history and likes. */
   channels: Map<string, number>;
   /** followKey()s of everything followed: "youtube:uc…", "jace:<sub>", "bluesky:<handle>", … */
@@ -56,11 +58,12 @@ function keywordsFrom(titles: string[]): string[] {
 
 /** Everything known about what this person likes. Cached for one request. */
 export const getTaste = cache(async (): Promise<Taste> => {
-  const [viewer, services] = await Promise.all([getViewer(), getServices()]);
+  const [viewer, services, ext] = await Promise.all([getViewer(), getServices(), getExtensions()]);
   const day = new Date().toISOString().slice(0, 10);
   const taste: Taste = {
     signedIn: !!viewer,
     services,
+    ext,
     channels: new Map(),
     following: new Set(),
     watched: new Map(),
@@ -167,10 +170,16 @@ function dedupe(videos: VideoCard[]): VideoCard[] {
   return videos.filter((v) => !seen.has(`${v.source}:${v.id}`) && seen.add(`${v.source}:${v.id}`));
 }
 
+/** What extensions and "Not interested" take out of any list of videos. */
+function allowed(v: VideoCard, taste: Taste): boolean {
+  if (taste.hiddenVideos.has(`${v.source}:${v.id}`) || taste.hiddenChannels.has(channelKey(v))) return false;
+  if (taste.ext.hideWatched && taste.watched.has(`${v.source}:${v.id}`)) return false;
+  if (taste.ext.hideShorts && v.short) return false;
+  return true;
+}
+
 export function rankVideos(videos: VideoCard[], taste: Taste, limit = 48): VideoCard[] {
-  const visible = dedupe(videos).filter(
-    (v) => !taste.hiddenVideos.has(`${v.source}:${v.id}`) && !taste.hiddenChannels.has(channelKey(v)),
-  );
+  const visible = dedupe(videos).filter((v) => allowed(v, taste));
   return diverse(
     visible.map((v) => ({ item: v, score: videoScore(v, taste), group: channelKey(v) })),
     limit,
@@ -180,7 +189,7 @@ export function rankVideos(videos: VideoCard[], taste: Taste, limit = 48): Video
 
 export function latestVideos(videos: VideoCard[], taste: Taste, limit = 48): VideoCard[] {
   return dedupe(videos)
-    .filter((v) => !taste.hiddenVideos.has(`${v.source}:${v.id}`) && !taste.hiddenChannels.has(channelKey(v)))
+    .filter((v) => allowed(v, taste))
     .sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? ""))
     .slice(0, limit);
 }
@@ -190,7 +199,7 @@ export function latestVideos(videos: VideoCard[], taste: Taste, limit = 48): Vid
  * and watch most, popular videos (or a starter set of channels), searches
  * for topics you've been watching (with a YouTube API key), and Jace videos.
  */
-export const videoCandidates = cache(async (subscriptionsOnly: boolean = false): Promise<VideoCard[]> => {
+export const videoCandidates = cache(async (subscriptionsOnly: boolean = false, folder: string | null = null): Promise<VideoCard[]> => {
   const taste = await getTaste();
   const wantYouTube = taste.services.includes("youtube");
   const wantJace = taste.services.includes("jacevideos");
@@ -200,7 +209,7 @@ export const videoCandidates = cache(async (subscriptionsOnly: boolean = false):
     .sort((a, b) => b[1] - a[1])
     .map(([k]) => k.slice(8));
   // Following keys are lower-cased; channel ids are case-sensitive, so use the stored ones.
-  const subIds = await subscribedChannelIds();
+  const subIds = await subscribedChannelIds(folder);
   const channelIds = subscriptionsOnly ? subIds.slice(0, 60) : [...new Set([...watchedMost.slice(0, 25), ...subIds.slice(0, 30)])].slice(0, 45);
 
   const tasks: Promise<VideoCard[]>[] = [];
@@ -217,22 +226,35 @@ export const videoCandidates = cache(async (subscriptionsOnly: boolean = false):
   }
   if (wantJace) {
     if (subscriptionsOnly) {
-      const jaceFollows = [...taste.following].filter((k) => k.startsWith("jace:")).map((k) => k.slice(5));
+      const jaceFollows = folder
+        ? await jaceFolderIds(folder)
+        : [...taste.following].filter((k) => k.startsWith("jace:")).map((k) => k.slice(5));
       tasks.push(jaceVideos({ limit: 60 }).then((r) => r.videos.filter((v) => jaceFollows.includes(v.channelId.toLowerCase()))));
     } else tasks.push(jaceVideos({ limit: 60 }).then((r) => r.videos));
   }
   return (await Promise.all(tasks)).flat();
 });
 
-const subscribedChannelIds = cache(async (): Promise<string[]> => {
+async function jaceFolderIds(folder: string): Promise<string[]> {
   const viewer = await getViewer();
   if (!viewer) return [];
-  const rows = await q(`SELECT ref FROM subscriptions WHERE sub = $1 AND kind = 'youtube' ORDER BY created_at DESC`, [viewer.sub]);
+  const rows = await q(`SELECT ref FROM subscriptions WHERE sub = $1 AND kind = 'jace' AND folder = $2`, [viewer.sub, folder]);
+  return rows.map((r) => (r.ref as string).toLowerCase());
+}
+
+const subscribedChannelIds = cache(async (folder: string | null = null): Promise<string[]> => {
+  const viewer = await getViewer();
+  if (!viewer) return [];
+  const rows = folder
+    ? await q(`SELECT ref FROM subscriptions WHERE sub = $1 AND kind = 'youtube' AND folder = $2 ORDER BY created_at DESC`, [viewer.sub, folder])
+    : await q(`SELECT ref FROM subscriptions WHERE sub = $1 AND kind = 'youtube' ORDER BY created_at DESC`, [viewer.sub]);
   return rows.map((r) => r.ref as string);
 });
 
 export async function recommendedVideos(opts: { limit?: number; shorts?: boolean; exclude?: string } = {}): Promise<VideoCard[]> {
-  const [taste, candidates] = await Promise.all([getTaste(), videoCandidates()]);
+  const taste = await getTaste();
+  // Focus mode: only subscriptions, no recommendations from elsewhere.
+  const candidates = await videoCandidates(taste.ext.focus && taste.signedIn);
   const pool = candidates.filter((v) => !!v.short === !!opts.shorts && v.id !== opts.exclude);
   return rankVideos(pool, taste, opts.limit ?? 48);
 }

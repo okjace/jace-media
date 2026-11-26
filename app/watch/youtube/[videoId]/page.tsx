@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SourceBadge, VideoRow } from "@/components/videos/VideoGrid";
 import { Description } from "@/components/videos/Description";
@@ -9,6 +10,7 @@ import { VideoLikeButton } from "@/components/actions/VideoLikeButton";
 import { getViewer } from "@/lib/auth";
 import { date, timeAgo, views, watchHref } from "@/lib/format";
 import { sponsorSegments } from "@/lib/sponsorblock";
+import { dislikes, withDeArrow } from "@/lib/ytextras";
 import { isVideoLiked } from "@/lib/library";
 import { getTaste, rankVideos, recommendedVideos } from "@/lib/recommend";
 import { VIDEO_ID, channelFeed, videoDetail } from "@/lib/youtube";
@@ -24,19 +26,21 @@ export async function generateMetadata({ params }: PageProps<"/watch/youtube/[vi
  * personalized ads, and no "related videos" from other channels at the end.
  * Jace Media itself never adds ads.
  */
-export default async function YouTubeWatchPage({ params }: PageProps<"/watch/youtube/[videoId]">) {
+export default async function YouTubeWatchPage({ params, searchParams }: PageProps<"/watch/youtube/[videoId]">) {
   const { videoId } = await params;
+  const autoStart = (await searchParams).play === "1";
   if (!VIDEO_ID.test(videoId)) notFound();
   const detail = await videoDetail(videoId);
   const title = detail?.title ?? "YouTube video";
   const channelName = detail?.channelName ?? "YouTube";
   const channelId = detail?.channelId ?? null;
-  const [taste, viewer, channel, recommended, segments] = await Promise.all([
+  const [taste, viewer, channel, recommended, segments, votes] = await Promise.all([
     getTaste(),
     getViewer(),
     channelId ? channelFeed(channelId) : null,
     recommendedVideos({ limit: 20, exclude: videoId }),
     sponsorSegments(videoId),
+    dislikes(videoId),
   ]);
   const liked = viewer ? await isVideoLiked(viewer.sub, "youtube", videoId).catch(() => false) : false;
   const subscribed = !!channelId && taste.following.has(`youtube:${channelId.toLowerCase()}`);
@@ -47,7 +51,8 @@ export default async function YouTubeWatchPage({ params }: PageProps<"/watch/you
     4,
   );
   const seen = new Set([videoId]);
-  const upNext = [...fromChannel, ...recommended].filter((v) => !seen.has(v.id) && seen.add(v.id)).slice(0, 16);
+  const upNext = await withDeArrow([...fromChannel, ...recommended].filter((v) => !seen.has(v.id) && seen.add(v.id)).slice(0, 16));
+  const showVotes = taste.ext.dislikes && votes && !taste.ext.hideCounts;
 
   return (
     <div className="flex flex-col gap-6 pb-6 lg:flex-row">
@@ -60,6 +65,7 @@ export default async function YouTubeWatchPage({ params }: PageProps<"/watch/you
             id={videoId}
             title={title}
             segments={segments}
+            autoStart={autoStart}
             nextHref={upNext[0] ? watchHref(upNext[0]) : null}
             nextTitle={upNext[0]?.title ?? null}
           />
@@ -69,14 +75,9 @@ export default async function YouTubeWatchPage({ params }: PageProps<"/watch/you
           <div className="flex min-w-0 items-center gap-3">
             <div className="min-w-0">
               {detail?.channelId ? (
-                <a
-                  href={`https://www.youtube.com/channel/${detail.channelId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block truncate font-medium hover:underline"
-                >
+                <Link href={`/channel/youtube/${detail.channelId}`} className="block truncate font-medium hover:underline">
                   {channelName}
-                </a>
+                </Link>
               ) : (
                 <p className="truncate font-medium">{channelName}</p>
               )}
@@ -88,6 +89,16 @@ export default async function YouTubeWatchPage({ params }: PageProps<"/watch/you
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <VideoLikeButton source="youtube" id={videoId} channelId={channelId} initial={liked} />
+            {showVotes && (
+              <span
+                className="flex h-9 items-center gap-3 rounded-full bg-foreground/[.07] px-4 text-sm"
+                title="Likes and dislikes on YouTube, from Return YouTube Dislike"
+              >
+                <span>👍 {views(votes!.likes).replace(/ views?$/, "")}</span>
+                <span className="h-4 w-px bg-line" aria-hidden="true" />
+                <span>👎 {views(votes!.dislikes).replace(/ views?$/, "")}</span>
+              </span>
+            )}
             <a
               href={`https://www.youtube.com/watch?v=${videoId}`}
               target="_blank"

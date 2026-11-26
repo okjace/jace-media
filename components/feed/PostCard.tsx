@@ -2,49 +2,59 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Avatar } from "@/components/Avatar";
 import { signInHref, useApp } from "@/components/AppProvider";
 import { FollowButton } from "@/components/actions/FollowButton";
 import { followTarget } from "@/lib/follow";
 import { timeAgo } from "@/lib/format";
+import { authorHref, placeHref, postHref } from "@/lib/links";
 import type { FeedItem } from "@/lib/types";
 import { NetworkBadge } from "./NetworkBadge";
 import { RichText } from "./RichText";
 
 const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
+const SITE: Record<string, string> = { bluesky: "Bluesky", mastodon: "Mastodon", lemmy: "Lemmy", hackernews: "Hacker News" };
 
-function Stat({ icon, n, label }: { icon: string; n?: number; label: string }) {
-  if (n === undefined || n === null) return null;
-  return (
-    <span className="flex items-center gap-1" title={label}>
-      <span aria-hidden="true">{icon}</span>
-      <span>{compact.format(n)}</span>
-      <span className="sr-only">{label}</span>
-    </span>
-  );
-}
-
-function AuthorLink({ item, children }: { item: FeedItem; children: React.ReactNode }) {
-  const href = item.author.url;
-  if (!href) return <>{children}</>;
-  if (item.network === "jace") return <Link href={href}>{children}</Link>;
-  return (
-    <a href={href} target="_blank" rel="noopener noreferrer">
+function MaybeLink({ href, children, className }: { href: string | null; children: ReactNode; className?: string }) {
+  return href ? (
+    <Link href={href} className={className}>
       {children}
-    </a>
+    </Link>
+  ) : (
+    <span className={className}>{children}</span>
   );
 }
 
-/** One post from any network. Jace posts can be liked, replied to, and deleted here; others open on their own site. */
-export function PostCard({ item, linkToThread = true, followed = false }: { item: FeedItem; linkToThread?: boolean; followed?: boolean }) {
-  const { current, showNotice } = useApp();
+/**
+ * One post from any network. Everything opens inside Jace Media: the author's
+ * profile, the community, and the post with its replies and comments.
+ * variant "comment" is a Jace Media comment on another network's post.
+ */
+export function PostCard({
+  item,
+  linkToThread = true,
+  followed = false,
+  variant = "post",
+  comments,
+}: {
+  item: FeedItem;
+  linkToThread?: boolean;
+  followed?: boolean;
+  variant?: "post" | "comment";
+  /** Jace Media comments on this post (other networks). */
+  comments?: number;
+}) {
+  const { current, showNotice, extensions } = useApp();
   const router = useRouter();
   const [liked, setLiked] = useState(!!item.likedByMe);
   const [likes, setLikes] = useState(item.stats.likes ?? 0);
   const [deleted, setDeleted] = useState(false);
   const isJace = item.network === "jace";
-  const external = !isJace;
+  const isComment = variant === "comment";
+  const thread = postHref(item);
+  const author = authorHref(item);
+  const counts = !extensions.hideCounts;
 
   async function toggleLike() {
     if (!current) {
@@ -66,139 +76,169 @@ export function PostCard({ item, linkToThread = true, followed = false }: { item
   }
 
   async function remove() {
-    if (!confirm("Delete this post? This can't be undone.")) return;
-    const res = await fetch(`/api/posts/${item.id}`, { method: "DELETE" });
+    if (!confirm(isComment ? "Delete this comment?" : "Delete this post? This can't be undone.")) return;
+    const res = await fetch(isComment ? `/api/ext-comments?id=${item.id}` : `/api/posts/${item.id}`, { method: "DELETE" });
     if (res.ok) {
       setDeleted(true);
       router.refresh();
-    } else showNotice({ kind: "error", text: "Couldn't delete that post." });
+    } else showNotice({ kind: "error", text: "Couldn't delete that." });
   }
 
   if (deleted) return null;
 
   const images = item.media.slice(0, 4);
   const target = followTarget(item);
-  const canFollow = !!target && !(item.network === "jace" && item.authorSub === current?.sub);
+  const canFollow = !isComment && !!target && !(isJace && item.authorSub === current?.sub);
+  const clickable = linkToThread && !isComment;
+  const text = linkToThread && item.text.length > 600 ? `${item.text.slice(0, 600)}…` : item.text;
 
   return (
-    <article className="rounded-2xl border border-line bg-panel p-4 transition-colors hover:border-foreground/20">
+    <article className={`rounded-2xl border border-line bg-panel transition-colors ${isComment ? "p-3" : "p-4 hover:border-foreground/20"}`}>
       <header className="flex items-start gap-3">
-        <AuthorLink item={item}>
-          <Avatar name={item.author.name} src={item.author.picture} size={40} />
-        </AuthorLink>
+        <MaybeLink href={author}>
+          <Avatar name={item.author.name} src={item.author.picture} size={isComment ? 32 : 40} />
+        </MaybeLink>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            <AuthorLink item={item}>
-              <span className="font-semibold hover:underline">{item.author.name}</span>
-            </AuthorLink>
+            <MaybeLink href={author} className="font-semibold hover:underline">
+              {item.author.name}
+            </MaybeLink>
             <span className="truncate text-sm text-muted">{isJace ? `@${item.author.handle}` : item.author.handle}</span>
           </div>
-          <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted">
-            <NetworkBadge network={item.network} />
-            {item.place && <span className="truncate">{item.place}</span>}
-            <time dateTime={item.createdAt}>{timeAgo(item.createdAt)}</time>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+            {!isComment && <NetworkBadge network={item.network} />}
+            {item.place && (
+              <MaybeLink href={placeHref(item)} className="truncate hover:text-foreground">
+                {item.place}
+              </MaybeLink>
+            )}
+            <MaybeLink href={clickable ? thread : null} className="hover:text-foreground">
+              <time dateTime={item.createdAt}>{timeAgo(item.createdAt)}</time>
+            </MaybeLink>
           </div>
         </div>
         {canFollow && <FollowButton target={target!} initial={followed} size="sm" />}
       </header>
 
-      <div className="mt-3 space-y-2">
-        {item.title &&
-          (item.link ? (
-            <a href={item.link} target="_blank" rel="noopener noreferrer nofollow" className="block text-[17px] font-semibold leading-snug hover:underline">
-              {item.title}
-            </a>
+      <div className={`space-y-2 ${isComment ? "mt-2 pl-11" : "mt-3"}`}>
+        {item.title && (
+          <MaybeLink href={clickable ? thread : null} className="block text-[17px] font-semibold leading-snug hover:underline">
+            {item.title}
+          </MaybeLink>
+        )}
+        {text &&
+          (clickable ? (
+            // Opens the post, except when a link inside the text was clicked.
+            <div
+              role="link"
+              tabIndex={0}
+              onClick={(e) => !(e.target as HTMLElement).closest("a") && router.push(thread)}
+              onKeyDown={(e) => e.key === "Enter" && router.push(thread)}
+              className="cursor-pointer"
+            >
+              <RichText text={text} className="text-[15px] leading-relaxed" />
+            </div>
           ) : (
-            <a href={item.url} target="_blank" rel="noopener noreferrer" className="block text-[17px] font-semibold leading-snug hover:underline">
-              {item.title}
-            </a>
-          ))}
-        {item.text &&
-          (isJace && linkToThread ? (
-            <Link href={item.url} className="block">
-              <RichText text={item.text} className="text-[15px] leading-relaxed" />
-            </Link>
-          ) : (
-            <RichText text={item.text.length > 700 ? `${item.text.slice(0, 700)}…` : item.text} className="text-[15px] leading-relaxed" />
+            <RichText text={text} className="text-[15px] leading-relaxed" />
           ))}
         {images.length > 0 && (
           <div className={`grid gap-1.5 overflow-hidden rounded-xl ${images.length > 1 ? "grid-cols-2" : ""}`}>
-            {images.map((m, i) => (
-              <a
-                key={i}
-                href={m.kind === "video" ? item.url : m.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="relative block overflow-hidden rounded-xl border border-line bg-black/20"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={m.thumb ?? m.url}
-                  alt={m.alt ?? ""}
-                  loading="lazy"
-                  referrerPolicy="no-referrer"
-                  className={`w-full object-cover ${images.length > 1 ? "aspect-square" : "max-h-[520px]"}`}
-                />
-                {m.kind === "video" && (
-                  <span className="absolute inset-0 flex items-center justify-center">
-                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 text-xl text-white">▶</span>
-                  </span>
-                )}
-              </a>
-            ))}
+            {images.map((m, i) => {
+              const img = (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={m.thumb ?? m.url}
+                    alt={m.alt ?? ""}
+                    loading="lazy"
+                    decoding="async"
+                    referrerPolicy="no-referrer"
+                    className={`w-full object-cover ${images.length > 1 ? "aspect-square" : "max-h-[560px]"}`}
+                  />
+                  {m.kind === "video" && (
+                    <span className="absolute inset-0 flex items-center justify-center">
+                      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 text-xl text-white">▶</span>
+                    </span>
+                  )}
+                </>
+              );
+              const cls = "relative block overflow-hidden rounded-xl border border-line bg-black/20";
+              return clickable ? (
+                <Link key={i} href={thread} className={cls}>
+                  {img}
+                </Link>
+              ) : (
+                <a key={i} href={m.url} target="_blank" rel="noopener noreferrer" className={cls}>
+                  {img}
+                </a>
+              );
+            })}
           </div>
         )}
-        {item.link && !item.title && (
+        {item.link && (
+          // Shared articles are the one thing that opens elsewhere.
           <a
             href={item.link}
             target="_blank"
             rel="noopener noreferrer nofollow"
-            className="block truncate rounded-xl border border-line px-3 py-2 text-sm text-muted hover:text-foreground"
+            className="flex items-center gap-2 truncate rounded-xl border border-line px-3 py-2 text-sm text-muted transition-colors hover:bg-foreground/[.04] hover:text-foreground"
           >
-            🔗 {item.link.replace(/^https?:\/\/(www\.)?/, "")}
+            <span aria-hidden="true">🔗</span>
+            <span className="truncate">{item.link.replace(/^https?:\/\/(www\.)?/, "")}</span>
           </a>
         )}
       </div>
 
-      <footer className="mt-3 flex items-center gap-5 text-sm text-muted">
-        {isJace ? (
-          <>
+      {isComment ? (
+        item.canDelete && (
+          <div className="mt-1 flex justify-end">
+            <button type="button" onClick={remove} className="rounded-full px-2 py-1 text-xs text-muted hover:bg-danger/10 hover:text-danger">
+              Delete
+            </button>
+          </div>
+        )
+      ) : (
+        <footer className="-ml-2 mt-3 flex items-center gap-1 text-sm text-muted">
+          {isJace ? (
             <button
               type="button"
               onClick={toggleLike}
               aria-pressed={liked}
-              className={`flex items-center gap-1 rounded-full px-2 py-1 -ml-2 transition-colors hover:bg-accent/10 ${liked ? "text-accent" : ""}`}
+              className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 transition-colors hover:bg-accent/10 ${liked ? "text-accent" : ""}`}
             >
               <span aria-hidden="true">{liked ? "♥" : "♡"}</span>
-              {compact.format(likes)}
+              {counts && compact.format(likes)}
               <span className="sr-only">{liked ? "Unlike" : "Like"}</span>
             </button>
-            {linkToThread && (
-              <Link href={item.url} className="flex items-center gap-1 rounded-full px-2 py-1 hover:bg-foreground/[.06]">
-                <span aria-hidden="true">💬</span> {compact.format(item.stats.replies ?? 0)}
-                <span className="sr-only">replies</span>
-              </Link>
-            )}
-            {item.canDelete && (
-              <button type="button" onClick={remove} className="ml-auto rounded-full px-2 py-1 text-xs hover:bg-danger/10 hover:text-danger">
-                Delete
-              </button>
-            )}
-          </>
-        ) : (
-          <>
-            <Stat icon="♡" n={item.stats.likes} label="likes" />
-            <Stat icon="▲" n={item.stats.score} label="points" />
-            <Stat icon="💬" n={item.stats.replies} label="replies" />
-            <Stat icon="↻" n={item.stats.reposts} label="reposts" />
-            {external && (
-              <a href={item.url} target="_blank" rel="noopener noreferrer" className="ml-auto rounded-full px-2 py-1 text-xs hover:bg-foreground/[.06] hover:text-foreground">
-                Open on {item.network === "hackernews" ? "HN" : item.network[0].toUpperCase() + item.network.slice(1)} ↗
-              </a>
-            )}
-          </>
-        )}
-      </footer>
+          ) : (
+            counts && (
+              <span className="flex items-center gap-3 px-2.5">
+                {item.stats.likes !== undefined && <span title="likes">♡ {compact.format(item.stats.likes)}</span>}
+                {item.stats.score !== undefined && <span title="points">▲ {compact.format(item.stats.score)}</span>}
+                {item.stats.reposts !== undefined && <span title="reposts">↻ {compact.format(item.stats.reposts)}</span>}
+              </span>
+            )
+          )}
+          {linkToThread && (
+            <Link href={thread} className="flex items-center gap-1.5 rounded-full px-2.5 py-1 hover:bg-foreground/[.06] hover:text-foreground">
+              <span aria-hidden="true">💬</span>
+              {counts && compact.format((item.stats.replies ?? 0) + (comments ?? 0))}
+              <span className="sr-only">comments</span>
+            </Link>
+          )}
+          <span className="flex-1" />
+          {item.canDelete && (
+            <button type="button" onClick={remove} className="rounded-full px-2.5 py-1 text-xs hover:bg-danger/10 hover:text-danger">
+              Delete
+            </button>
+          )}
+          {!isJace && !linkToThread && (
+            <a href={item.url} target="_blank" rel="noopener noreferrer" className="rounded-full px-2.5 py-1 text-xs hover:bg-foreground/[.06] hover:text-foreground">
+              Open on {SITE[item.network]} ↗
+            </a>
+          )}
+        </footer>
+      )}
     </article>
   );
 }
