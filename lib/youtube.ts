@@ -428,3 +428,19 @@ export async function searchLive(q: string, limit = 12): Promise<VideoCard[]> {
       duration: "PT0S",
     }));
 }
+
+/** Channel pictures for up to 50 channels at once (one cheap request). */
+export async function channelPictures(ids: string[]): Promise<Map<string, string>> {
+  const valid = ids.filter((id) => CHANNEL_ID.test(id)).slice(0, 50);
+  if (!valid.length) return new Map();
+  const data = await api<{ items: { id: string; snippet: { thumbnails?: Record<string, { url: string }> } }[] }>("channels", {
+    part: "snippet",
+    id: valid.join(","),
+  });
+  const out = new Map<string, string>();
+  for (const c of data?.items ?? []) {
+    const url = ytImage(c.snippet.thumbnails?.medium?.url ?? c.snippet.thumbnails?.default?.url);
+    if (url) out.set(c.id, url);
+  }
+  return out;
+}

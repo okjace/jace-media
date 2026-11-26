@@ -10,6 +10,7 @@ import type { Service } from "@/lib/services";
 import { AccountMenu } from "./AccountMenu";
 import { Icon, type IconName } from "./icons";
 import { Logo } from "./Logo";
+import { CreateMenu } from "./CreateMenu";
 import { InstallApp } from "./InstallApp";
 import { NotificationBell } from "./NotificationBell";
 import { ThemeToggle } from "./ThemeToggle";
@@ -271,17 +272,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <button type="button" onClick={() => setMobileSearch(true)} aria-label="Search" className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-foreground/[.07] md:hidden">
           <Icon name="search" />
         </button>
-        {current && (
-          <Link
-            href="/upload"
-            aria-label="Upload a video"
-            title="Upload a video"
-            className="flex h-9 items-center gap-1.5 rounded-full border border-line px-2.5 text-sm font-medium transition-colors hover:bg-foreground/[.06] sm:px-3.5"
-          >
-            <Icon name="plus" size={18} />
-            <span className="hidden md:inline">Upload</span>
-          </Link>
-        )}
+        {current && <CreateMenu />}
         <NotificationBell />
         <ThemeToggle />
         <AccountMenu />

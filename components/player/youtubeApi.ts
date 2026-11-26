@@ -18,6 +18,8 @@ export type YTPlayer = {
   cueVideoById(videoId: string): void;
   loadModule(name: string): void;
   unloadModule(name: string): void;
+  setOption(module: string, option: string, value: unknown): void;
+  getOption(module: string, option: string): unknown;
   destroy(): void;
 };
 

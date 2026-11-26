@@ -8,11 +8,11 @@ import { FollowButton } from "@/components/actions/FollowButton";
 import { RecordWatch } from "@/components/actions/RecordWatch";
 import { SaveButton } from "@/components/actions/SaveButton";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
-import { VideoLikeButton } from "@/components/actions/VideoLikeButton";
+import { VideoVotes } from "@/components/actions/VideoVotes";
 import { getViewer } from "@/lib/auth";
 import { jaceVideo } from "@/lib/data";
 import { count, date, timeAgo, watchHref } from "@/lib/format";
-import { isVideoLiked } from "@/lib/library";
+import { dislikeCount, videoVote } from "@/lib/library";
 import { filterVideos } from "@/lib/ratingfilter";
 import { getTaste, recommendedVideos } from "@/lib/recommend";
 
@@ -28,7 +28,10 @@ export default async function JaceWatchPage({ params, searchParams }: PageProps<
   const video = await jaceVideo(videoId);
   if (!video) notFound();
   const [taste, viewer, upNext] = await Promise.all([getTaste(), getViewer(), recommendedVideos({ limit: 16, exclude: video.id }).then(filterVideos)]);
-  const liked = viewer ? await isVideoLiked(viewer.sub, "jace", video.id).catch(() => false) : false;
+  const [myVote, dislikes] = await Promise.all([
+    viewer ? videoVote(viewer.sub, "jace", video.id).catch(() => 0 as const) : Promise.resolve(0 as const),
+    dislikeCount("jace", video.id).catch(() => 0),
+  ]);
   const following = taste.following.has(`jace:${video.owner_id.toLowerCase()}`);
 
   return (
@@ -68,7 +71,14 @@ export default async function JaceWatchPage({ params, searchParams }: PageProps<
                 label="Subscribe"
               />
             )}
-            <VideoLikeButton source="jace" id={video.id} channelId={video.owner_id} initial={liked} />
+            <VideoVotes
+              source="jace"
+              id={video.id}
+              channelId={video.owner_id}
+              initial={myVote}
+              likes={Math.max(0, video.likes - (video.liked_by_me ? 1 : 0))}
+              dislikes={Math.max(0, dislikes - (myVote === -1 ? 1 : 0))}
+            />
             <SaveButton
               video={{ source: "jace", id: video.id, title: video.title, thumbnail: video.thumbnail_url, channelId: video.owner_id, channelName: video.owner_name, publishedAt: null }}
             />

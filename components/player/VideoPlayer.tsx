@@ -318,6 +318,16 @@ export function VideoPlayer({
             setReady(true);
             if (stored("captions", false)) {
               p.loadModule("captions");
+              const lang = navigator.language.slice(0, 2);
+              const pick = () => {
+                try {
+                  const list = (p.getOption("captions", "tracklist") as { languageCode: string }[] | undefined) ?? [];
+                  const track = list.find((t) => t.languageCode.startsWith(lang)) ?? list.find((t) => t.languageCode.startsWith("en")) ?? list[0];
+                  if (track) p.setOption("captions", "track", { languageCode: track.languageCode });
+                } catch {}
+              };
+              setTimeout(pick, 800);
+              setTimeout(pick, 2500);
               setCc(true);
             }
             if (activeRef.current) p.playVideo();
@@ -523,6 +533,22 @@ export function VideoPlayer({
     [ext.rememberSpeed],
   );
 
+  const ytCaptionsOn = useCallback((p: YTPlayer) => {
+    p.loadModule("captions");
+    const pickTrack = () => {
+      try {
+        const list = (p.getOption("captions", "tracklist") as { languageCode: string }[] | undefined) ?? [];
+        const lang = navigator.language.slice(0, 2);
+        const track = list.find((t) => t.languageCode.startsWith(lang)) ?? list.find((t) => t.languageCode.startsWith("en")) ?? list[0];
+        if (track) p.setOption("captions", "track", { languageCode: track.languageCode });
+      } catch {}
+    };
+    // The track list only appears once the module has loaded.
+    pickTrack();
+    setTimeout(pickTrack, 600);
+    setTimeout(pickTrack, 1800);
+  }, []);
+
   const toggleCaptions = useCallback(() => {
     const v = videoEl.current;
     if (mode === "native" && v) {
@@ -537,11 +563,14 @@ export function VideoPlayer({
     const p = yt.current;
     if (!p) return;
     const next = !cc;
-    if (next) p.loadModule("captions");
-    else p.unloadModule("captions");
+    if (next) ytCaptionsOn(p);
+    else {
+      p.setOption("captions", "track", {});
+      p.unloadModule("captions");
+    }
     setCc(next);
     store("captions", next);
-  }, [cc, mode]);
+  }, [cc, mode, ytCaptionsOn]);
 
   // Leaving the page while a video plays: it keeps going in the mini player.
   const handoff = useRef<{ playing: boolean; time: number }>({ playing: false, time: 0 });

@@ -5,7 +5,7 @@ import { AppProvider } from "@/components/AppProvider";
 import { AppShell } from "@/components/site/AppShell";
 import { getAccountList, getViewer } from "@/lib/auth";
 import { listFeeds } from "@/lib/customfeeds";
-import { listSubscriptions } from "@/lib/library";
+import { fillSubscriptionPictures, listSubscriptions } from "@/lib/library";
 import { getExtensions, getServices } from "@/lib/prefs";
 import { invidiousConfigured } from "@/lib/invidious";
 import { shouldAutoSignIn } from "@/lib/session";
@@ -39,7 +39,12 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     getViewer(),
   ]);
   const [feedList, subList] = viewer
-    ? await Promise.all([listFeeds(viewer.sub).catch(() => []), listSubscriptions(viewer.sub).catch(() => [])])
+    ? await Promise.all([
+        listFeeds(viewer.sub).catch(() => []),
+        listSubscriptions(viewer.sub)
+          .then((list) => fillSubscriptionPictures(viewer.sub, list))
+          .catch(() => []),
+      ])
     : [[], []];
   const feeds = feedList.map((f) => ({ id: f.id, name: f.name }));
   const subs = subList.map((s) => ({ kind: s.kind, ref: s.ref, name: s.name, picture: s.picture, folder: s.folder ?? null }));

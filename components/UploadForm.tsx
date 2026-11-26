@@ -43,7 +43,7 @@ export function UploadForm() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState<Visibility>("public");
-  const [short, setShort] = useState(false);
+  const [short, setShort] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).has("short"));
   const [thumbnail, setThumbnail] = useState<Blob | null>(null);
   const [thumbUrl, setThumbUrl] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
@@ -72,7 +72,7 @@ export function UploadForm() {
     setThumbnail(null);
     setThumbUrl(null);
     setThumbnail(await captureThumbnail(next));
-    setShort(await isVertical(next));
+    if (await isVertical(next)) setShort(true);
   }
 
   function onDrop(e: DragEvent) {

@@ -148,6 +148,8 @@ const SCHEMA = [
     PRIMARY KEY (playlist_id, source, video_id)
   )`,
   // Reposts and quotes: a snapshot of the original post (any network), and its key ("jace:<id>", "bluesky:<uri>", …).
+  // 1 = like, -1 = dislike (older rows are all likes).
+  `ALTER TABLE video_likes ADD COLUMN IF NOT EXISTS value SMALLINT NOT NULL DEFAULT 1`,
   `ALTER TABLE posts ADD COLUMN IF NOT EXISTS quote TEXT`,
   `ALTER TABLE posts ADD COLUMN IF NOT EXISTS quote_key TEXT`,
   `CREATE INDEX IF NOT EXISTS posts_quote_key ON posts (quote_key)`,

@@ -187,7 +187,33 @@ export async function unlikeVideo(sub: string, source: "youtube" | "jace", id: s
 }
 
 export async function isVideoLiked(sub: string, source: "youtube" | "jace", id: string): Promise<boolean> {
-  return (await q(`SELECT 1 FROM video_likes WHERE sub = $1 AND source = $2 AND video_id = $3`, [sub, source, id])).length > 0;
+  return (await videoVote(sub, source, id)) === 1;
+}
+
+/** Your vote on a video: 1 (liked), -1 (disliked), or 0. */
+export async function videoVote(sub: string, source: "youtube" | "jace", id: string): Promise<1 | -1 | 0> {
+  const rows = await q(`SELECT value FROM video_likes WHERE sub = $1 AND source = $2 AND video_id = $3`, [sub, source, id]);
+  const v = Number(rows[0]?.value ?? 0);
+  return v > 0 ? 1 : v < 0 ? -1 : 0;
+}
+
+/** Like (1), dislike (-1), or clear (0) a video. */
+export async function voteVideo(sub: string, source: "youtube" | "jace", id: string, channelId: string | null, value: 1 | -1 | 0): Promise<void> {
+  if (value === 0) {
+    await q(`DELETE FROM video_likes WHERE sub = $1 AND source = $2 AND video_id = $3`, [sub, source, id]);
+    return;
+  }
+  await q(
+    `INSERT INTO video_likes (sub, source, video_id, channel_id, value, created_at) VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (sub, source, video_id) DO UPDATE SET value = EXCLUDED.value, channel_id = COALESCE(EXCLUDED.channel_id, video_likes.channel_id)`,
+    [sub, source, id, channelId, value, Date.now()],
+  );
+}
+
+/** How many people on Jace Media disliked a video (Jace videos have no public dislike count). */
+export async function dislikeCount(source: "youtube" | "jace", id: string): Promise<number> {
+  const rows = await q(`SELECT count(*)::int AS n FROM video_likes WHERE source = $1 AND video_id = $2 AND value < 0`, [source, id]);
+  return Number(rows[0]?.n ?? 0);
 }
 
 export async function hide(sub: string, kind: "video" | "channel", ref: string): Promise<void> {
@@ -204,9 +230,22 @@ export async function libraryCounts(sub: string) {
     `SELECT
       (SELECT count(*) FROM subscriptions WHERE sub = $1)::int AS subs,
       (SELECT count(*) FROM watch_history WHERE sub = $1)::int AS history,
-      (SELECT count(*) FROM video_likes WHERE sub = $1)::int AS liked,
+      (SELECT count(*) FROM video_likes WHERE sub = $1 AND value > 0)::int AS liked,
       (SELECT count(*) FROM hidden WHERE sub = $1)::int AS hidden`,
     [sub],
   );
   return { subs: Number(rows[0].subs), history: Number(rows[0].history), liked: Number(rows[0].liked), hidden: Number(rows[0].hidden) };
+}
+
+/** YouTube subscriptions saved without a picture (imports, older follows) get one, once. */
+export async function fillSubscriptionPictures(sub: string, subs: Subscription[]): Promise<Subscription[]> {
+  const missing = subs.filter((s) => s.kind === "youtube" && !s.picture).map((s) => s.ref);
+  if (!missing.length) return subs;
+  const { channelPictures, hasYouTubeApi } = await import("./youtube");
+  if (!hasYouTubeApi) return subs;
+  const pictures = await channelPictures(missing).catch(() => new Map<string, string>());
+  for (const [ref, picture] of pictures) {
+    await q(`UPDATE subscriptions SET picture = $3 WHERE sub = $1 AND kind = 'youtube' AND ref = $2`, [sub, ref, picture]);
+  }
+  return subs.map((s) => (s.kind === "youtube" && pictures.has(s.ref) ? { ...s, picture: pictures.get(s.ref)! } : s));
 }

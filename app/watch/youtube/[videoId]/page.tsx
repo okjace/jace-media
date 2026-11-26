@@ -8,12 +8,12 @@ import { FollowButton } from "@/components/actions/FollowButton";
 import { RecordWatch } from "@/components/actions/RecordWatch";
 import { SaveButton } from "@/components/actions/SaveButton";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
-import { VideoLikeButton } from "@/components/actions/VideoLikeButton";
+import { VideoVotes } from "@/components/actions/VideoVotes";
 import { getViewer } from "@/lib/auth";
 import { date, timeAgo, views, watchHref } from "@/lib/format";
 import { sponsorSegments } from "@/lib/sponsorblock";
 import { dislikes, withDeArrow } from "@/lib/ytextras";
-import { isVideoLiked } from "@/lib/library";
+import { videoVote } from "@/lib/library";
 import { filterVideos } from "@/lib/ratingfilter";
 import { getTaste, rankVideos, recommendedVideos } from "@/lib/recommend";
 import { VIDEO_ID, channelFeed, videoDetail } from "@/lib/youtube";
@@ -45,7 +45,7 @@ export default async function YouTubeWatchPage({ params, searchParams }: PagePro
     sponsorSegments(videoId),
     dislikes(videoId),
   ]);
-  const liked = viewer ? await isVideoLiked(viewer.sub, "youtube", videoId).catch(() => false) : false;
+  const myVote = viewer ? await videoVote(viewer.sub, "youtube", videoId).catch(() => 0 as const) : 0;
   const subscribed = !!channelId && taste.following.has(`youtube:${channelId.toLowerCase()}`);
   // Up next: a few more from this channel, then recommendations.
   const fromChannel = rankVideos(
@@ -55,7 +55,6 @@ export default async function YouTubeWatchPage({ params, searchParams }: PagePro
   );
   const seen = new Set([videoId]);
   const upNext = await withDeArrow(await filterVideos([...fromChannel, ...recommended].filter((v) => !seen.has(v.id) && seen.add(v.id)).slice(0, 16)));
-  const showVotes = taste.ext.dislikes && votes && !taste.ext.hideCounts;
 
   return (
     <div className="flex flex-col gap-6 pb-6 lg:flex-row">
@@ -92,20 +91,17 @@ export default async function YouTubeWatchPage({ params, searchParams }: PagePro
             {channelId && <FollowButton target={{ kind: "youtube", ref: channelId, name: channelName }} initial={subscribed} label="Subscribe" />}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <VideoLikeButton source="youtube" id={videoId} channelId={channelId} initial={liked} />
+            <VideoVotes
+              source="youtube"
+              id={videoId}
+              channelId={channelId}
+              initial={myVote}
+              likes={detail?.likes ?? votes?.likes ?? null}
+              dislikes={taste.ext.dislikes ? (votes?.dislikes ?? null) : null}
+            />
             <SaveButton
               video={{ source: "youtube", id: videoId, title, thumbnail: `/api/yt-thumb/${videoId}`, channelId: channelId ?? "", channelName, publishedAt: null }}
             />
-            {showVotes && (
-              <span
-                className="flex h-9 items-center gap-3 rounded-full bg-foreground/[.07] px-4 text-sm"
-                title="Likes and dislikes on YouTube, from Return YouTube Dislike"
-              >
-                <span>👍 {views(votes!.likes).replace(/ views?$/, "")}</span>
-                <span className="h-4 w-px bg-line" aria-hidden="true" />
-                <span>👎 {views(votes!.dislikes).replace(/ views?$/, "")}</span>
-              </span>
-            )}
             <a
               href={`https://www.youtube.com/watch?v=${videoId}`}
               target="_blank"

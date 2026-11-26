@@ -7,7 +7,8 @@ import { listExtComments } from "@/lib/extcomments";
 import { timeAgo } from "@/lib/format";
 import { filterPosts } from "@/lib/ratingfilter";
 import type { JaceVideoDetail } from "@/lib/types";
-import { youtubeComments } from "@/lib/youtube";
+import { youtubeComments, ytImage } from "@/lib/youtube";
+import { getProfiles } from "@/lib/profiles";
 import { textBlocked } from "@/lib/rating";
 import { getExtensions } from "@/lib/prefs";
 
@@ -40,6 +41,7 @@ export async function VideoComments({ source, id, jace }: { source: "youtube" | 
 
   if (source === "jace") {
     const list = (jace?.comments ?? []).filter((c) => !textBlocked(c.body, ext.rating));
+    const pictures = await getProfiles([...new Set(list.map((c) => c.author_id))]).catch(() => new Map());
     return (
       <section className="flex flex-col gap-4">
         <h2 className="text-lg font-semibold">
@@ -50,7 +52,7 @@ export async function VideoComments({ source, id, jace }: { source: "youtube" | 
           {[...list]
             .sort((a, b) => Number(b.pinned) - Number(a.pinned))
             .map((c) => (
-              <Comment key={c.id} name={c.author_name} picture={null} text={c.body} when={c.created_at} pinned={c.pinned} />
+              <Comment key={c.id} name={c.author_name} picture={pictures.get(c.author_id)?.picture ?? null} text={c.body} when={c.created_at} pinned={c.pinned} />
             ))}
         </ul>
       </section>
@@ -82,7 +84,7 @@ export async function VideoComments({ source, id, jace }: { source: "youtube" | 
           <h3 className="mt-2 text-sm font-semibold text-muted">On YouTube</h3>
           <ul className="flex flex-col gap-5">
             {yt.map((c) => (
-              <Comment key={c.id} name={c.author} picture={null} text={c.text} when={c.publishedAt} likes={ext.hideCounts ? 0 : c.likes} />
+              <Comment key={c.id} name={c.author} picture={ytImage(c.authorPicture)} text={c.text} when={c.publishedAt} likes={ext.hideCounts ? 0 : c.likes} />
             ))}
           </ul>
         </>

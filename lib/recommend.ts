@@ -84,7 +84,11 @@ export const getTaste = cache(async (): Promise<Taste> => {
          FROM watch_history WHERE sub = $1 AND channel_id IS NOT NULL GROUP BY source, channel_id ORDER BY w DESC LIMIT 300`,
         [viewer.sub, now],
       ),
-      q(`SELECT source, channel_id, count(*)::int AS n FROM video_likes WHERE sub = $1 AND channel_id IS NOT NULL GROUP BY 1, 2`, [viewer.sub]),
+      q(
+        `SELECT source, channel_id, count(*) FILTER (WHERE value > 0)::int AS n, count(*) FILTER (WHERE value < 0)::int AS d
+         FROM video_likes WHERE sub = $1 AND channel_id IS NOT NULL GROUP BY 1, 2`,
+        [viewer.sub],
+      ),
       q(`SELECT kind, ref FROM subscriptions WHERE sub = $1`, [viewer.sub]),
       q(`SELECT source, video_id, title, watch_count FROM watch_history WHERE sub = $1 ORDER BY watched_at DESC LIMIT 3000`, [viewer.sub]),
       q(`SELECT kind, ref FROM hidden WHERE sub = $1`, [viewer.sub]),
@@ -98,7 +102,7 @@ export const getTaste = cache(async (): Promise<Taste> => {
     for (const r of channels) raw.set(`${r.source}:${r.channel_id}`, Number(r.w));
     for (const r of liked) {
       const key = `${r.source}:${r.channel_id}`;
-      raw.set(key, (raw.get(key) ?? 0) + Number(r.n) * 2);
+      raw.set(key, Math.max(0, (raw.get(key) ?? 0) + Number(r.n) * 2 - Number(r.d) * 3));
     }
     // Square-root scaling so one binge-watched channel doesn't drown out the rest.
     const max = Math.max(1, ...[...raw.values()].map(Math.sqrt));

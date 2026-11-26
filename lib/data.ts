@@ -73,3 +73,13 @@ export function interleave<T>(...lists: T[][]): T[] {
   for (let i = 0; i < longest; i++) for (const list of lists) if (i < list.length) out.push(list[i]);
   return out;
 }
+
+/** One person's public Jace videos (for their profile). */
+export async function jaceVideosBy(userId: string, limit = 60): Promise<VideoCard[]> {
+  try {
+    const page = await asViewer((token) => listVideos(token, { userId, limit }));
+    return page.videos.filter((v) => v.visibility === "public").map(jaceCard);
+  } catch {
+    return [];
+  }
+}

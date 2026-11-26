@@ -222,3 +222,8 @@ export async function updateVideo(
 export async function deleteVideo(token: string, id: string): Promise<void> {
   await call(token, `/api/oauth/videos/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
+
+/** Likes or unlikes a Jace video as the signed-in person (counts on JaceTube too). */
+export async function setVideoLike(token: string, id: string, liked: boolean): Promise<{ likes: number; liked_by_me: boolean }> {
+  return (await call(token, `/api/oauth/videos/${encodeURIComponent(id)}/likes`, { method: liked ? "POST" : "DELETE" })) as { likes: number; liked_by_me: boolean };
+}
