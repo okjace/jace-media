@@ -179,6 +179,51 @@ const SCHEMA = [
     created_at BIGINT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS notifications_inbox ON notifications (sub, created_at DESC)`,
+  // Going live on Jace Media: the stream, its connection messages, who's watching, and chat.
+  `CREATE TABLE IF NOT EXISTS streams (
+    id TEXT PRIMARY KEY,
+    sub TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'live',
+    cf_session TEXT,
+    cf_tracks TEXT,
+    thumbnail TEXT,
+    started_at BIGINT NOT NULL,
+    ended_at BIGINT,
+    last_seen BIGINT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS streams_live ON streams (status, last_seen DESC)`,
+  `CREATE TABLE IF NOT EXISTS stream_signals (
+    id BIGSERIAL PRIMARY KEY,
+    stream_id TEXT NOT NULL,
+    peer TEXT NOT NULL,
+    to_host BOOLEAN NOT NULL,
+    kind TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    created_at BIGINT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS stream_signals_by ON stream_signals (stream_id, to_host, id)`,
+  `CREATE TABLE IF NOT EXISTS stream_viewers (
+    stream_id TEXT NOT NULL,
+    peer TEXT NOT NULL,
+    sub TEXT,
+    seen_at BIGINT NOT NULL,
+    PRIMARY KEY (stream_id, peer)
+  )`,
+  `CREATE TABLE IF NOT EXISTS stream_chat (
+    id TEXT PRIMARY KEY,
+    stream_id TEXT NOT NULL,
+    sub TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at BIGINT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS stream_chat_by ON stream_chat (stream_id, created_at)`,
+  // Data sent to viewers through Cloudflare each month, to stay inside the free 1,000 GB.
+  `CREATE TABLE IF NOT EXISTS stream_usage (
+    month TEXT PRIMARY KEY,
+    bytes BIGINT NOT NULL DEFAULT 0
+  )`,
 ];
 
 // One connection per process. Next.js can load this module more than once

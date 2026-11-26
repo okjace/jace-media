@@ -5,7 +5,7 @@ import { toProfile } from "./profiles";
 
 /** Notifications: replies, likes, reposts, quotes, and new followers on Jace Media. */
 
-export type NotificationKind = "reply" | "like" | "repost" | "quote" | "follow";
+export type NotificationKind = "reply" | "like" | "repost" | "quote" | "follow" | "live";
 
 export type Notification = {
   id: string;

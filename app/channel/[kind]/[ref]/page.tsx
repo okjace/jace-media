@@ -13,7 +13,8 @@ import { blueskyProfile, hnUserProfile, lemmyCommunityProfile, lemmyUserProfile,
 import type { FeedItem, VideoCard } from "@/lib/types";
 import { withDeArrow } from "@/lib/ytextras";
 import { fetchFeed } from "@/lib/rss";
-import { channelFeed, channelInfo, channelUploads, CHANNEL_ID, hasYouTubeApi } from "@/lib/youtube";
+import { channelCommunity, channelFeed, channelInfo, channelLiveNow, channelPlaylists, channelStreams, channelUploads, CHANNEL_ID, hasYouTubeApi } from "@/lib/youtube";
+import { LiveAvatar } from "@/components/live/LiveAvatar";
 
 export const dynamic = "force-dynamic";
 
@@ -168,9 +169,18 @@ export default async function ChannelPage({ params, searchParams }: PageProps<"/
   const [data, taste, ext] = await Promise.all([load(kind, ref, pages), getTaste(), getExtensions()]);
   if (!data) notFound();
   const { profile } = data;
-  const tab = sp.tab === "shorts" ? "shorts" : "videos";
+  const yt = kind === "youtube" && CHANNEL_ID.test(ref);
+  const TABS = ["videos", "shorts", "live", "playlists", "posts"] as const;
+  const tab = (TABS as readonly string[]).includes(String(sp.tab)) ? (sp.tab as (typeof TABS)[number]) : "videos";
   const hasShorts = (data.videos.some((v) => v.short) || tab === "shorts") && !ext.hideShorts;
   const videos = await withDeArrow(data.videos.filter((v) => (tab === "shorts" ? v.short : !v.short)));
+  // YouTube's extra tabs load only when opened (Live is checked every 5 minutes).
+  const [liveNow, streams, playlists, community] = await Promise.all([
+    yt && hasYouTubeApi ? channelLiveNow(ref) : null,
+    yt && tab === "live" ? channelStreams(ref) : null,
+    yt && tab === "playlists" ? channelPlaylists(ref) : null,
+    yt && tab === "posts" ? channelCommunity(ref) : null,
+  ]);
   const followed = !!profile.follow && taste.following.has(`${profile.follow.kind}:${profile.follow.ref.toLowerCase()}`);
   const chip = (on: boolean) => `rounded-lg px-3 py-1.5 text-sm font-medium ${on ? "bg-foreground text-background" : "bg-foreground/[.07] hover:bg-foreground/[.12]"}`;
 
@@ -186,7 +196,11 @@ export default async function ChannelPage({ params, searchParams }: PageProps<"/
         <div className="-mt-10 flex flex-col gap-3 px-5 pb-5">
           <div className="flex items-end justify-between gap-3">
             <span className="rounded-full border-4 border-panel bg-panel">
-              <Avatar name={profile.name} src={profile.picture} size={88} />
+              {liveNow ? (
+                <LiveAvatar name={profile.name} src={profile.picture} size={88} href={`/watch/youtube/${liveNow.id}`} />
+              ) : (
+                <Avatar name={profile.name} src={profile.picture} size={88} />
+              )}
             </span>
             {profile.follow && (
               <FollowButton target={profile.follow as never} initial={followed} label={kind === "youtube" || kind === "jace" ? "Subscribe" : "Follow"} />
@@ -213,20 +227,54 @@ export default async function ChannelPage({ params, searchParams }: PageProps<"/
         </div>
       </section>
 
-      {data.videos.length > 0 && (
+      {liveNow && (
+        <Link
+          href={`/watch/youtube/${liveNow.id}`}
+          className="flex items-center gap-4 rounded-2xl border border-danger/40 bg-danger/[.07] p-3 transition-colors hover:bg-danger/[.12]"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {liveNow.thumbnail && <img src={liveNow.thumbnail} alt="" className="aspect-video w-40 shrink-0 rounded-lg object-cover" />}
+          <span className="min-w-0">
+            <span className="mb-1 inline-block rounded-md bg-danger px-1.5 py-0.5 text-[10px] font-bold uppercase text-white">● Live now</span>
+            <span className="block truncate font-semibold">{liveNow.title}</span>
+            <span className="block text-sm text-muted">Watch the stream</span>
+          </span>
+        </Link>
+      )}
+
+      {(data.videos.length > 0 || yt) && (
         <section className="flex flex-col gap-4">
-          {hasShorts && (
-            <div className="flex gap-2">
+          {(hasShorts || yt) && (
+            <nav className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1" aria-label="Channel">
               <Link href="?tab=videos" className={chip(tab === "videos")}>
                 Videos
               </Link>
-              <Link href="?tab=shorts" className={chip(tab === "shorts")}>
-                Shorts
-              </Link>
-            </div>
+              {hasShorts && (
+                <Link href="?tab=shorts" className={chip(tab === "shorts")}>
+                  Shorts
+                </Link>
+              )}
+              {yt && hasYouTubeApi && (
+                <Link href="?tab=live" className={chip(tab === "live")}>
+                  {liveNow ? "🔴 Live" : "Live"}
+                </Link>
+              )}
+              {yt && hasYouTubeApi && (
+                <Link href="?tab=playlists" className={chip(tab === "playlists")}>
+                  Playlists
+                </Link>
+              )}
+              {yt && (
+                <Link href="?tab=posts" className={chip(tab === "posts")}>
+                  Posts
+                </Link>
+              )}
+            </nav>
           )}
-          {videos.length ? <VideoGrid videos={videos} /> : <EmptyState title="Nothing here yet" />}
-          {data.more && (
+
+          {(tab === "videos" || tab === "shorts") &&
+            (videos.length ? <VideoGrid videos={videos} /> : <EmptyState title="Nothing here yet" />)}
+          {(tab === "videos" || tab === "shorts") && data.more && (
             <div className="flex justify-center">
               <Link
                 href={`?tab=${tab}&pages=${pages + 1}`}
@@ -237,6 +285,93 @@ export default async function ChannelPage({ params, searchParams }: PageProps<"/
               </Link>
             </div>
           )}
+
+          {tab === "live" && streams && (
+            <div className="flex flex-col gap-8">
+              {streams.live.length > 0 && (
+                <div className="flex flex-col gap-3">
+                  <h2 className="font-semibold">Live now</h2>
+                  <VideoGrid videos={await withDeArrow(streams.live)} />
+                </div>
+              )}
+              {streams.upcoming.length > 0 && (
+                <div className="flex flex-col gap-3">
+                  <h2 className="font-semibold">Coming up</h2>
+                  <VideoGrid videos={await withDeArrow(streams.upcoming)} />
+                </div>
+              )}
+              <div className="flex flex-col gap-3">
+                <h2 className="font-semibold">Past streams</h2>
+                {streams.past.length ? <VideoGrid videos={await withDeArrow(streams.past)} /> : <EmptyState title="No past streams" />}
+              </div>
+            </div>
+          )}
+
+          {tab === "playlists" &&
+            (playlists?.length ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {playlists.map((pl) => (
+                  <Link key={pl.id} href={`/playlist/youtube/${pl.id}`} className="group flex flex-col gap-2">
+                    <div className="relative aspect-video overflow-hidden rounded-xl bg-panel">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      {pl.thumbnail && <img src={pl.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]" />}
+                      <span className="absolute inset-y-0 right-0 flex w-2/5 flex-col items-center justify-center gap-1 bg-black/70 text-sm font-semibold text-white">
+                        <span aria-hidden="true">☰</span>
+                        {pl.count ?? ""} videos
+                      </span>
+                    </div>
+                    <p className="line-clamp-2 font-medium leading-snug">{pl.title}</p>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <EmptyState title="No playlists" />
+            ))}
+
+          {tab === "posts" &&
+            (community?.length ? (
+              <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
+                {community.map((c) => (
+                  <article key={c.id} className="rounded-2xl border border-line bg-panel p-4">
+                    <header className="flex items-center gap-3">
+                      <Avatar name={profile.name} src={profile.picture} size={36} />
+                      <div>
+                        <p className="font-semibold">{profile.name}</p>
+                        <p className="text-xs text-muted">{c.publishedText}</p>
+                      </div>
+                    </header>
+                    {c.text && <p className="mt-3 whitespace-pre-wrap text-[15px] leading-relaxed">{c.text}</p>}
+                    {c.images.length > 0 && (
+                      <div className={`mt-3 grid gap-1.5 overflow-hidden rounded-xl ${c.images.length > 1 ? "grid-cols-2" : ""}`}>
+                        {c.images.slice(0, 4).map((src) => (
+                          // Pictures come through Jace Media, so YouTube doesn't see you.
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img key={src} src={src} alt="" loading="lazy" className="max-h-[520px] w-full rounded-xl object-cover" />
+                        ))}
+                      </div>
+                    )}
+                    {c.videoId && (
+                      <Link href={`/watch/youtube/${c.videoId}`} className="mt-3 block overflow-hidden rounded-xl">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={`/api/yt-thumb/${c.videoId}`} alt="" className="aspect-video w-full object-cover" />
+                      </Link>
+                    )}
+                    {c.poll && (
+                      <ul className="mt-3 flex flex-col gap-1.5">
+                        {c.poll.map((o) => (
+                          <li key={o} className="rounded-xl border border-line px-3 py-2 text-sm">
+                            {o}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {c.likes && <p className="mt-3 text-sm text-muted">♡ {c.likes}</p>}
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <EmptyState title="No posts" />
+            ))}
         </section>
       )}
       {data.posts.length > 0 && (

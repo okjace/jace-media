@@ -5,6 +5,8 @@ import { EmptyState, VideoGrid } from "@/components/videos/VideoGrid";
 import { getExtensions, getServices } from "@/lib/prefs";
 import { hasTwitch, jaceLiveGames, jaceLiveHostUrl, jaceLiveJoinUrl, jaceLiveSets, twitchStreams, youtubeLive } from "@/lib/live";
 import { textBlocked } from "@/lib/rating";
+import { liveNow } from "@/lib/golive";
+import { Avatar } from "@/components/Avatar";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Live" };
@@ -20,18 +22,67 @@ function LiveBadge() {
 export default async function LivePage() {
   const [services, ext] = await Promise.all([getServices(), getExtensions()]);
   const on = (s: string) => services.includes(s as never);
-  const [games, sets, twitch, yt] = await Promise.all([
+  const [games, sets, twitch, yt, own] = await Promise.all([
     on("jacelive") ? jaceLiveGames() : Promise.resolve([]),
     on("jacelive") ? jaceLiveSets() : Promise.resolve([]),
     on("twitch") && hasTwitch ? twitchStreams(24) : Promise.resolve(null),
     on("youtube") ? youtubeLive(12) : Promise.resolve([]),
+    liveNow().catch(() => []),
   ]);
   // Twitch marks mature streams; only "Everything" shows them.
   const streams = (twitch ?? []).filter((s) => (ext.rating === "all" || !s.mature) && !textBlocked(`${s.title} ${s.name}`, ext.rating));
 
   return (
     <div className="flex flex-col gap-10">
-      <PageTitle title="Live">Games and streams happening right now.</PageTitle>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <PageTitle title="Live">Games and streams happening right now.</PageTitle>
+        <Link href="/live/go" className="flex h-10 items-center gap-2 rounded-full bg-danger px-5 text-sm font-bold text-white hover:opacity-90">
+          ● Go live
+        </Link>
+      </div>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="flex items-center gap-2 text-lg font-semibold">
+          On Jace Media {own.length > 0 && <LiveBadge />}
+        </h2>
+        {own.filter((s) => !textBlocked(`${s.title} ${s.description}`, ext.rating)).length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-line p-6 text-center text-sm text-muted">
+            Nobody&apos;s live on Jace Media right now.{" "}
+            <Link href="/live/go" className="text-accent hover:underline">
+              Be the first
+            </Link>
+          </p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {own
+              .filter((s) => !textBlocked(`${s.title} ${s.description}`, ext.rating))
+              .map((s) => (
+                <Link key={s.id} href={`/live/watch/${s.id}`} className="group flex flex-col gap-2.5">
+                  <div className="relative aspect-video overflow-hidden rounded-xl bg-panel">
+                    {s.thumbnail ? (
+                      // A small picture the streamer's browser makes while live.
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={s.thumbnail} alt="" className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]" />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-4xl">📹</div>
+                    )}
+                    <span className="absolute left-2 top-2">
+                      <LiveBadge />
+                    </span>
+                    <span className="absolute bottom-2 right-2 rounded-md bg-black/70 px-1.5 py-0.5 text-xs text-white">👁 {s.viewers}</span>
+                  </div>
+                  <div className="flex gap-3">
+                    <Avatar name={s.host.name} src={s.host.picture} size={36} />
+                    <div className="min-w-0">
+                      <p className="line-clamp-2 font-medium leading-snug">{s.title}</p>
+                      <p className="truncate text-sm text-muted">{s.host.name}</p>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+          </div>
+        )}
+      </section>
 
       {on("jacelive") && (
         <section className="flex flex-col gap-4">

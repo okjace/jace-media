@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { Avatar } from "@/components/Avatar";
+import { UserAvatar, useLiveStream } from "@/components/live/LiveHosts";
 import { Notices, useApp, type SidebarSub } from "@/components/AppProvider";
 import { MiniPlayer } from "@/components/player/MiniPlayer";
 import type { Service } from "@/lib/services";
@@ -15,7 +15,7 @@ import { InstallApp } from "./InstallApp";
 import { NotificationBell } from "./NotificationBell";
 import { ThemeToggle } from "./ThemeToggle";
 
-type NavItem = { href: string; label: string; icon: IconName; needs?: Service[]; signedIn?: boolean; avatar?: string | null };
+type NavItem = { href: string; label: string; icon: IconName; needs?: Service[]; signedIn?: boolean; avatar?: string | null; liveSub?: string };
 
 const MAIN: NavItem[] = [
   { href: "/", label: "Home", icon: "home" },
@@ -86,6 +86,7 @@ function SearchBox({ onDone }: { onDone?: () => void }) {
 }
 
 function NavLink({ item, collapsed, onClick }: { item: NavItem; collapsed: boolean; onClick?: () => void }) {
+  const live = useLiveStream(item.liveSub);
   const pathname = usePathname();
   const active = isActive(pathname, item.href);
   return (
@@ -99,11 +100,12 @@ function NavLink({ item, collapsed, onClick }: { item: NavItem; collapsed: boole
       } ${active ? "bg-foreground/[.09] font-semibold text-foreground" : "text-foreground/85 hover:bg-foreground/[.06]"}`}
     >
       {item.avatar !== undefined ? (
-        <Avatar name={item.label} src={item.avatar} size={24} />
+        <UserAvatar sub={item.liveSub} name={item.label} src={item.avatar} size={24} />
       ) : (
         <Icon name={item.icon} className={active ? "text-accent" : ""} />
       )}
-      <span className={collapsed ? "max-w-full truncate" : "truncate"}>{item.label}</span>
+      <span className={collapsed ? "max-w-full truncate" : "min-w-0 flex-1 truncate"}>{item.label}</span>
+      {live && !collapsed && <span className="h-2 w-2 shrink-0 rounded-full bg-danger" aria-label="Live now" />}
     </Link>
   );
 }
@@ -131,7 +133,7 @@ function SubscriptionList({ subs, onClick }: { subs: SidebarSub[]; onClick?: () 
   const row = (s: SidebarSub) => (
     <NavLink
       key={`${s.kind}:${s.ref}`}
-      item={{ href: channelHrefFor(s), label: s.name, icon: "user", avatar: s.picture }}
+      item={{ href: channelHrefFor(s), label: s.name, icon: "user", avatar: s.picture, liveSub: s.kind === "jace" ? s.ref : undefined }}
       collapsed={false}
       onClick={onClick}
     />

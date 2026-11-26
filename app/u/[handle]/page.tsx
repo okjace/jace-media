@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FollowButton } from "@/components/actions/FollowButton";
-import { Avatar } from "@/components/Avatar";
+import { UserAvatar } from "@/components/live/LiveHosts";
 import { FeedList } from "@/components/feed/FeedList";
 import { VideoGrid } from "@/components/videos/VideoGrid";
 import { getViewer } from "@/lib/auth";
@@ -53,7 +53,7 @@ export default async function ProfilePage({ params, searchParams }: PageProps<"/
         <div className="-mt-10 flex flex-col gap-3 px-5 pb-5">
           <div className="flex items-end justify-between gap-3">
             <span className="rounded-full border-4 border-panel">
-              <Avatar name={profile.name} src={profile.picture} size={88} />
+              <UserAvatar sub={profile.sub} name={profile.name} src={profile.picture} size={88} link />
             </span>
             {!mine && <FollowButton target={{ kind: "jace", ref: profile.sub, name: profile.name, picture: profile.picture }} initial={following} />}
             {mine && (

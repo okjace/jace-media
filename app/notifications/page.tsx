@@ -15,6 +15,7 @@ const WHAT: Record<NotificationKind, { icon: string; text: string }> = {
   repost: { icon: "↻", text: "reposted your post" },
   quote: { icon: "❝", text: "quoted your post" },
   follow: { icon: "＋", text: "followed you" },
+  live: { icon: "🔴", text: "is live now" },
 };
 
 export default async function NotificationsPage() {
@@ -42,7 +43,7 @@ export default async function NotificationsPage() {
           {items.map((n) => (
             <li key={n.id} className={n.read ? "" : "bg-accent/[.06]"}>
               <Link
-                href={n.postId ? `/post/${n.postId}` : `/u/${encodeURIComponent(n.actor.handle)}`}
+                href={n.kind === "live" && n.postId ? `/live/watch/${n.postId}` : n.postId ? `/post/${n.postId}` : `/u/${encodeURIComponent(n.actor.handle)}`}
                 className="flex items-start gap-3 px-4 py-3 hover:bg-foreground/[.03]"
               >
                 <span className="w-5 pt-2 text-center text-accent" aria-hidden="true">

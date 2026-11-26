@@ -4,7 +4,7 @@ import { confirmDialog } from "@/components/ui/Dialog";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type ReactNode } from "react";
-import { Avatar } from "@/components/Avatar";
+import { UserAvatar } from "@/components/live/LiveHosts";
 import { signInHref, useApp } from "@/components/AppProvider";
 import { FollowButton } from "@/components/actions/FollowButton";
 import { followTarget } from "@/lib/follow";
@@ -208,7 +208,7 @@ export function PostCard({
       )}
       <header className="flex items-start gap-3">
         <MaybeLink href={author}>
-          <Avatar name={item.author.name} src={item.author.picture} size={isComment ? 32 : 40} />
+          <UserAvatar sub={isJace ? item.authorSub : null} name={item.author.name} src={item.author.picture} size={isComment ? 32 : 40} />
         </MaybeLink>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">

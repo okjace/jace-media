@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { AppProvider } from "@/components/AppProvider";
 import { AppShell } from "@/components/site/AppShell";
 import { DialogHost } from "@/components/ui/Dialog";
+import { LiveHostsProvider } from "@/components/live/LiveHosts";
 import { getAccountList, getViewer } from "@/lib/auth";
 import { listFeeds } from "@/lib/customfeeds";
 import { fillSubscriptionPictures, listSubscriptions } from "@/lib/library";
@@ -62,7 +63,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <body className="flex min-h-full flex-col">
         <AppProvider current={current} others={others} services={services} feeds={feeds} extensions={extensions} subs={subs} invidious={invidiousConfigured} autoSignIn={autoSignIn}>
           <Suspense>
-            <AppShell>{children}</AppShell>
+            <LiveHostsProvider>
+              <AppShell>{children}</AppShell>
+            </LiveHostsProvider>
           </Suspense>
           <DialogHost />
         </AppProvider>

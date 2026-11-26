@@ -27,13 +27,13 @@ export function thumbnailFor(id: string, size: "mqdefault" | "hqdefault" | "maxr
   return `/api/yt-thumb/${id}${size === "hqdefault" ? "" : `?s=${size}`}`;
 }
 
-async function api<T>(path: string, params: Record<string, string>): Promise<T | null> {
+async function api<T>(path: string, params: Record<string, string>, revalidate = 600): Promise<T | null> {
   if (!KEY) return null;
   const url = new URL(`${API}/${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   url.searchParams.set("key", KEY);
   try {
-    const res = await fetch(url, { next: { revalidate: 600 }, signal: AbortSignal.timeout(10_000) });
+    const res = await fetch(url, { next: { revalidate }, signal: AbortSignal.timeout(10_000) });
     if (!res.ok) {
       console.error(`YouTube API ${path} answered ${res.status}`);
       return null;
@@ -497,4 +497,147 @@ export async function searchShorts(q: string, limit = 18): Promise<VideoCard[]> 
     .map(toCard)
     .filter((v) => isShortDuration(v.duration ?? undefined) || /#shorts?/i.test(v.title))
     .map((v) => ({ ...v, short: true }));
+}
+
+// ---------- Channel tabs: live, playlists, community posts ----------
+
+type SearchItem = { id: { videoId?: string }; snippet: { title: string; channelId: string; channelTitle: string; publishedAt: string; liveBroadcastContent?: string } };
+
+function searchToCards(items: SearchItem[] | undefined): VideoCard[] {
+  return (items ?? [])
+    .filter((i) => i.id.videoId)
+    .map((i) => ({
+      source: "youtube" as const,
+      id: i.id.videoId!,
+      title: decode(i.snippet.title),
+      thumbnail: thumbnailFor(i.id.videoId!),
+      channelId: i.snippet.channelId,
+      channelName: i.snippet.channelTitle,
+      publishedAt: i.snippet.publishedAt,
+    }));
+}
+
+/** A channel's stream that's live right now, if any (checked every 5 minutes). */
+export async function channelLiveNow(channelId: string): Promise<VideoCard | null> {
+  if (!CHANNEL_ID.test(channelId)) return null;
+  const data = await api<{ items: SearchItem[] }>("search", { part: "snippet", channelId, eventType: "live", type: "video", maxResults: "1" }, 300);
+  const [card] = searchToCards(data?.items);
+  return card ? { ...card, duration: "PT0S" } : null;
+}
+
+/** A channel's live streams: on now, coming up, and past ones. */
+export async function channelStreams(channelId: string): Promise<{ live: VideoCard[]; upcoming: VideoCard[]; past: VideoCard[] }> {
+  if (!CHANNEL_ID.test(channelId)) return { live: [], upcoming: [], past: [] };
+  const get = (eventType: string, max: number, revalidate: number) =>
+    api<{ items: SearchItem[] }>("search", { part: "snippet", channelId, eventType, type: "video", order: "date", maxResults: String(max) }, revalidate).then((d) =>
+      searchToCards(d?.items),
+    );
+  const [live, upcoming, past] = await Promise.all([get("live", 5, 300), get("upcoming", 10, 1800), get("completed", 30, 3600)]);
+  return { live: live.map((v) => ({ ...v, duration: "PT0S" })), upcoming, past };
+}
+
+/** A channel's playlists. */
+export async function channelPlaylists(channelId: string): Promise<PlaylistResult[]> {
+  if (!CHANNEL_ID.test(channelId)) return [];
+  const data = await api<{
+    items: { id: string; snippet: { title: string; channelId: string; channelTitle: string; thumbnails?: Record<string, { url: string }> }; contentDetails?: { itemCount?: number } }[];
+  }>("playlists", { part: "snippet,contentDetails", channelId, maxResults: "50" }, 3600);
+  return (data?.items ?? []).map((p) => {
+    const t = p.snippet.thumbnails;
+    const thumb = t?.medium?.url ?? t?.high?.url ?? t?.default?.url ?? null;
+    const vid = thumb?.match(/\/vi\/([\w-]{11})\//)?.[1];
+    return {
+      id: p.id,
+      title: decode(p.snippet.title),
+      channelId: p.snippet.channelId,
+      channelName: p.snippet.channelTitle,
+      thumbnail: vid ? thumbnailFor(vid, "mqdefault") : null,
+      count: p.contentDetails?.itemCount ?? null,
+    };
+  });
+}
+
+/** Live numbers for a stream: people watching and when it started (refreshed every 30 seconds). */
+export async function liveDetails(id: string): Promise<{ viewers: number | null; startedAt: string | null; scheduledFor: string | null; chatId: string | null } | null> {
+  if (!VIDEO_ID.test(id)) return null;
+  const data = await api<{
+    items: { liveStreamingDetails?: { concurrentViewers?: string; actualStartTime?: string; scheduledStartTime?: string; activeLiveChatId?: string } }[];
+  }>("videos", { part: "liveStreamingDetails", id }, 30);
+  const d = data?.items?.[0]?.liveStreamingDetails;
+  if (!d) return null;
+  return {
+    viewers: d.concurrentViewers ? Number(d.concurrentViewers) : null,
+    startedAt: d.actualStartTime ?? null,
+    scheduledFor: d.scheduledStartTime ?? null,
+    chatId: d.activeLiveChatId ?? null,
+  };
+}
+
+export type CommunityPost = {
+  id: string;
+  text: string;
+  publishedText: string;
+  likes: string | null;
+  images: string[];
+  videoId: string | null;
+  poll: string[] | null;
+};
+
+/**
+ * A channel's community posts. YouTube's API doesn't offer them, so Jace
+ * Media's server reads the channel's Posts page (your browser never contacts
+ * YouTube). Best effort: if YouTube changes the page, this shows nothing.
+ */
+export async function channelCommunity(channelId: string): Promise<CommunityPost[]> {
+  if (!CHANNEL_ID.test(channelId)) return [];
+  try {
+    const res = await fetch(`https://www.youtube.com/channel/${channelId}/posts?hl=en`, {
+      headers: { "Accept-Language": "en", Cookie: "CONSENT=YES+1", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131 Safari/537.36" },
+      next: { revalidate: 1800 },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return [];
+    const html = await res.text();
+    const m = html.match(/var ytInitialData = (\{[\s\S]*?\});<\/script>/);
+    if (!m) return [];
+    const data = JSON.parse(m[1]) as unknown;
+    const posts: CommunityPost[] = [];
+    const runs = (r: unknown) =>
+      Array.isArray((r as { runs?: unknown[] })?.runs) ? ((r as { runs: { text?: string }[] }).runs.map((x) => x.text ?? "").join("")) : ((r as { simpleText?: string })?.simpleText ?? "");
+    const walk = (node: unknown) => {
+      if (!node || typeof node !== "object" || posts.length >= 30) return;
+      if (Array.isArray(node)) return node.forEach(walk);
+      const obj = node as Record<string, unknown>;
+      const post = obj.backstagePostRenderer as Record<string, unknown> | undefined;
+      if (post) {
+        const attachment = (post.backstageAttachment ?? {}) as Record<string, unknown>;
+        const imgs: string[] = [];
+        const addImage = (img: unknown) => {
+          const thumbs = (img as { image?: { thumbnails?: { url: string }[] } })?.image?.thumbnails;
+          const url = thumbs?.[thumbs.length - 1]?.url;
+          if (url) imgs.push(`/api/yt-image?u=${encodeURIComponent(url.startsWith("//") ? `https:${url}` : url)}`);
+        };
+        if (attachment.backstageImageRenderer) addImage(attachment.backstageImageRenderer);
+        const multi = (attachment.postMultiImageRenderer as { images?: { backstageImageRenderer?: unknown }[] })?.images;
+        multi?.forEach((i) => addImage(i.backstageImageRenderer));
+        const video = (attachment.videoRenderer as { videoId?: string })?.videoId ?? null;
+        const pollChoices = (attachment.pollRenderer as { choices?: { text?: unknown }[] })?.choices?.map((c) => runs(c.text)) ?? null;
+        posts.push({
+          id: String(post.postId ?? posts.length),
+          text: runs(post.contentText),
+          publishedText: runs(post.publishedTimeText),
+          likes: runs(post.voteCount) || null,
+          images: imgs,
+          videoId: video && VIDEO_ID.test(video) ? video : null,
+          poll: pollChoices,
+        });
+        return;
+      }
+      for (const v of Object.values(obj)) walk(v);
+    };
+    walk(data);
+    return posts;
+  } catch {
+    return [];
+  }
 }

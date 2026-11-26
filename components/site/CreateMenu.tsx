@@ -65,6 +65,9 @@ export function CreateMenu() {
           <Link href="/upload?short=1" role="menuitem" className={item} onClick={() => setOpen(false)}>
             <span aria-hidden="true">📱</span> Upload a Short
           </Link>
+          <Link href="/live/go" role="menuitem" className={item} onClick={() => setOpen(false)}>
+            <span aria-hidden="true">🔴</span> Go live
+          </Link>
           <a href="https://jace-live.vercel.app/live/host/new" role="menuitem" className={item} onClick={() => setOpen(false)}>
             <span aria-hidden="true">🎮</span> Host a live game
           </a>

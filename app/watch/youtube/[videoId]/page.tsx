@@ -16,7 +16,9 @@ import { dislikes, withDeArrow } from "@/lib/ytextras";
 import { videoVote } from "@/lib/library";
 import { filterVideos } from "@/lib/ratingfilter";
 import { getTaste, rankVideos, recommendedVideos } from "@/lib/recommend";
-import { VIDEO_ID, channelFeed, videoDetail } from "@/lib/youtube";
+import { VIDEO_ID, channelFeed, channelPictures, liveDetails, videoDetail } from "@/lib/youtube";
+import { LiveStage } from "@/components/live/LiveStage";
+import { Avatar } from "@/components/Avatar";
 
 export async function generateMetadata({ params }: PageProps<"/watch/youtube/[videoId]">): Promise<Metadata> {
   const detail = await videoDetail((await params).videoId);
@@ -37,14 +39,16 @@ export default async function YouTubeWatchPage({ params, searchParams }: PagePro
   const title = detail?.title ?? "YouTube video";
   const channelName = detail?.channelName ?? "YouTube";
   const channelId = detail?.channelId ?? null;
-  const [taste, viewer, channel, recommended, segments, votes] = await Promise.all([
+  const [taste, viewer, channel, recommended, segments, votes, pictures] = await Promise.all([
     getTaste(),
     getViewer(),
     channelId ? channelFeed(channelId) : null,
     recommendedVideos({ limit: 20, exclude: videoId }),
     sponsorSegments(videoId),
     dislikes(videoId),
+    channelId ? channelPictures([channelId]).catch(() => new Map<string, string>()) : new Map<string, string>(),
   ]);
+  const channelPicture = channelId ? (pictures.get(channelId) ?? null) : null;
   const myVote = viewer ? await videoVote(viewer.sub, "youtube", videoId).catch(() => 0 as const) : 0;
   const subscribed = !!channelId && taste.following.has(`youtube:${channelId.toLowerCase()}`);
   // Up next: a few more from this channel, then recommendations.
@@ -55,6 +59,47 @@ export default async function YouTubeWatchPage({ params, searchParams }: PagePro
   );
   const seen = new Set([videoId]);
   const upNext = await withDeArrow(await filterVideos([...fromChannel, ...recommended].filter((v) => !seen.has(v.id) && seen.add(v.id)).slice(0, 16)));
+
+  // Live right now: the live layout, with chat beside the stream.
+  if (detail?.live) {
+    const stats = await liveDetails(videoId);
+    return (
+      <div className="flex flex-col gap-8 pb-6">
+        <LiveStage
+          player={
+            <VideoPlayer key={videoId} source="youtube" id={videoId} title={title} autoStart={autoStart} live href={`/watch/youtube/${videoId}`} />
+          }
+          title={title}
+          host={{ name: channelName, picture: channelPicture, href: channelId ? `/channel/youtube/${channelId}` : null, note: "Live on YouTube" }}
+          live
+          viewers={stats?.viewers ?? null}
+          startedAt={stats?.startedAt ?? null}
+          chatId={`yt-${videoId}`}
+          youtubeId={videoId}
+          statsUrl={`/api/live/yt-${videoId}`}
+          actions={
+            <>
+              {channelId && <FollowButton target={{ kind: "youtube", ref: channelId, name: channelName }} initial={subscribed} label="Subscribe" />}
+              <SaveButton
+                video={{ source: "youtube", id: videoId, title, thumbnail: `/api/yt-thumb/${videoId}`, channelId: channelId ?? "", channelName, publishedAt: null }}
+              />
+            </>
+          }
+          below={<Description meta="" text={detail.description ?? ""} />}
+        />
+        {upNext.length > 0 && (
+          <section className="flex flex-col gap-3">
+            <h2 className="font-semibold">More to watch</h2>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {upNext.slice(0, 9).map((v) => (
+                <VideoRow key={v.id} video={v} />
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6 pb-6 lg:flex-row">
@@ -77,6 +122,13 @@ export default async function YouTubeWatchPage({ params, searchParams }: PagePro
         <h1 className="text-xl font-semibold leading-snug">{title}</h1>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
+            {detail?.channelId ? (
+              <Link href={`/channel/youtube/${detail.channelId}`} className="shrink-0">
+                <Avatar name={channelName} src={channelPicture} size={40} />
+              </Link>
+            ) : (
+              <Avatar name={channelName} size={40} />
+            )}
             <div className="min-w-0">
               {detail?.channelId ? (
                 <Link href={`/channel/youtube/${detail.channelId}`} className="block truncate font-medium hover:underline">
