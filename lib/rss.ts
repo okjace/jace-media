@@ -160,3 +160,11 @@ export async function followedRss(perFeed = 6): Promise<FeedItem[]> {
   const feeds = await Promise.all(rows.map((r) => fetchFeed(r.ref as string)));
   return feeds.flatMap((f) => f?.items.slice(0, perFeed) ?? []);
 }
+
+/** Articles matching a search in the news sites and blogs you follow. */
+export async function searchFollowedRss(term: string, limit = 20): Promise<FeedItem[]> {
+  const words = term.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  const items = await followedRss(40);
+  return items.filter((i) => words.every((w) => `${i.title ?? ""} ${i.text}`.toLowerCase().includes(w))).slice(0, limit);
+}

@@ -134,3 +134,14 @@ export async function getImage(id: string): Promise<{ mime: string; data: Buffer
   if (!rows[0]) return null;
   return { mime: rows[0].mime as string, data: Buffer.from(rows[0].data as string, "base64") };
 }
+
+/** People on Jace Media whose handle or name matches a search. */
+export async function searchProfiles(term: string, limit = 12): Promise<Profile[]> {
+  const like = `%${term.replace(/[%_\\]/g, "\\$&")}%`;
+  const rows = await q(
+    `SELECT * FROM profiles WHERE banned = FALSE AND (handle ILIKE $1 OR display_name ILIKE $1 OR jace_name ILIKE $1)
+     ORDER BY (lower(handle) = lower($2)) DESC, updated_at DESC LIMIT $3`,
+    [like, term, limit],
+  );
+  return rows.map(toProfile);
+}

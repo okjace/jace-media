@@ -19,6 +19,8 @@ export const hasYouTubeApi = !!KEY;
 /** YouTube ids: 11 characters for videos, "UC" + 22 for channels. */
 export const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 export const CHANNEL_ID = /^UC[A-Za-z0-9_-]{22}$/;
+/** Playlist ids: uploads (UU…), user playlists (PL…), and a few YouTube-made kinds. */
+export const PLAYLIST_ID = /^(UU|PL|OL|FL|LL)[A-Za-z0-9_-]{10,40}$/;
 
 /** Thumbnails go through Jace Media (app/api/yt-thumb), so browsing never contacts YouTube. */
 export function thumbnailFor(id: string, size: "mqdefault" | "hqdefault" | "maxresdefault" = "hqdefault"): string {
@@ -380,7 +382,7 @@ export async function channelInfo(id: string): Promise<ChannelInfo | null> {
 
 /** One page (50) of a channel's uploads, newest first, and the token for the next page. */
 export async function channelUploads(uploads: string, pageToken?: string): Promise<{ videos: VideoCard[]; next: string | null } | null> {
-  if (!/^UU[A-Za-z0-9_-]{22}$/.test(uploads)) return null;
+  if (!PLAYLIST_ID.test(uploads)) return null;
   const params: Record<string, string> = { part: "contentDetails", playlistId: uploads, maxResults: "50" };
   if (pageToken && /^[A-Za-z0-9_-]{1,100}$/.test(pageToken)) params.pageToken = pageToken;
   const page = await api<{ items: { contentDetails: { videoId: string } }[]; nextPageToken?: string }>("playlistItems", params);
@@ -443,4 +445,54 @@ export async function channelPictures(ids: string[]): Promise<Map<string, string
     if (url) out.set(c.id, url);
   }
   return out;
+}
+
+export type PlaylistResult = { id: string; title: string; channelId: string; channelName: string; thumbnail: string | null; count: number | null };
+
+/** YouTube playlists matching a search. */
+export async function searchPlaylists(q: string, limit = 12): Promise<PlaylistResult[]> {
+  const data = await api<{
+    items: { id: { playlistId?: string }; snippet: { title: string; channelId: string; channelTitle: string; thumbnails?: Record<string, { url: string }> } }[];
+  }>("search", { part: "snippet", type: "playlist", q, maxResults: String(Math.min(limit, 25)), safeSearch: "moderate" });
+  return (data?.items ?? [])
+    .filter((i) => i.id.playlistId)
+    .map((i) => ({
+      id: i.id.playlistId!,
+      title: decode(i.snippet.title),
+      channelId: i.snippet.channelId,
+      channelName: i.snippet.channelTitle,
+      thumbnail: ytImage(i.snippet.thumbnails?.high?.url ?? i.snippet.thumbnails?.medium?.url),
+      count: null,
+    }));
+}
+
+/** A playlist's title and channel. */
+export async function playlistInfo(id: string): Promise<{ title: string; channelId: string; channelName: string; description: string; count: number } | null> {
+  if (!PLAYLIST_ID.test(id)) return null;
+  const data = await api<{ items: { snippet: { title: string; channelId: string; channelTitle: string; description: string }; contentDetails?: { itemCount?: number } }[] }>(
+    "playlists",
+    { part: "snippet,contentDetails", id },
+  );
+  const p = data?.items?.[0];
+  return p ? { title: p.snippet.title, channelId: p.snippet.channelId, channelName: p.snippet.channelTitle, description: p.snippet.description, count: p.contentDetails?.itemCount ?? 0 } : null;
+}
+
+/** Short videos matching a search (YouTube's search can't ask for Shorts exactly, so: under 4 minutes, tagged #shorts). */
+export async function searchShorts(q: string, limit = 18): Promise<VideoCard[]> {
+  const data = await api<{ items: { id: { videoId?: string } }[] }>("search", {
+    part: "id",
+    type: "video",
+    q: `${q} #shorts`,
+    videoDuration: "short",
+    maxResults: String(Math.min(limit, 50)),
+    safeSearch: "moderate",
+  });
+  const ids = (data?.items ?? []).map((i) => i.id.videoId).filter((x): x is string => !!x);
+  const byId = new Map((await videosById(ids)).map((v) => [v.id, v]));
+  return ids
+    .map((id) => byId.get(id))
+    .filter((v): v is ApiVideo => !!v)
+    .map(toCard)
+    .filter((v) => isShortDuration(v.duration ?? undefined) || /#shorts?/i.test(v.title))
+    .map((v) => ({ ...v, short: true }));
 }
