@@ -5,12 +5,14 @@ import { SourceBadge, VideoRow } from "@/components/videos/VideoGrid";
 import { Description } from "@/components/videos/Description";
 import { FollowButton } from "@/components/actions/FollowButton";
 import { RecordWatch } from "@/components/actions/RecordWatch";
+import { SaveButton } from "@/components/actions/SaveButton";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
 import { VideoLikeButton } from "@/components/actions/VideoLikeButton";
 import { getViewer } from "@/lib/auth";
 import { jaceVideo } from "@/lib/data";
 import { count, date, timeAgo, watchHref } from "@/lib/format";
 import { isVideoLiked } from "@/lib/library";
+import { filterVideos } from "@/lib/ratingfilter";
 import { getTaste, recommendedVideos } from "@/lib/recommend";
 
 export async function generateMetadata({ params }: PageProps<"/watch/jace/[videoId]">): Promise<Metadata> {
@@ -24,13 +26,13 @@ export default async function JaceWatchPage({ params, searchParams }: PageProps<
   const autoStart = (await searchParams).play === "1";
   const video = await jaceVideo(videoId);
   if (!video) notFound();
-  const [taste, viewer, upNext] = await Promise.all([getTaste(), getViewer(), recommendedVideos({ limit: 16, exclude: video.id })]);
+  const [taste, viewer, upNext] = await Promise.all([getTaste(), getViewer(), recommendedVideos({ limit: 16, exclude: video.id }).then(filterVideos)]);
   const liked = viewer ? await isVideoLiked(viewer.sub, "jace", video.id).catch(() => false) : false;
   const following = taste.following.has(`jace:${video.owner_id.toLowerCase()}`);
 
   return (
     <div className="flex flex-col gap-6 pb-6 lg:flex-row">
-      <RecordWatch source="jace" id={video.id} title={video.title} channelId={video.owner_id} channelName={video.owner_name} />
+      <RecordWatch source="jace" id={video.id} title={video.title} channelId={video.owner_id} channelName={video.owner_name} thumbnail={video.thumbnail_url} />
       <div className="flex min-w-0 flex-1 flex-col gap-4">
         <div className="-mx-4 overflow-hidden bg-black sm:mx-0 sm:rounded-2xl">
           <VideoPlayer
@@ -41,6 +43,7 @@ export default async function JaceWatchPage({ params, searchParams }: PageProps<
             poster={video.thumbnail_url}
             title={video.title}
             autoStart={autoStart}
+            href={`/watch/jace/${video.id}`}
             nextHref={upNext[0] ? watchHref(upNext[0]) : null}
             nextTitle={upNext[0]?.title ?? null}
           />
@@ -65,6 +68,9 @@ export default async function JaceWatchPage({ params, searchParams }: PageProps<
               />
             )}
             <VideoLikeButton source="jace" id={video.id} channelId={video.owner_id} initial={liked} />
+            <SaveButton
+              video={{ source: "jace", id: video.id, title: video.title, thumbnail: video.thumbnail_url, channelId: video.owner_id, channelName: video.owner_name, publishedAt: null }}
+            />
             <a
               href={`https://jacetube.vercel.app/watch/jace/${video.id}`}
               className="flex h-9 items-center rounded-full bg-foreground/[.07] px-4 text-sm font-medium transition-colors hover:bg-foreground/[.12]"

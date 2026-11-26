@@ -74,6 +74,7 @@ export type HistoryInput = {
   channelId?: string | null;
   channelName?: string | null;
   watchedAt?: number;
+  thumbnail?: string | null;
   /** How many times (imports only; a live watch counts 1). */
   count?: number;
 };
@@ -102,7 +103,7 @@ export async function recordWatches(sub: string, input: HistoryInput[], opts: { 
     const batch = entries.slice(i, i + 200);
     const values: unknown[] = [];
     const rows = batch.map((e, j) => {
-      const b = j * 8;
+      const b = j * 9;
       values.push(
         sub,
         e.source,
@@ -112,18 +113,20 @@ export async function recordWatches(sub: string, input: HistoryInput[], opts: { 
         e.channelName?.slice(0, 120) ?? null,
         Math.max(1, Math.min(10_000, Math.floor(e.count ?? 1))),
         e.watchedAt ?? Date.now(),
+        e.thumbnail ?? null,
       );
-      return `($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4}, $${b + 5}, $${b + 6}, $${b + 7}, $${b + 8})`;
+      return `($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4}, $${b + 5}, $${b + 6}, $${b + 7}, $${b + 8}, $${b + 9})`;
     });
     await q(
-      `INSERT INTO watch_history (sub, source, video_id, title, channel_id, channel_name, watch_count, watched_at)
+      `INSERT INTO watch_history (sub, source, video_id, title, channel_id, channel_name, watch_count, watched_at, thumbnail)
        VALUES ${rows.join(", ")}
        ON CONFLICT (sub, source, video_id) DO UPDATE SET
          watch_count = ${opts.imported ? "GREATEST(watch_history.watch_count, EXCLUDED.watch_count)" : "watch_history.watch_count + 1"},
          watched_at = GREATEST(watch_history.watched_at, EXCLUDED.watched_at),
          title = EXCLUDED.title,
          channel_id = COALESCE(EXCLUDED.channel_id, watch_history.channel_id),
-         channel_name = COALESCE(EXCLUDED.channel_name, watch_history.channel_name)`,
+         channel_name = COALESCE(EXCLUDED.channel_name, watch_history.channel_name),
+         thumbnail = COALESCE(EXCLUDED.thumbnail, watch_history.thumbnail)`,
       values,
     );
     saved += batch.length;

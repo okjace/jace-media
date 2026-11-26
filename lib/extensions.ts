@@ -18,7 +18,8 @@ export type ExtensionId =
   | "resume"
   | "rememberSpeed"
   | "ambient"
-  | "hideCounts";
+  | "hideCounts"
+  | "miniPlayer";
 
 export type ExtensionInfo = {
   id: ExtensionId;
@@ -72,18 +73,23 @@ export const EXTENSIONS: ExtensionInfo[] = [
   },
   { id: "autoplayNext", name: "Autoplay next", blurb: "Plays the next video when one ends (with a 5-second countdown).", group: "Player", defaultOn: true },
   { id: "resume", name: "Resume where you left off", blurb: "Long videos pick up where you stopped.", group: "Player", defaultOn: true },
+  { id: "miniPlayer", name: "Mini player", blurb: "Leave a video while it plays and it keeps playing in a corner while you browse.", group: "Player", defaultOn: true },
   { id: "rememberSpeed", name: "Remember speed", blurb: "Keeps your playback speed from one video to the next.", group: "Player", defaultOn: true },
   { id: "ambient", name: "Ambient glow", blurb: "A soft glow in the video's colors behind the player.", group: "Look", defaultOn: true },
   { id: "hideCounts", name: "Hide counts", blurb: "Hides view, like, and follower counts everywhere.", group: "Look", defaultOn: false },
 ];
 
-export type Extensions = Record<ExtensionId, boolean> & { skip: SegmentCategory[] };
+/** How strict the content filter is (see lib/rating.ts). */
+export type RatingLevel = "kids" | "teen" | "all";
+
+export type Extensions = Record<ExtensionId, boolean> & { skip: SegmentCategory[]; rating: RatingLevel };
 
 export const DEFAULT_SKIP: SegmentCategory[] = ["sponsor", "selfpromo", "interaction"];
 
 export const DEFAULT_EXTENSIONS: Extensions = {
   ...(Object.fromEntries(EXTENSIONS.map((e) => [e.id, e.defaultOn])) as Record<ExtensionId, boolean>),
   skip: DEFAULT_SKIP,
+  rating: "teen",
 };
 
 const SKIPPABLE: SegmentCategory[] = ["sponsor", "selfpromo", "interaction", "intro", "outro", "preview", "music_offtopic"];
@@ -98,5 +104,6 @@ export function parseExtensions(raw: unknown): Extensions {
   const out = { ...DEFAULT_EXTENSIONS };
   for (const e of EXTENSIONS) if (typeof value[e.id] === "boolean") out[e.id] = value[e.id] as boolean;
   if (Array.isArray(value.skip)) out.skip = SKIPPABLE.filter((c) => (value.skip as unknown[]).includes(c));
+  if (value.rating === "kids" || value.rating === "teen" || value.rating === "all") out.rating = value.rating;
   return out;
 }

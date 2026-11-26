@@ -113,6 +113,40 @@ const SCHEMA = [
     created_at BIGINT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS ext_comments_post ON ext_comments (network, post_id, created_at)`,
+  // Appropriate (1) / inappropriate (-1) ratings of any post or video ("bluesky:<uri>", "youtube:<id>", …).
+  `CREATE TABLE IF NOT EXISTS content_ratings (
+    sub TEXT NOT NULL,
+    target TEXT NOT NULL,
+    rating SMALLINT NOT NULL,
+    created_at BIGINT NOT NULL,
+    PRIMARY KEY (sub, target)
+  )`,
+  `CREATE INDEX IF NOT EXISTS content_ratings_target ON content_ratings (target)`,
+  // Where you stopped in a video, for Continue watching (seconds).
+  `ALTER TABLE watch_history ADD COLUMN IF NOT EXISTS position REAL`,
+  `ALTER TABLE watch_history ADD COLUMN IF NOT EXISTS duration REAL`,
+  `ALTER TABLE watch_history ADD COLUMN IF NOT EXISTS thumbnail TEXT`,
+  // Playlists; kind "watch_later" is each person's Watch Later.
+  `CREATE TABLE IF NOT EXISTS playlists (
+    id TEXT PRIMARY KEY,
+    sub TEXT NOT NULL,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'playlist',
+    created_at BIGINT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS playlists_owner ON playlists (sub, created_at)`,
+  `CREATE TABLE IF NOT EXISTS playlist_items (
+    playlist_id TEXT NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+    source TEXT NOT NULL,
+    video_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    channel_id TEXT,
+    channel_name TEXT,
+    thumbnail TEXT,
+    short BOOLEAN NOT NULL DEFAULT FALSE,
+    added_at BIGINT NOT NULL,
+    PRIMARY KEY (playlist_id, source, video_id)
+  )`,
 ];
 
 // One connection per process. Next.js can load this module more than once

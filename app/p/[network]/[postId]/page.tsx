@@ -6,6 +6,7 @@ import { getViewer } from "@/lib/auth";
 import { isExtNetwork, listExtComments } from "@/lib/extcomments";
 import { followKey, followTarget } from "@/lib/follow";
 import { getTaste } from "@/lib/recommend";
+import { filterPosts } from "@/lib/ratingfilter";
 import { blueskyThread, hnThread, lemmyThread, mastodonThread, type Thread } from "@/lib/social";
 
 export const dynamic = "force-dynamic";
@@ -45,6 +46,8 @@ export default async function ExternalPostPage({ params }: PageProps<"/p/[networ
     getTaste(),
   ]);
   if (!thread) notFound();
+  const okReplies = new Set((await filterPosts(thread.replies.map((r) => r.item))).map((p) => p.id));
+  const replies = thread.replies.filter((r) => okReplies.has(r.item.id));
   const target = followTarget(thread.post);
 
   return (
@@ -61,12 +64,12 @@ export default async function ExternalPostPage({ params }: PageProps<"/p/[networ
         ))}
       </section>
 
-      {thread.replies.length > 0 && (
+      {replies.length > 0 && (
         <section className="flex flex-col gap-2">
           <h2 className="font-semibold">
-            Replies on {LABEL[network]} <span className="font-normal text-muted">{thread.replies.length}</span>
+            Replies on {LABEL[network]} <span className="font-normal text-muted">{replies.length}</span>
           </h2>
-          {thread.replies.map((r) => (
+          {replies.map((r) => (
             <div key={`${r.item.network}:${r.item.id}`} style={{ marginLeft: `${Math.min(r.depth, 5) * 20}px` }} className={r.depth ? "border-l border-line pl-3" : ""}>
               <PostCard item={{ ...r.item, title: undefined }} variant="comment" />
             </div>

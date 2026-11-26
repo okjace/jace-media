@@ -5,6 +5,7 @@ import { getExtensions } from "@/lib/prefs";
 import { getTaste, recommendedVideos, videoCandidates } from "@/lib/recommend";
 import type { VideoCard } from "@/lib/types";
 import { withDeArrow } from "@/lib/ytextras";
+import { filterVideos } from "@/lib/ratingfilter";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Shorts" };
@@ -45,7 +46,7 @@ export default async function ShortsPage({ searchParams }: { searchParams: Promi
       </EmptyState>
     );
   }
-  shorts = await withDeArrow(shorts);
+  shorts = await withDeArrow(await filterVideos(shorts));
   const followed = [...taste.following].filter((k) => k.startsWith("youtube:") || k.startsWith("jace:"));
   return <ShortsPlayer shorts={shorts} followed={followed} />;
 }

@@ -16,6 +16,8 @@ export type YTPlayer = {
   getAvailablePlaybackRates(): number[];
   loadVideoById(videoId: string): void;
   cueVideoById(videoId: string): void;
+  loadModule(name: string): void;
+  unloadModule(name: string): void;
   destroy(): void;
 };
 

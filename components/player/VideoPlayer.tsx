@@ -30,7 +30,12 @@ type Props = {
   poster?: string | null;
   title: string;
   segments?: Segment[];
-  variant?: "full" | "short";
+  variant?: "full" | "short" | "mini";
+  /** Start here (seconds), e.g. the mini player picking up where the page left off. */
+  startAt?: number;
+  /** The watch page address, for the mini player's "back to video". */
+  href?: string;
+  onClose?: () => void;
   /** Should play now (Shorts: the one on screen). */
   active?: boolean;
   /** Start playing even in Privacy mode (you already pressed play, e.g. autoplay next). */
@@ -111,10 +116,15 @@ export function VideoPlayer({
   autoStart = false,
   nextHref,
   nextTitle,
+  startAt,
+  href,
+  onClose,
 }: Props) {
   const router = useRouter();
-  const { extensions: ext } = useApp();
+  const { extensions: ext, current, setMini } = useApp();
+  const mini = variant === "mini";
   const short = variant === "short";
+  const compact = short || variant === "mini";
   const posterUrl = poster ?? (source === "youtube" ? `/api/yt-thumb/${id}${short ? "" : "?s=maxresdefault"}` : null);
   const skip = useMemo(() => (ext.sponsorblock ? ext.skip : []), [ext.sponsorblock, ext.skip]);
 
@@ -131,7 +141,8 @@ export function VideoPlayer({
   const seekingRef = useRef(false);
 
   // Privacy mode: YouTube's player isn't loaded until you press play.
-  const [armed, setArmed] = useState(source === "jace" || short || !ext.privacy || autoStart);
+  const [armed, setArmed] = useState(source === "jace" || compact || !ext.privacy || autoStart);
+  const [cc, setCc] = useState(false);
   const [ready, setReady] = useState(false);
   const [started, setStarted] = useState(false);
   const [playing, setPlaying] = useState(false);
@@ -172,11 +183,12 @@ export function VideoPlayer({
     const r = !short && ext.rememberSpeed ? stored("rate", 1) : 1;
     e.rate(r);
     setRate(r);
-    if (!short && ext.resume) {
+    if (startAt && startAt > 1) e.seek(startAt);
+    else if (!compact && ext.resume) {
       const resume = stored(posKey, 0);
       if (resume > 5) e.seek(resume);
     }
-  }, [short, ext.rememberSpeed, ext.resume, posKey]);
+  }, [short, compact, startAt, ext.rememberSpeed, ext.resume, posKey]);
 
   // ----- Jace: a plain <video> -----
   useEffect(() => {
@@ -274,6 +286,10 @@ export function VideoPlayer({
             };
             applySaved();
             setReady(true);
+            if (stored("captions", false)) {
+              p.loadModule("captions");
+              setCc(true);
+            }
             if (activeRef.current) p.playVideo();
           },
           onStateChange: ({ data }) => {
@@ -346,18 +362,28 @@ export function VideoPlayer({
         }
       });
     }, 250);
+    let ticks = 0;
     const save = setInterval(() => {
       const e = engine.current;
-      if (!e || short || !ext.resume) return;
+      if (!e || short) return;
       const t = e.time();
       const d = e.duration();
-      if (t > 10 && d && t < d - 20) store(posKey, Math.floor(t));
+      if (ext.resume && t > 10 && d && t < d - 20) store(posKey, Math.floor(t));
+      // Every 15 seconds of playing, tell the account (Continue watching on every device).
+      ticks += 1;
+      if (current && !e.paused() && ticks % 3 === 0 && d > 0) {
+        fetch("/api/progress", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ source, id: idRef.current, position: Math.floor(t), duration: Math.floor(d) }),
+        }).catch(() => {});
+      }
     }, 5000);
     return () => {
       clearInterval(tick);
       clearInterval(save);
     };
-  }, [segments, skip, posKey, short, ext.resume]);
+  }, [segments, skip, posKey, short, ext.resume, current, source]);
 
   useEffect(() => {
     if (!toast) return;
@@ -373,13 +399,13 @@ export function VideoPlayer({
 
   // When it ends: forget the saved place, and count down to the next video.
   useEffect(() => {
-    if (!ended || short) return;
+    if (!ended || compact) return;
     try {
       localStorage.removeItem(`jacemedia:${posKey}`);
     } catch {}
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (ext.autoplayNext && nextHref) setCountdown(5);
-  }, [ended, short, ext.autoplayNext, nextHref, posKey]);
+  }, [ended, compact, ext.autoplayNext, nextHref, posKey]);
 
   const goNext = useCallback(() => {
     if (!nextHref) return;
@@ -418,8 +444,8 @@ export function VideoPlayer({
     const willPlay = e.paused();
     if (willPlay) e.play();
     else e.pause();
-    if (short) setFlash(willPlay ? "play" : "pause");
-  }, [armed, ended, short]);
+    if (compact) setFlash(willPlay ? "play" : "pause");
+  }, [armed, ended, compact]);
 
   const seekTo = useCallback(
     (t: number) => {
@@ -467,6 +493,32 @@ export function VideoPlayer({
     [ext.rememberSpeed],
   );
 
+  const toggleCaptions = useCallback(() => {
+    const p = yt.current;
+    if (!p) return;
+    const next = !cc;
+    if (next) p.loadModule("captions");
+    else p.unloadModule("captions");
+    setCc(next);
+    store("captions", next);
+  }, [cc]);
+
+  // Leaving the page while a video plays: it keeps going in the mini player.
+  const handoff = useRef<{ playing: boolean; time: number }>({ playing: false, time: 0 });
+  useEffect(() => {
+    handoff.current = { playing, time };
+  }, [playing, time]);
+  useEffect(() => {
+    if (variant !== "full" || !ext.miniPlayer) return;
+    setMini(null);
+    return () => {
+      const { playing: was, time: at } = handoff.current;
+      if (was && href) setMini({ source, id: idRef.current, src, poster: posterUrl, title, start: at, href });
+    };
+    // Only on mount and unmount of this video's page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
   const toggleFullscreen = useCallback(() => {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     else box.current?.requestFullscreen().catch(() => {});
@@ -487,7 +539,7 @@ export function VideoPlayer({
 
   // Keyboard shortcuts (full player; Shorts use ↑/↓ to move between Shorts).
   useEffect(() => {
-    if (short) return;
+    if (compact) return;
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.closest("input, textarea, select, [contenteditable=true]") || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -504,6 +556,7 @@ export function VideoPlayer({
       else if (k === "ArrowDown") changeVolume(volume - 0.05);
       else if (k === "m" || k === "M") toggleMute();
       else if (k === "f" || k === "F") toggleFullscreen();
+      else if ((k === "c" || k === "C") && source === "youtube") toggleCaptions();
       else if (k === "Home") seekTo(0);
       else if (k === "End") seekTo(eng.duration());
       else if (/^[0-9]$/.test(k)) seekTo((eng.duration() * Number(k)) / 10);
@@ -517,7 +570,7 @@ export function VideoPlayer({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [short, toggle, seekTo, changeVolume, toggleMute, toggleFullscreen, changeRate, volume, rate, poke]);
+  }, [compact, toggle, seekTo, changeVolume, toggleMute, toggleFullscreen, toggleCaptions, source, changeRate, volume, rate, poke]);
 
   // ----- seek bar -----
   const bar = useRef<HTMLDivElement>(null);
@@ -565,7 +618,7 @@ export function VideoPlayer({
       onPointerLeave={() => setHover(null)}
       className="group/bar relative flex h-4 cursor-pointer touch-none items-center"
     >
-      <div className={`relative w-full rounded-full bg-white/25 transition-all ${short ? "h-1 group-hover/bar:h-2" : "h-1 group-hover/bar:h-1.5"}`}>
+      <div className={`relative w-full rounded-full bg-white/25 transition-all ${compact ? "h-1 group-hover/bar:h-2" : "h-1 group-hover/bar:h-1.5"}`}>
         <div className="absolute inset-y-0 left-0 rounded-full bg-white/35" style={{ width: `${buffered * 100}%` }} />
         {segments.map((s, i) => (
           <div
@@ -594,7 +647,7 @@ export function VideoPlayer({
 
   return (
     <div className={`relative ${short ? "h-full w-full" : "w-full"}`}>
-      {ext.ambient && !short && posterUrl && (
+      {ext.ambient && !compact && posterUrl && (
         // Ambient glow: the poster, blurred, behind the player.
         // eslint-disable-next-line @next/next/no-img-element
         <img src={posterUrl} alt="" aria-hidden="true" className="pointer-events-none absolute -inset-6 -z-10 h-[calc(100%+3rem)] w-[calc(100%+3rem)] scale-105 object-cover opacity-35 blur-3xl saturate-150" />
@@ -603,7 +656,7 @@ export function VideoPlayer({
         ref={box}
         onPointerMove={poke}
         onPointerLeave={() => playing && setControls(false)}
-        className={`group/player relative select-none overflow-hidden bg-black ${short ? "h-full w-full" : "aspect-video w-full sm:rounded-2xl"} ${
+        className={`group/player relative select-none overflow-hidden bg-black ${short ? "h-full w-full" : mini ? "aspect-video w-full rounded-xl" : "aspect-video w-full sm:rounded-2xl"} ${
           fullscreen ? "!aspect-auto h-screen !rounded-none" : ""
         } ${!showUi && playing ? "cursor-none" : ""}`}
         aria-label={`Video player: ${title}`}
@@ -637,7 +690,7 @@ export function VideoPlayer({
           type="button"
           aria-label={playing ? "Pause" : "Play"}
           onClick={toggle}
-          onDoubleClick={short ? undefined : toggleFullscreen}
+          onDoubleClick={compact ? undefined : toggleFullscreen}
           className={`absolute inset-0 h-full w-full cursor-[inherit] ${ytClickThrough ? "pointer-events-none" : ""}`}
         />
 
@@ -646,14 +699,14 @@ export function VideoPlayer({
             <span className="h-12 w-12 animate-spin rounded-full border-4 border-white/25 border-t-white" />
           </div>
         )}
-        {!playing && !waiting && (ready || !armed) && !error && countdown === null && !short && (
+        {!playing && !waiting && (ready || !armed) && !error && countdown === null && !compact && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <span className="flex h-[72px] w-[72px] items-center justify-center rounded-full bg-black/55 text-white ring-1 ring-white/20 backdrop-blur-sm transition-transform group-hover/player:scale-105">
               <Icon d={ended ? ICONS.replay : ICONS.play} size={34} />
             </span>
           </div>
         )}
-        {short && (flash || (!playing && ready && !waiting)) && (
+        {compact && (flash || (!playing && ready && !waiting)) && (
           // A tap flashes play/pause; while paused, a play button stays up.
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <span className={`flex h-16 w-16 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm ${flash ? "animate-[fadeout_0.5s_ease-out_forwards]" : ""}`}>
@@ -661,7 +714,7 @@ export function VideoPlayer({
             </span>
           </div>
         )}
-        {!armed && !short && (
+        {!armed && !compact && (
           <p className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-xs text-white/70">
             Privacy mode: YouTube loads when you press play
           </p>
@@ -701,8 +754,36 @@ export function VideoPlayer({
           </div>
         )}
 
-        {short ? (
+        {compact ? (
           <>
+            {mini && (
+              <div className="absolute left-2 top-2 z-10 flex gap-1">
+                {href && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const at = Math.floor(engine.current?.time() ?? 0);
+                      store(posKey, at);
+                      onClose?.();
+                      router.push(href);
+                    }}
+                    aria-label="Back to the video"
+                    title="Back to the video"
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur hover:bg-black/75"
+                  >
+                    <Icon d={ICONS.full} size={16} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Close mini player"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur hover:bg-black/75"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
             <button
               type="button"
               onClick={toggleMute}
@@ -754,6 +835,18 @@ export function VideoPlayer({
                 </span>
               )}
               {rate !== 1 && <span className="px-1 text-xs text-white/80">{rate}×</span>}
+              {source === "youtube" && (
+                <button
+                  type="button"
+                  onClick={toggleCaptions}
+                  aria-pressed={cc}
+                  aria-label={cc ? "Captions off (c)" : "Captions on (c)"}
+                  title="Captions (c)"
+                  className={`${btn} text-xs font-bold`}
+                >
+                  <span className={`rounded border px-1 py-0.5 leading-none ${cc ? "border-accent bg-accent text-on-accent" : "border-white/80"}`}>CC</span>
+                </button>
+              )}
               <div className="relative">
                 <button type="button" onClick={() => setMenu((m) => !m)} aria-label="Settings" aria-expanded={menu} className={btn}>
                   <Icon d={ICONS.gear} />

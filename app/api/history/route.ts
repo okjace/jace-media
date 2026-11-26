@@ -17,6 +17,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       title: typeof b.title === "string" ? b.title : "Video",
       channelId: typeof b.channelId === "string" ? b.channelId : null,
       channelName: typeof b.channelName === "string" ? b.channelName : null,
+      thumbnail: typeof b.thumbnail === "string" && /^(\/api\/yt-thumb\/|https:\/\/)/.test(b.thumbnail) ? b.thumbnail : null,
     },
   ]);
   return NextResponse.json({ ok: true });

@@ -2,19 +2,65 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Avatar } from "@/components/Avatar";
 import { signInHref, useApp } from "@/components/AppProvider";
 import { FollowButton } from "@/components/actions/FollowButton";
 import { followTarget } from "@/lib/follow";
 import { timeAgo } from "@/lib/format";
 import { authorHref, placeHref, postHref } from "@/lib/links";
+import { rate } from "@/lib/rate-client";
 import type { FeedItem } from "@/lib/types";
 import { NetworkBadge } from "./NetworkBadge";
 import { RichText } from "./RichText";
 
 const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
 const SITE: Record<string, string> = { bluesky: "Bluesky", mastodon: "Mastodon", lemmy: "Lemmy", hackernews: "Hacker News" };
+
+/** The ⋯ menu on a post: rate it appropriate or inappropriate. */
+function PostMenu({ target, onHide }: { target: string; onHide: () => void }) {
+  const { current, showNotice } = useApp();
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+  if (!current) return null;
+  async function rateIt(rating: 1 | -1) {
+    setOpen(false);
+    if (!(await rate(target, rating))) return;
+    if (rating === -1) {
+      onHide();
+      showNotice({ kind: "info", text: "Thanks. It's hidden for you, and your rating helps hide it for others." });
+    } else showNotice({ kind: "info", text: "Thanks for rating it appropriate." });
+  }
+  return (
+    <div ref={box} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-label="More"
+        aria-expanded={open}
+        className="flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-foreground/[.08] hover:text-foreground"
+      >
+        ⋯
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 top-9 z-30 w-56 overflow-hidden rounded-xl border border-line bg-panel py-1 text-sm shadow-xl shadow-black/30">
+          <button type="button" role="menuitem" onClick={() => rateIt(1)} className="block w-full px-4 py-2 text-left hover:bg-foreground/[.06]">
+            👍 Rate appropriate
+          </button>
+          <button type="button" role="menuitem" onClick={() => rateIt(-1)} className="block w-full px-4 py-2 text-left text-danger hover:bg-danger/10">
+            🚩 Rate inappropriate
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function MaybeLink({ href, children, className }: { href: string | null; children: ReactNode; className?: string }) {
   return href ? (
@@ -118,6 +164,7 @@ export function PostCard({
           </div>
         </div>
         {canFollow && <FollowButton target={target!} initial={followed} size="sm" />}
+        {!isComment && <PostMenu target={`${item.network}:${item.id}`} onHide={() => setDeleted(true)} />}
       </header>
 
       <div className={`space-y-2 ${isComment ? "mt-2 pl-11" : "mt-3"}`}>

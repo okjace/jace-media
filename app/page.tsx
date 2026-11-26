@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Composer } from "@/components/feed/Composer";
 import { FeedList } from "@/components/feed/FeedList";
+import { ContinueWatching } from "@/components/videos/ContinueWatching";
 import { VideoGrid } from "@/components/videos/VideoGrid";
 import { jacePosts } from "@/lib/feeds";
 import { watchHref } from "@/lib/format";
@@ -61,6 +62,7 @@ export default async function ForYouPage() {
 
   return (
     <div className="flex flex-col gap-8">
+      <ContinueWatching />
       {videos.length > 0 && (
         <section className="flex flex-col gap-4">
           <div className="flex items-center justify-between">

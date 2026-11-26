@@ -6,6 +6,7 @@ import { followKey, followTarget } from "@/lib/follow";
 import { duration, timeAgo, views, watchHref } from "@/lib/format";
 import { getTaste } from "@/lib/recommend";
 import { withDeArrow } from "@/lib/ytextras";
+import { filterPosts, filterVideos } from "@/lib/ratingfilter";
 import type { VideoCard } from "@/lib/types";
 import { PostCard } from "./PostCard";
 
@@ -33,13 +34,19 @@ export function VideoFeedCard({ video }: { video: VideoCard }) {
           <p className="mt-1 truncate text-sm text-muted">{video.channelName}</p>
           <p className="text-sm text-muted">{[views(video.views), timeAgo(video.publishedAt)].filter(Boolean).join(" · ")}</p>
         </div>
-        <VideoMenu source={video.source} id={video.id} channelId={video.channelId} channelName={video.channelName} />
+        <VideoMenu source={video.source} id={video.id} channelId={video.channelId} channelName={video.channelName} title={video.title} thumbnail={video.thumbnail} short={video.short} />
       </div>
     </article>
   );
 }
 
-export async function MixedFeed({ entries, empty }: { entries: Entry[]; empty: React.ReactNode }) {
+export async function MixedFeed({ entries: all, empty }: { entries: Entry[]; empty: React.ReactNode }) {
+  const [okPosts, okVideos] = await Promise.all([
+    filterPosts(all.flatMap((e) => (e.kind === "post" ? [e.item] : []))),
+    filterVideos(all.flatMap((e) => (e.kind === "video" ? [e.video] : []))),
+  ]);
+  const keep = new Set([...okPosts.map((p) => `p:${p.network}:${p.id}`), ...okVideos.map((v) => `v:${v.source}:${v.id}`)]);
+  const entries = all.filter((e) => keep.has(e.kind === "post" ? `p:${e.item.network}:${e.item.id}` : `v:${e.video.source}:${e.video.id}`));
   if (entries.length === 0) {
     return <div className="rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">{empty}</div>;
   }

@@ -9,6 +9,8 @@ import type { AccountSummary } from "@/lib/types";
 type Notice = { kind: "error" | "info"; text: string; signIn?: boolean };
 
 export type FeedTab = { id: string; name: string };
+/** A video that keeps playing in the corner after you leave its page. */
+export type MiniVideo = { source: "youtube" | "jace"; id: string; src?: string; poster?: string | null; title: string; start: number; href: string };
 export type SidebarSub = { kind: string; ref: string; name: string; picture: string | null; folder: string | null };
 
 type AppState = {
@@ -18,11 +20,13 @@ type AppState = {
   feeds: FeedTab[];
   extensions: Extensions;
   subs: SidebarSub[];
+  mini: MiniVideo | null;
+  setMini: (v: MiniVideo | null) => void;
   notice: Notice | null;
   showNotice: (notice: Notice | null) => void;
 };
 
-const AppContext = createContext<AppState>({ current: null, others: [], services: [], feeds: [], extensions: DEFAULT_EXTENSIONS, subs: [], notice: null, showNotice: () => {} });
+const AppContext = createContext<AppState>({ current: null, others: [], services: [], feeds: [], extensions: DEFAULT_EXTENSIONS, subs: [], mini: null, setMini: () => {}, notice: null, showNotice: () => {} });
 
 export function useApp(): AppState {
   return useContext(AppContext);
@@ -70,6 +74,8 @@ export function AppProvider({
   const pathname = usePathname();
   const [notice, setNotice] = useState<Notice | null>(null);
   const showNotice = useCallback((n: Notice | null) => setNotice(n), []);
+  const [mini, setMiniState] = useState<MiniVideo | null>(null);
+  const setMini = useCallback((v: MiniVideo | null) => setMiniState(v), []);
   const checked = useRef<string | null>(null);
 
   useEffect(() => {
@@ -117,7 +123,7 @@ export function AppProvider({
     }
   }, [pathname]);
 
-  return <AppContext.Provider value={{ current, others, services, feeds, extensions, subs, notice, showNotice }}>{children}</AppContext.Provider>;
+  return <AppContext.Provider value={{ current, others, services, feeds, extensions, subs, mini, setMini, notice, showNotice }}>{children}</AppContext.Provider>;
 }
 
 export function Notices() {

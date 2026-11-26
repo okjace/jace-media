@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageTitle } from "@/components/PageTitle";
+import { ContinueWatching } from "@/components/videos/ContinueWatching";
 import { EmptyState, VideoGrid } from "@/components/videos/VideoGrid";
 import { interleave, jaceVideos } from "@/lib/data";
 import { getTaste, latestVideos, rankVideos, videoCandidates } from "@/lib/recommend";
@@ -81,6 +82,7 @@ export default async function VideosPage({ searchParams }: { searchParams: Promi
           </>
         )}
       </div>
+      {!q && <ContinueWatching />}
       {q && wantYouTube && !hasYouTubeApi && (
         <p className="text-sm text-muted">Searching YouTube needs a YouTube API key on this server. Paste a YouTube link to watch any video.</p>
       )}

@@ -604,3 +604,74 @@ export async function hnThread(id: string): Promise<Thread | null> {
   walk(item.children ?? [], 0);
   return { post, replies };
 }
+
+// ---------- Search ----------
+
+export type PersonResult = { network: ExtNetwork; name: string; handle: string; picture: string | null; href: string; blurb: string };
+
+export async function searchBluesky(query: string, limit = 20): Promise<FeedItem[] | null> {
+  const data = await getJson<{ posts: BskyPost[] }>(
+    `https://api.bsky.app/xrpc/app.bsky.feed.searchPosts?q=${encodeURIComponent(query)}&limit=${limit}&sort=top`,
+  );
+  return data ? data.posts.map(fromBsky).filter((x): x is FeedItem => !!x) : null;
+}
+
+export async function searchMastodon(query: string, limit = 20): Promise<FeedItem[] | null> {
+  const [found, tagged] = await Promise.all([
+    getJson<{ statuses: MastoStatus[] }>(`https://${MASTODON}/api/v2/search?q=${encodeURIComponent(query)}&type=statuses&limit=${limit}`),
+    /^[\p{L}\p{N}_]+$/u.test(query.replace(/^#/, ""))
+      ? getJson<MastoStatus[]>(`https://${MASTODON}/api/v1/timelines/tag/${encodeURIComponent(query.replace(/^#/, ""))}?limit=${limit}`)
+      : Promise.resolve([] as MastoStatus[]),
+  ]);
+  if (!found && !tagged) return null;
+  return [...(found?.statuses ?? []), ...(tagged ?? [])].map(fromMastodon).filter((x): x is FeedItem => !!x);
+}
+
+export async function searchLemmy(query: string, limit = 20): Promise<FeedItem[] | null> {
+  const data = await getJson<{ posts: LemmyView[] }>(
+    `https://${LEMMY}/api/v3/search?q=${encodeURIComponent(query)}&type_=Posts&sort=TopYear&limit=${limit}`,
+  );
+  return data ? data.posts.map(fromLemmy).filter((x): x is FeedItem => !!x) : null;
+}
+
+export async function searchHackerNews(query: string, limit = 20): Promise<FeedItem[] | null> {
+  const data = await getJson<{ hits: HnHit[] }>(`https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(query)}&tags=story&hitsPerPage=${limit}`);
+  return data ? data.hits.filter((h) => h.title).map(fromHn) : null;
+}
+
+/** People and communities matching a search, from Bluesky, Mastodon, and Lemmy. */
+export async function searchPeople(query: string, networks: string[]): Promise<PersonResult[]> {
+  const enc = encodeURIComponent(query);
+  const [b, m, l] = await Promise.all([
+    networks.includes("bluesky")
+      ? getJson<{ actors: { handle: string; displayName?: string; avatar?: string; description?: string; labels?: BskyLabel[] }[] }>(
+          `${BSKY}/app.bsky.actor.searchActors?q=${enc}&limit=6`,
+        )
+      : null,
+    networks.includes("mastodon")
+      ? getJson<{ accounts: { acct: string; display_name: string; avatar: string; note: string }[] }>(
+          `https://${MASTODON}/api/v2/search?q=${enc}&type=accounts&limit=6`,
+        )
+      : null,
+    networks.includes("lemmy")
+      ? getJson<{ communities: { community: { name: string; title: string; icon?: string; actor_id: string; nsfw: boolean; description?: string } }[] }>(
+          `https://${LEMMY}/api/v3/search?q=${enc}&type_=Communities&sort=TopAll&limit=6`,
+        )
+      : null,
+  ]);
+  const out: PersonResult[] = [];
+  for (const a of b?.actors ?? []) {
+    if ((a.labels ?? []).some((x) => ADULT_LABELS.has(x.val))) continue;
+    out.push({ network: "bluesky", name: a.displayName || a.handle, handle: `@${a.handle}`, picture: a.avatar ?? null, href: `/channel/bluesky/${a.handle}`, blurb: (a.description ?? "").slice(0, 120) });
+  }
+  for (const a of m?.accounts ?? []) {
+    const acct = a.acct.includes("@") ? a.acct : `${a.acct}@${MASTODON}`;
+    out.push({ network: "mastodon", name: htmlToText(a.display_name) || a.acct, handle: `@${acct}`, picture: a.avatar, href: `/channel/mastodon/${encodeURIComponent(acct)}`, blurb: htmlToText(a.note).slice(0, 120) });
+  }
+  for (const { community: c } of l?.communities ?? []) {
+    if (c.nsfw) continue;
+    const ref = `${c.name}@${new URL(c.actor_id).host}`;
+    out.push({ network: "lemmy", name: c.title, handle: `c/${ref}`, picture: c.icon ?? null, href: `/channel/lemmy/${encodeURIComponent(ref)}`, blurb: (c.description ?? "").slice(0, 120) });
+  }
+  return out;
+}

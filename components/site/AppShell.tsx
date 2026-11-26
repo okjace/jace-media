@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Avatar } from "@/components/Avatar";
 import { Notices, useApp, type SidebarSub } from "@/components/AppProvider";
+import { MiniPlayer } from "@/components/player/MiniPlayer";
 import type { Service } from "@/lib/services";
 import { AccountMenu } from "./AccountMenu";
 import { Icon, type IconName } from "./icons";
@@ -30,6 +31,8 @@ const SOCIAL: NavItem[] = [
 
 const YOU: NavItem[] = [
   { href: "/library", label: "Library", icon: "library", signedIn: true },
+  { href: "/playlists/watch-later", label: "Watch Later", icon: "history", signedIn: true },
+  { href: "/playlists", label: "Playlists", icon: "feed", signedIn: true },
   { href: "/import", label: "Import from YouTube", icon: "import", signedIn: true },
   { href: "/extensions", label: "Extensions", icon: "puzzle" },
   { href: "/services", label: "Choose services", icon: "services" },
@@ -296,6 +299,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           <main className={`mx-auto w-full flex-1 pb-24 md:pb-10 ${fullBleed ? "px-2 pt-3" : "max-w-[1500px] px-4 pt-5 sm:px-6"}`}>{children}</main>
         </div>
       </div>
+
+      <MiniPlayer />
 
       {/* Phone bottom bar */}
       <nav aria-label="Bottom" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-line bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">

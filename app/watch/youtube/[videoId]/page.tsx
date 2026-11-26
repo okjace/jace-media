@@ -5,6 +5,7 @@ import { SourceBadge, VideoRow } from "@/components/videos/VideoGrid";
 import { Description } from "@/components/videos/Description";
 import { FollowButton } from "@/components/actions/FollowButton";
 import { RecordWatch } from "@/components/actions/RecordWatch";
+import { SaveButton } from "@/components/actions/SaveButton";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
 import { VideoLikeButton } from "@/components/actions/VideoLikeButton";
 import { getViewer } from "@/lib/auth";
@@ -12,6 +13,7 @@ import { date, timeAgo, views, watchHref } from "@/lib/format";
 import { sponsorSegments } from "@/lib/sponsorblock";
 import { dislikes, withDeArrow } from "@/lib/ytextras";
 import { isVideoLiked } from "@/lib/library";
+import { filterVideos } from "@/lib/ratingfilter";
 import { getTaste, rankVideos, recommendedVideos } from "@/lib/recommend";
 import { VIDEO_ID, channelFeed, videoDetail } from "@/lib/youtube";
 
@@ -51,12 +53,12 @@ export default async function YouTubeWatchPage({ params, searchParams }: PagePro
     4,
   );
   const seen = new Set([videoId]);
-  const upNext = await withDeArrow([...fromChannel, ...recommended].filter((v) => !seen.has(v.id) && seen.add(v.id)).slice(0, 16));
+  const upNext = await withDeArrow(await filterVideos([...fromChannel, ...recommended].filter((v) => !seen.has(v.id) && seen.add(v.id)).slice(0, 16)));
   const showVotes = taste.ext.dislikes && votes && !taste.ext.hideCounts;
 
   return (
     <div className="flex flex-col gap-6 pb-6 lg:flex-row">
-      <RecordWatch source="youtube" id={videoId} title={title} channelId={channelId} channelName={channelName} />
+      <RecordWatch source="youtube" id={videoId} title={title} channelId={channelId} channelName={channelName} thumbnail={`/api/yt-thumb/${videoId}`} />
       <div className="flex min-w-0 flex-1 flex-col gap-4">
         <div className="-mx-4 overflow-hidden bg-black sm:mx-0 sm:rounded-2xl">
           <VideoPlayer
@@ -66,6 +68,7 @@ export default async function YouTubeWatchPage({ params, searchParams }: PagePro
             title={title}
             segments={segments}
             autoStart={autoStart}
+            href={`/watch/youtube/${videoId}`}
             nextHref={upNext[0] ? watchHref(upNext[0]) : null}
             nextTitle={upNext[0]?.title ?? null}
           />
@@ -89,6 +92,9 @@ export default async function YouTubeWatchPage({ params, searchParams }: PagePro
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <VideoLikeButton source="youtube" id={videoId} channelId={channelId} initial={liked} />
+            <SaveButton
+              video={{ source: "youtube", id: videoId, title, thumbnail: `/api/yt-thumb/${videoId}`, channelId: channelId ?? "", channelName, publishedAt: null }}
+            />
             {showVotes && (
               <span
                 className="flex h-9 items-center gap-3 rounded-full bg-foreground/[.07] px-4 text-sm"

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { Switch } from "@/components/ui/Switch";
 import { EXTENSIONS, type ExtensionInfo, type Extensions } from "@/lib/extensions";
+import { LEVELS } from "@/lib/rating";
 import { SEGMENT_INFO, type SegmentCategory } from "@/lib/segments";
 
 const GROUPS: ExtensionInfo["group"][] = ["Ads and privacy", "YouTube", "Your feeds", "Player", "Look"];
@@ -30,6 +31,27 @@ export function ExtensionsPanel({ initial }: { initial: Extensions }) {
 
   return (
     <div className="flex flex-col gap-8">
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted">Content rating</h2>
+        <div role="radiogroup" aria-label="Content rating" className="grid gap-2 sm:grid-cols-3">
+          {LEVELS.map((l) => (
+            <button
+              key={l.id}
+              type="button"
+              role="radio"
+              aria-checked={ext.rating === l.id}
+              onClick={() => save({ ...ext, rating: l.id })}
+              className={`rounded-2xl border p-4 text-left transition-colors ${
+                ext.rating === l.id ? "border-accent bg-accent/10" : "border-line bg-panel hover:border-foreground/25"
+              }`}
+            >
+              <span className="block font-medium">{l.name}</span>
+              <span className="mt-1 block text-sm text-muted">{l.blurb}</span>
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-muted">Rate any post or video from its ⋯ menu to help everyone.</p>
+      </section>
       {GROUPS.map((group) => (
         <section key={group} className="flex flex-col gap-3">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted">{group}</h2>

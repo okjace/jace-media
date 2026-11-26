@@ -3,14 +3,10 @@ import { VideoMenu } from "@/components/actions/VideoMenu";
 import { Avatar } from "@/components/Avatar";
 import { channelHref, duration, timeAgo, views, watchHref } from "@/lib/format";
 import type { VideoCard } from "@/lib/types";
+import { SourceBadge } from "./SourceBadge";
+import { filterVideos } from "@/lib/ratingfilter";
 
-export function SourceBadge({ source }: { source: VideoCard["source"] }) {
-  return source === "jace" ? (
-    <span className="rounded-md bg-accent px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-on-accent">Jace</span>
-  ) : (
-    <span className="rounded-md bg-yt px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">YouTube</span>
-  );
-}
+export { SourceBadge };
 
 function Thumbnail({ video, className = "" }: { video: VideoCard; className?: string }) {
   const length = duration(video.duration);
@@ -77,13 +73,15 @@ export function VideoTile({ video }: { video: VideoCard }) {
             <Meta video={video} />
           </p>
         </div>
-        <VideoMenu source={video.source} id={video.id} channelId={video.channelId} channelName={video.channelName} />
+        <VideoMenu source={video.source} id={video.id} channelId={video.channelId} channelName={video.channelName} title={video.title} thumbnail={video.thumbnail} short={video.short} />
       </div>
     </div>
   );
 }
 
-export function VideoGrid({ videos }: { videos: VideoCard[] }) {
+/** A grid of videos, with the content rating applied. */
+export async function VideoGrid({ videos: all }: { videos: VideoCard[] }) {
+  const videos = await filterVideos(all);
   return (
     <div className="grid grid-cols-1 gap-x-4 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
       {videos.map((v) => (

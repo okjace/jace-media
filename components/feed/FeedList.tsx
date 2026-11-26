@@ -1,10 +1,12 @@
 import { followKey, followTarget } from "@/lib/follow";
 import { getTaste } from "@/lib/recommend";
+import { filterPosts } from "@/lib/ratingfilter";
 import type { FeedItem } from "@/lib/types";
 import { PostCard } from "./PostCard";
 
 /** A list of posts from any network, each knowing whether you already follow its author. */
-export async function FeedList({ items, empty }: { items: FeedItem[]; empty?: string }) {
+export async function FeedList({ items: all, empty }: { items: FeedItem[]; empty?: string }) {
+  const items = await filterPosts(all);
   if (items.length === 0) {
     return <p className="rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">{empty ?? "Nothing here yet."}</p>;
   }

@@ -6,7 +6,7 @@ import { FollowButton } from "@/components/actions/FollowButton";
 import { signInHref, useApp } from "@/components/AppProvider";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
 import type { VideoCard } from "@/lib/types";
-import { SourceBadge } from "./VideoGrid";
+import { SourceBadge } from "./SourceBadge";
 
 function RailButton({ label, onClick, active, children }: { label: string; onClick: () => void; active?: boolean; children: ReactNode }) {
   return (
