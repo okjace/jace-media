@@ -8,7 +8,7 @@ import type { FeedItem, Profile } from "./types";
 
 export const EXT_NETWORKS = ["bluesky", "mastodon", "lemmy", "hackernews", "youtube"] as const;
 export type ExtCommentNetwork = (typeof EXT_NETWORKS)[number];
-const MAX = 500;
+const MAX = 1000;
 
 export function isExtNetwork(v: unknown): v is ExtCommentNetwork {
   return typeof v === "string" && (EXT_NETWORKS as readonly string[]).includes(v);

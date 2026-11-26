@@ -14,7 +14,7 @@ export function QuotedPost({ item }: { item: FeedItem }) {
         <Avatar name={item.author.name} src={item.author.picture} size={20} />
         <span className="truncate font-semibold">{item.author.name}</span>
         <span className="truncate text-muted">{item.network === "jace" ? `@${item.author.handle}` : item.author.handle}</span>
-        <span className="shrink-0 text-xs text-muted">· {timeAgo(item.createdAt)}</span>
+        <span className="shrink-0 text-xs text-muted" suppressHydrationWarning>· {timeAgo(item.createdAt)}</span>
         <span className="ml-auto shrink-0">
           <NetworkBadge network={item.network} />
         </span>

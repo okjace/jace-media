@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MixedFeed } from "@/components/feed/MixedFeed";
+import { HomeFeedButton } from "@/components/HomeFeedButton";
 import { PageTitle } from "@/components/PageTitle";
 import { getViewer } from "@/lib/auth";
 import { buildFeed, getFeed } from "@/lib/customfeeds";
@@ -27,9 +28,12 @@ export default async function CustomFeedPage({ params }: PageProps<"/feeds/[feed
           {feed.rules.only === "subscriptions" ? "Only what you follow" : "From everywhere"} ·{" "}
           {feed.rules.sort === "latest" ? "newest first" : "recommended for you"}
         </PageTitle>
-        <Link href={`/feeds?edit=${feed.id}`} className="shrink-0 rounded-full border border-line px-4 py-1.5 text-sm hover:bg-foreground/[.05]">
-          Edit feed
-        </Link>
+        <div className="flex shrink-0 gap-2">
+          <HomeFeedButton feedId={feed.id} />
+          <Link href={`/feeds?edit=${feed.id}`} className="rounded-full border border-line px-4 py-1.5 text-sm hover:bg-foreground/[.05]">
+            Edit feed
+          </Link>
+        </div>
       </div>
       <MixedFeed
         entries={entries}

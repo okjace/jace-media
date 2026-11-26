@@ -51,7 +51,7 @@ export function StudioList({ initial }: { initial: JaceVideo[] }) {
             <Link href={`/watch/jace/${v.id}`} className="line-clamp-2 font-medium hover:underline">
               {v.title}
             </Link>
-            <p className="text-xs text-muted">
+            <p className="text-xs text-muted" suppressHydrationWarning>
               {timeAgo(v.created_at)} · {v.likes} like{v.likes === 1 ? "" : "s"} · {v.comment_count} comment{v.comment_count === 1 ? "" : "s"}
             </p>
           </div>

@@ -53,7 +53,7 @@ export function PollView({ postId, poll: initial }: { postId: string; poll: Poll
           </button>
         );
       })}
-      <p className="text-xs text-muted">
+      <p className="text-xs text-muted" suppressHydrationWarning>
         {poll.total} vote{poll.total === 1 ? "" : "s"} · {poll.ended ? "Final results" : `Ends ${timeAgo(poll.endsAt)}`}
       </p>
     </div>

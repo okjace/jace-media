@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { MixedFeed } from "@/components/feed/MixedFeed";
+import { getViewer } from "@/lib/auth";
+import { buildFeed, getFeed } from "@/lib/customfeeds";
 import { Composer } from "@/components/feed/Composer";
 import { FeedList } from "@/components/feed/FeedList";
 import { ContinueWatching } from "@/components/videos/ContinueWatching";
@@ -44,7 +47,40 @@ function ShortsShelf({ shorts }: { shorts: VideoCard[] }) {
  * For you: recommended videos, Shorts, and posts from every service you
  * turned on, ranked for you (see lib/recommend.ts).
  */
-export default async function ForYouPage() {
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ for?: string }> }) {
+  // Your chosen custom feed, if you picked one as Home (For you is one tap away).
+  const taste = await getTaste();
+  if (taste.ext.homeFeed && (await searchParams).for !== "you") {
+    const viewer = await getViewer();
+    const feed = viewer ? await getFeed(viewer.sub, taste.ext.homeFeed).catch(() => null) : null;
+    if (feed) {
+      const entries = await buildFeed(feed.rules, 80);
+      return (
+        <div className="mx-auto flex max-w-3xl flex-col gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">{feed.name}</h1>
+              <p className="text-sm text-muted">Your Home feed</p>
+            </div>
+            <div className="flex gap-2">
+              <Link href="/?for=you" className="rounded-full border border-line px-4 py-1.5 text-sm hover:bg-foreground/[.05]">
+                For you
+              </Link>
+              <Link href={`/feeds?edit=${feed.id}`} className="rounded-full border border-line px-4 py-1.5 text-sm hover:bg-foreground/[.05]">
+                Edit feed
+              </Link>
+            </div>
+          </div>
+          <MixedFeed entries={entries} empty="Nothing in this feed right now." />
+        </div>
+      );
+    }
+  }
+  return <ForYou />;
+}
+
+/** For you: recommended videos, Shorts, and posts from every service you turned on. */
+async function ForYou() {
   const taste = await getTaste();
   const on = (s: (typeof taste.services)[number]) => taste.services.includes(s);
   const wantVideos = on("youtube") || on("jacevideos");

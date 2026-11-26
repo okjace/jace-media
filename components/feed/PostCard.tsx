@@ -15,6 +15,7 @@ import { NetworkBadge } from "./NetworkBadge";
 import { PollView } from "./PollView";
 import { QuotedPost } from "./QuotedPost";
 import { RepostButton } from "./RepostButton";
+import { Markdown } from "./Markdown";
 import { RichText } from "./RichText";
 
 const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
@@ -62,6 +63,15 @@ function PostMenu({ target, onHide }: { target: string; onHide: () => void }) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Jace and Lemmy posts are written in Markdown; other networks' posts are plain text. */
+function Body({ item, text }: { item: FeedItem; text: string }) {
+  return item.network === "jace" || item.network === "lemmy" ? (
+    <Markdown text={text} className="text-[15px] leading-relaxed" />
+  ) : (
+    <RichText text={text} className="text-[15px] leading-relaxed" />
   );
 }
 
@@ -141,7 +151,7 @@ export function PostCard({
   const canFollow = !isComment && !!target && !(isJace && item.authorSub === current?.sub);
   const isArticle = item.network === "rss";
   const clickable = linkToThread && !isComment && !isArticle;
-  const text = linkToThread && item.text.length > 600 ? `${item.text.slice(0, 600)}…` : item.text;
+  const text = linkToThread && item.text.length > 900 ? `${item.text.slice(0, 900)}…` : item.text;
 
   return (
     <article className={`rounded-2xl border border-line bg-panel transition-colors ${isComment ? "p-3" : "p-4 hover:border-foreground/20"}`}>
@@ -178,7 +188,9 @@ export function PostCard({
               </MaybeLink>
             )}
             <MaybeLink href={clickable ? thread : null} className="hover:text-foreground">
-              <time dateTime={item.createdAt}>{timeAgo(item.createdAt)}</time>
+              <time dateTime={item.createdAt} suppressHydrationWarning>
+                {timeAgo(item.createdAt)}
+              </time>
             </MaybeLink>
           </div>
         </div>
@@ -202,10 +214,10 @@ export function PostCard({
               onKeyDown={(e) => e.key === "Enter" && router.push(thread)}
               className="cursor-pointer"
             >
-              <RichText text={text} className="text-[15px] leading-relaxed" />
+              <Body item={item} text={text} />
             </div>
           ) : (
-            <RichText text={text} className="text-[15px] leading-relaxed" />
+            <Body item={item} text={text} />
           ))}
         {images.length > 0 && (
           <div className={`grid gap-1.5 overflow-hidden rounded-xl ${images.length > 1 ? "grid-cols-2" : ""}`}>

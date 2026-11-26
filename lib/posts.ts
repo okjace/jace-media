@@ -7,7 +7,7 @@ import type { FeedItem, Poll, Profile } from "./types";
 
 /** Jace posts: what people post on Jace Media itself, with likes, replies, reposts, quotes, and polls. */
 
-export const MAX_POST = 500;
+export const MAX_POST = 3000;
 const POLL_DAYS = [1, 3, 7];
 
 type Viewer = { sub: string; isAdmin: boolean } | null;

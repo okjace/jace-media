@@ -6,9 +6,12 @@ import { Avatar } from "@/components/Avatar";
 import { signInHref, useApp } from "@/components/AppProvider";
 import { shrinkImage } from "@/lib/image";
 import type { FeedItem } from "@/lib/types";
+import { Markdown } from "./Markdown";
+import { MarkdownToolbar } from "./MarkdownToolbar";
 import { QuotedPost } from "./QuotedPost";
 
-const MAX = 500;
+const MAX = 3000;
+const MAX_COMMENT = 1000;
 
 /**
  * Write a Jace post, a reply (parentId), a quote (quote), or a comment on a
@@ -37,6 +40,8 @@ export function Composer({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const file = useRef<HTMLInputElement>(null);
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  const [preview, setPreview] = useState(false);
   const simple = !!extTarget || !!parentId;
 
   if (!current) {
@@ -93,22 +98,40 @@ export function Composer({
     router.refresh();
   }
 
-  const left = MAX - body.length;
+  const left = (extTarget ? MAX_COMMENT : MAX) - body.length;
   const canSend = !!body.trim() || !!image || !!quote;
 
   return (
     <form onSubmit={submit} className="rounded-2xl border border-line bg-panel p-4">
       <div className="flex gap-3">
         <Avatar name={current.name} src={current.picture} size={simple ? 32 : 40} />
-        <textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          maxLength={MAX}
-          rows={simple ? 2 : 3}
-          placeholder={placeholder ?? "What's happening?"}
-          aria-label={simple ? "Your comment" : "Your post"}
-          className="min-h-10 flex-1 resize-y bg-transparent text-[15px] outline-none placeholder:text-muted"
-        />
+        {preview ? (
+          <div className="min-h-16 flex-1 text-[15px] leading-relaxed">
+            {body.trim() ? <Markdown text={body} /> : <span className="text-muted">Nothing to preview yet.</span>}
+          </div>
+        ) : (
+          <textarea
+            ref={textRef}
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            maxLength={extTarget ? MAX_COMMENT : MAX}
+            rows={simple ? 2 : 3}
+            placeholder={placeholder ?? "What's happening?"}
+            aria-label={simple ? "Your comment" : "Your post"}
+            className="min-h-10 flex-1 resize-y bg-transparent text-[15px] outline-none placeholder:text-muted"
+          />
+        )}
+      </div>
+      <div className="mt-2 flex items-center gap-1 pl-[44px]">
+        <MarkdownToolbar target={textRef} onChange={(v) => setBody(v.slice(0, extTarget ? MAX_COMMENT : MAX))} />
+        <button
+          type="button"
+          onClick={() => setPreview((p) => !p)}
+          aria-pressed={preview}
+          className={`ml-auto shrink-0 rounded-lg px-2 py-1 text-xs font-medium ${preview ? "bg-accent/15 text-accent" : "text-muted hover:bg-foreground/[.07] hover:text-foreground"}`}
+        >
+          {preview ? "Edit" : "Preview"}
+        </button>
       </div>
       {quote && (
         <div className="ml-[52px] mt-3">
@@ -150,7 +173,11 @@ export function Composer({
             )}
             <label className="ml-auto flex items-center gap-2 text-muted">
               Open for
-              <select value={days} onChange={(e) => setDays(Number(e.target.value))} className="h-8 rounded-lg border border-line bg-background px-2 text-foreground">
+              <select
+                value={days}
+                onChange={(e) => setDays(Number(e.target.value))}
+                className="h-8 rounded-lg border border-line bg-background px-2 text-foreground"
+              >
                 <option value={1}>1 day</option>
                 <option value={3}>3 days</option>
                 <option value={7}>7 days</option>
