@@ -52,6 +52,7 @@ type ApiVideo = {
     channelId: string;
     channelTitle: string;
     publishedAt: string;
+    liveBroadcastContent?: string;
     thumbnails?: Record<string, { url: string }>;
   };
   contentDetails?: { duration?: string };
@@ -135,6 +136,7 @@ export async function videoDetail(id: string): Promise<YouTubeVideoDetail | null
         publishedAt: v.snippet.publishedAt,
         views: v.statistics?.viewCount ? Number(v.statistics.viewCount) : null,
         likes: v.statistics?.likeCount ? Number(v.statistics.likeCount) : null,
+        live: v.snippet.liveBroadcastContent === "live",
       };
     }
   }

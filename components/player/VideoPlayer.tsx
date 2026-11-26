@@ -32,6 +32,8 @@ type Props = {
   segments?: Segment[];
   /** embed: inside a post (no autoplay, no keyboard shortcuts, several can be on a page). */
   variant?: "full" | "short" | "mini" | "embed";
+  /** A live stream: shows LIVE instead of a time, with Go live. */
+  live?: boolean;
   /** Start here (seconds), e.g. the mini player picking up where the page left off. */
   startAt?: number;
   /** The watch page address, for the mini player's "back to video". */
@@ -118,6 +120,7 @@ export function VideoPlayer({
   nextHref,
   nextTitle,
   startAt,
+  live = false,
   href,
   onClose,
 }: Props) {
@@ -409,7 +412,7 @@ export function VideoPlayer({
       if (!e || short) return;
       const t = e.time();
       const d = e.duration();
-      if (ext.resume && t > 10 && d && t < d - 20) store(posKey, Math.floor(t));
+      if (ext.resume && !live && t > 10 && d && t < d - 20) store(posKey, Math.floor(t));
       // Every 15 seconds of playing, tell the account (Continue watching on every device).
       ticks += 1;
       if (current && !e.paused() && ticks % 3 === 0 && d > 0) {
@@ -424,7 +427,7 @@ export function VideoPlayer({
       clearInterval(tick);
       clearInterval(save);
     };
-  }, [segments, skip, posKey, short, ext.resume, current, source]);
+  }, [segments, skip, posKey, short, ext.resume, current, source, live]);
 
   useEffect(() => {
     if (!toast) return;
@@ -440,13 +443,13 @@ export function VideoPlayer({
 
   // When it ends: forget the saved place, and count down to the next video.
   useEffect(() => {
-    if (!ended || compact) return;
+    if (!ended || compact || live) return;
     try {
       localStorage.removeItem(`jacemedia:${posKey}`);
     } catch {}
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (ext.autoplayNext && nextHref) setCountdown(5);
-  }, [ended, compact, ext.autoplayNext, nextHref, posKey]);
+  }, [ended, compact, ext.autoplayNext, nextHref, posKey, live]);
 
   const goNext = useCallback(() => {
     if (!nextHref) return;
@@ -956,9 +959,21 @@ export function VideoPlayer({
                   className="w-0 accent-white opacity-0 transition-all group-hover/vol:w-20 group-hover/vol:opacity-100 focus:w-20 focus:opacity-100"
                 />
               </div>
-              <span className="ml-1.5 text-sm tabular-nums text-white/90">
+              {live ? (
+                <button
+                  type="button"
+                  onClick={() => seekTo(engine.current?.duration() ?? time)}
+                  title="Go to the live part"
+                  className="ml-1.5 flex items-center gap-1.5 rounded-full px-2 py-1 text-sm font-semibold hover:bg-white/10"
+                >
+                  <span className={`h-2 w-2 rounded-full ${duration - time < 15 ? "bg-danger" : "bg-white/50"}`} aria-hidden="true" />
+                  {duration - time < 15 ? "LIVE" : "Go live"}
+                </button>
+              ) : (
+                <span className="ml-1.5 text-sm tabular-nums text-white/90">
                 {fmt(time)} <span className="text-white/50">/ {fmt(duration)}</span>
               </span>
+              )}
               <span className="flex-1" />
               {segments.some((s) => skip.includes(s.category)) && (
                 <span className="hidden rounded-full bg-white/10 px-2.5 py-1 text-xs text-white/80 sm:inline" title="SponsorBlock is skipping ads inside this video">

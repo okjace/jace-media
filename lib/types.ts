@@ -81,6 +81,8 @@ export type YouTubeVideoDetail = {
   publishedAt: string | null;
   views: number | null;
   likes: number | null;
+  /** A live stream that's on right now. */
+  live?: boolean;
 };
 
 export type Network = "jace" | "bluesky" | "mastodon" | "lemmy" | "hackernews" | "rss";

@@ -68,6 +68,7 @@ export default async function YouTubeWatchPage({ params, searchParams }: PagePro
             title={title}
             segments={segments}
             autoStart={autoStart}
+            live={!!detail?.live}
             href={`/watch/youtube/${videoId}`}
             nextHref={upNext[0] ? watchHref(upNext[0]) : null}
             nextTitle={upNext[0]?.title ?? null}

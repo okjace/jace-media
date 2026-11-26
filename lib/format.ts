@@ -82,3 +82,10 @@ export function watchHref(card: Pick<VideoCard, "source" | "id" | "short">): str
 export function channelHref(card: Pick<VideoCard, "source" | "channelId">): string {
   return `/channel/${card.source}/${encodeURIComponent(card.channelId)}`;
 }
+
+/** A link that downloads a Jace video with a proper file name (Jace's storage sends it as a download). */
+export function downloadHref(url: string, title: string): string {
+  const name = `${title.replace(/[^\p{L}\p{N} _.-]+/gu, "").trim().slice(0, 80) || "video"}.${url.split("?")[0].split(".").pop()?.slice(0, 5) || "mp4"}`;
+  if (!url.includes("/storage/v1/object/public/")) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}download=${encodeURIComponent(name)}`;
+}

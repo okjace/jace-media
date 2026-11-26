@@ -11,7 +11,7 @@ import { VideoPlayer } from "@/components/player/VideoPlayer";
 import { VideoVotes } from "@/components/actions/VideoVotes";
 import { getViewer } from "@/lib/auth";
 import { jaceVideo } from "@/lib/data";
-import { count, date, timeAgo, watchHref } from "@/lib/format";
+import { count, date, downloadHref, timeAgo, watchHref } from "@/lib/format";
 import { dislikeCount, videoVote } from "@/lib/library";
 import { filterVideos } from "@/lib/ratingfilter";
 import { getTaste, recommendedVideos } from "@/lib/recommend";
@@ -82,6 +82,13 @@ export default async function JaceWatchPage({ params, searchParams }: PageProps<
             <SaveButton
               video={{ source: "jace", id: video.id, title: video.title, thumbnail: video.thumbnail_url, channelId: video.owner_id, channelName: video.owner_name, publishedAt: null }}
             />
+            <a
+              href={downloadHref(video.url, video.title)}
+              download
+              className="flex h-9 items-center gap-1.5 rounded-full bg-foreground/[.07] px-4 text-sm font-medium transition-colors hover:bg-foreground/[.12]"
+            >
+              <span aria-hidden="true">⬇</span> Download
+            </a>
             <a
               href={`https://jacetube.vercel.app/watch/jace/${video.id}`}
               className="flex h-9 items-center rounded-full bg-foreground/[.07] px-4 text-sm font-medium transition-colors hover:bg-foreground/[.12]"

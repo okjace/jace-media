@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useApp } from "@/components/AppProvider";
-import { timeAgo } from "@/lib/format";
+import { downloadHref, timeAgo } from "@/lib/format";
 import type { JaceVideo, Visibility } from "@/lib/types";
 
 const LABEL: Record<Visibility, string> = { public: "Public", unlisted: "Unlisted", private: "Private" };
@@ -67,6 +67,9 @@ export function StudioList({ initial }: { initial: JaceVideo[] }) {
               </option>
             ))}
           </select>
+          <a href={downloadHref(v.url, v.title)} download className="rounded-full px-3 py-1.5 text-sm text-muted hover:bg-foreground/[.06] hover:text-foreground">
+            Download
+          </a>
           <button type="button" onClick={() => remove(v)} className="rounded-full px-3 py-1.5 text-sm text-muted hover:bg-danger/10 hover:text-danger">
             Delete
           </button>
