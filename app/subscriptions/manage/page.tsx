@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageTitle } from "@/components/PageTitle";
+import { AddFeed } from "@/components/AddFeed";
 import { SubscriptionManager } from "@/components/SubscriptionManager";
 import { getViewer } from "@/lib/auth";
 import { listSubscriptions } from "@/lib/library";
+import { SUGGESTED_FEEDS } from "@/lib/rss";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Manage subscriptions" };
@@ -25,7 +27,10 @@ export default async function ManageSubscriptionsPage() {
           Import from YouTube
         </Link>
       </PageTitle>
-      <SubscriptionManager initial={await listSubscriptions(viewer.sub)} />
+      <div className="flex flex-col gap-6">
+        <AddFeed suggestions={SUGGESTED_FEEDS} />
+        <SubscriptionManager initial={await listSubscriptions(viewer.sub)} />
+      </div>
     </div>
   );
 }

@@ -306,7 +306,7 @@ export async function lemmyCommunity(community: string, limit = 10): Promise<Fee
   return (data?.posts ?? []).map(fromLemmy).filter((x): x is FeedItem => !!x);
 }
 
-export const NETWORKS: Record<Exclude<Network, "jace">, { label: string; load: (limit?: number) => Promise<FeedItem[] | null>; site: string }> = {
+export const NETWORKS: Record<Exclude<Network, "jace" | "rss">, { label: string; load: (limit?: number) => Promise<FeedItem[] | null>; site: string }> = {
   bluesky: { label: "Bluesky", load: bluesky, site: "https://bsky.app" },
   mastodon: { label: "Mastodon", load: mastodon, site: `https://${MASTODON}` },
   lemmy: { label: "Lemmy", load: lemmy, site: `https://${LEMMY}` },

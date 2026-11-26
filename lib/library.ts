@@ -7,8 +7,8 @@ import { q } from "./db";
  * it feeds the recommendations (lib/recommend.ts).
  */
 
-export type SubKind = "youtube" | "jace" | "bluesky" | "mastodon" | "lemmy";
-export const SUB_KINDS: SubKind[] = ["youtube", "jace", "bluesky", "mastodon", "lemmy"];
+export type SubKind = "youtube" | "jace" | "bluesky" | "mastodon" | "lemmy" | "rss";
+export const SUB_KINDS: SubKind[] = ["youtube", "jace", "bluesky", "mastodon", "lemmy", "rss"];
 
 export type Subscription = { kind: SubKind; ref: string; name: string; picture: string | null; folder?: string | null };
 
@@ -28,6 +28,8 @@ export function validRef(kind: SubKind, ref: string): boolean {
     case "mastodon":
     case "lemmy":
       return /^[A-Za-z0-9_.-]{1,64}@[a-z0-9.-]{3,253}$/i.test(ref);
+    case "rss":
+      return /^https?:\/\/[^\s]{4,500}$/.test(ref);
   }
 }
 

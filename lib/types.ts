@@ -83,7 +83,7 @@ export type YouTubeVideoDetail = {
   likes: number | null;
 };
 
-export type Network = "jace" | "bluesky" | "mastodon" | "lemmy" | "hackernews";
+export type Network = "jace" | "bluesky" | "mastodon" | "lemmy" | "hackernews" | "rss";
 
 export type Media = { kind: "image" | "video"; url: string; thumb?: string | null; alt?: string };
 

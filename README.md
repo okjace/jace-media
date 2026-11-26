@@ -22,6 +22,11 @@ Next.js 16 (App Router), TypeScript, Tailwind 4 and Postgres, hosted on Vercel.
   - Posts marked #ad, #sponsored, or "paid partnership" are left out of every feed.
   - YouTube videos play in YouTube's privacy-enhanced player (youtube-nocookie.com) with no YouTube suggestions or overlays. YouTube can still run its own ads inside its player on some videos; removing those would mean bypassing YouTube's player, which its terms don't allow. If one appears, the player's settings let you press YouTube's "Skip ad".
 - **Sign in with Jace**, automatically, plus an account switcher for every Jace account used on the device.
+- **Live**: open Jace Live games to join and popular sets to host, YouTube live streams (with a YouTube API key), and Twitch streams with chat (with a Twitch API key; Twitch's player shows Twitch's own ads).
+- **News & blogs**: follow any website by its address (its RSS or Atom feed is found automatically), with one-tap suggestions; articles show in Subscriptions, For you, and custom feeds.
+- **Install as an app**: installable on phones and computers (Install app in the sidebar, or Add to Home Screen on iPhone), with an offline page.
+- **Comments and descriptions** on every video; YouTube's own comments appear when a YouTube API key is set.
+- **Reposts, quotes, polls, and notifications** on Jace posts.
 - **Profiles**: your handle is always your Jace username. Your name and picture start as your Jace ones and can be changed just for Jace Media.
 
 ## Recommendations
@@ -67,7 +72,7 @@ and in `.env.local`: `JACE_URL=http://localhost:4000`, `JACE_CLIENT_ID=mock`, `J
 
 1. Import the repo in Vercel.
 2. Add Neon from Vercel → Storage (sets `DATABASE_URL`).
-3. Set `JACE_CLIENT_ID`, `JACE_CLIENT_SECRET`, `SESSION_SECRET` (and optionally `YOUTUBE_API_KEY`).
+3. Set `JACE_CLIENT_ID`, `JACE_CLIENT_SECRET`, `SESSION_SECRET`, and optionally `YOUTUBE_API_KEY` (YouTube comments, trending, search, live) and `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` (Twitch).
 
 ## Credits
 

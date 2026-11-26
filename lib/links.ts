@@ -2,6 +2,8 @@ import type { FeedItem } from "./types";
 
 /** Where a post opens inside Jace Media (never leaving the site). */
 export function postHref(item: FeedItem): string {
+  // Articles from news sites and blogs open on their site.
+  if (item.network === "rss") return item.url;
   return item.network === "jace" ? item.url : `/p/${item.network}/${encodeURIComponent(item.id)}`;
 }
 
@@ -19,6 +21,8 @@ export function authorHref(item: FeedItem): string | null {
       return `/channel/lemmy-user/${encodeURIComponent(handle)}`;
     case "hackernews":
       return handle ? `/channel/hackernews/${encodeURIComponent(handle)}` : null;
+    case "rss":
+      return item.author.url;
   }
 }
 

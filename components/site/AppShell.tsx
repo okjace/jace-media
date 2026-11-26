@@ -10,6 +10,7 @@ import type { Service } from "@/lib/services";
 import { AccountMenu } from "./AccountMenu";
 import { Icon, type IconName } from "./icons";
 import { Logo } from "./Logo";
+import { InstallApp } from "./InstallApp";
 import { NotificationBell } from "./NotificationBell";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -20,6 +21,7 @@ const MAIN: NavItem[] = [
   { href: "/shorts", label: "Shorts", icon: "shorts", needs: ["youtube", "jacevideos"] },
   { href: "/subscriptions", label: "Subscriptions", icon: "subs", signedIn: true },
   { href: "/videos", label: "Videos", icon: "videos", needs: ["youtube", "jacevideos"] },
+  { href: "/live", label: "Live", icon: "live", needs: ["jacelive", "twitch", "youtube"] },
 ];
 
 const SOCIAL: NavItem[] = [
@@ -197,7 +199,12 @@ function SidebarContent({ collapsed, onClick }: { collapsed: boolean; onClick?: 
           <SubscriptionList subs={subs} onClick={onClick} />
         </Section>
       )}
-      <Section title="You">{YOU.filter(visible).map((i) => <NavLink key={i.href} item={i} collapsed={false} onClick={onClick} />)}</Section>
+      <Section title="You">
+        {YOU.filter(visible).map((i) => (
+          <NavLink key={i.href} item={i} collapsed={false} onClick={onClick} />
+        ))}
+        <InstallApp />
+      </Section>
       <p className="px-3 pt-2 text-xs leading-relaxed text-muted">
         No ads, ever. <a href="https://github.com/okjace/jace-media" className="hover:text-foreground">Open source</a> ·{" "}
         <a href="https://jaceo.vercel.app" className="hover:text-foreground">Jace</a>

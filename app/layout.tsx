@@ -15,7 +15,9 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 
 export const metadata: Metadata = {
   title: { default: "Jace Media", template: "%s · Jace Media" },
-  description: "Jace posts, YouTube and Jace videos, Bluesky, Mastodon, Lemmy, and Hacker News in one place, with no ads.",
+  description: "Jace posts, YouTube and Jace videos, Bluesky, Mastodon, Lemmy, Hacker News, news sites, and live games in one place, with no ads.",
+  appleWebApp: { capable: true, title: "Jace Media", statusBarStyle: "black-translucent" },
+  icons: { apple: "/icon-192.png" },
 };
 
 export const viewport: Viewport = {

@@ -7,6 +7,7 @@ import { jacePosts } from "@/lib/feeds";
 import { watchHref } from "@/lib/format";
 import { getTaste, rankPosts, recommendedVideos } from "@/lib/recommend";
 import { NETWORKS } from "@/lib/social";
+import { followedRss } from "@/lib/rss";
 import { withDeArrow } from "@/lib/ytextras";
 import type { FeedItem, VideoCard } from "@/lib/types";
 
@@ -53,6 +54,7 @@ export default async function ForYouPage() {
   for (const key of ["bluesky", "mastodon", "lemmy", "hackernews"] as const) {
     if (on(key)) postTasks.push(NETWORKS[key].load(25).then((r) => r ?? []));
   }
+  if (on("rss")) postTasks.push(followedRss(4));
   const [posts, videos, shorts] = await Promise.all([
     Promise.all(postTasks).then((r) => r.flat()),
     wantVideos ? recommendedVideos({ limit: 12 }).then(withDeArrow) : Promise.resolve([]),

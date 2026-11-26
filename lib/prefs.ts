@@ -5,7 +5,7 @@ import type { NextResponse } from "next/server";
 import { q } from "./db";
 import { parseExtensions, type Extensions } from "./extensions";
 import { getCurrent } from "./session";
-import { ALL_SERVICES, parseServices, type Service } from "./services";
+import { ALL_SERVICES, parseServices, serializeServices, type Service } from "./services";
 
 /**
  * Preferences: which services to show, and which extensions are on. Signed
@@ -41,7 +41,7 @@ export const getExtensions = cache(async (): Promise<Extensions> => {
 });
 
 export async function saveServices(res: NextResponse, services: Service[]): Promise<void> {
-  const value = JSON.stringify(services.length ? services : ALL_SERVICES);
+  const value = serializeServices(services.length ? services : ALL_SERVICES);
   res.cookies.set(SERVICES_COOKIE, value, COOKIE);
   const current = await getCurrent();
   if (current) await q(`UPDATE profiles SET services = $2 WHERE sub = $1`, [current.sub, value]);

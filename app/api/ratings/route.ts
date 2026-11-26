@@ -7,7 +7,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   const viewer = await requireViewer();
   if (viewer instanceof NextResponse) return viewer;
   const { target, rating } = await readJson(req);
-  if (typeof target !== "string" || !/^(jace|jacevideo|youtube|bluesky|mastodon|lemmy|hackernews):.{1,300}$/.test(target) || ![1, -1, 0].includes(rating as number)) {
+  if (typeof target !== "string" || !/^(jace|jacevideo|youtube|bluesky|mastodon|lemmy|hackernews|rss):.{1,300}$/.test(target) || ![1, -1, 0].includes(rating as number)) {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
   }
   if (rating === 0) await q(`DELETE FROM content_ratings WHERE sub = $1 AND target = $2`, [viewer.sub, target]);

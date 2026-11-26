@@ -6,6 +6,7 @@ const STYLE: Record<Network, { label: string; className: string }> = {
   mastodon: { label: "Mastodon", className: "bg-masto/15 text-masto" },
   lemmy: { label: "Lemmy", className: "bg-lemmy/15 text-lemmy" },
   hackernews: { label: "Hacker News", className: "bg-hn/15 text-hn" },
+  rss: { label: "News", className: "bg-warn/15 text-warn" },
 };
 
 export function NetworkBadge({ network }: { network: Network }) {

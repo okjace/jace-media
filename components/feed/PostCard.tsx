@@ -18,7 +18,7 @@ import { RepostButton } from "./RepostButton";
 import { RichText } from "./RichText";
 
 const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
-const SITE: Record<string, string> = { bluesky: "Bluesky", mastodon: "Mastodon", lemmy: "Lemmy", hackernews: "Hacker News" };
+const SITE: Record<string, string> = { bluesky: "Bluesky", mastodon: "Mastodon", lemmy: "Lemmy", hackernews: "Hacker News", rss: "the site" };
 
 /** The ⋯ menu on a post: rate it appropriate or inappropriate. */
 function PostMenu({ target, onHide }: { target: string; onHide: () => void }) {
@@ -139,7 +139,8 @@ export function PostCard({
   const images = item.media.slice(0, 4);
   const target = followTarget(item);
   const canFollow = !isComment && !!target && !(isJace && item.authorSub === current?.sub);
-  const clickable = linkToThread && !isComment;
+  const isArticle = item.network === "rss";
+  const clickable = linkToThread && !isComment && !isArticle;
   const text = linkToThread && item.text.length > 600 ? `${item.text.slice(0, 600)}…` : item.text;
 
   return (
@@ -286,8 +287,8 @@ export function PostCard({
               </span>
             )
           )}
-          <RepostButton item={item} count={isJace && counts && item.stats.reposts ? compact.format(item.stats.reposts) : undefined} />
-          {linkToThread && (
+          {!isArticle && <RepostButton item={item} count={isJace && counts && item.stats.reposts ? compact.format(item.stats.reposts) : undefined} />}
+          {linkToThread && !isArticle && (
             <Link href={thread} className="flex items-center gap-1.5 rounded-full px-2.5 py-1 hover:bg-foreground/[.06] hover:text-foreground">
               <span aria-hidden="true">💬</span>
               {counts && compact.format((item.stats.replies ?? 0) + (comments ?? 0))}

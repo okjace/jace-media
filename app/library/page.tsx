@@ -11,7 +11,7 @@ import { timeAgo } from "@/lib/format";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Library" };
 
-const KIND: Record<string, string> = { youtube: "YouTube", jace: "Jace", bluesky: "Bluesky", mastodon: "Mastodon", lemmy: "Lemmy" };
+const KIND: Record<string, string> = { youtube: "YouTube", jace: "Jace", bluesky: "Bluesky", mastodon: "Mastodon", lemmy: "Lemmy", rss: "News & blogs" };
 
 export default async function LibraryPage() {
   const viewer = await getViewer();

@@ -12,6 +12,7 @@ import { getTaste } from "@/lib/recommend";
 import { blueskyProfile, hnUserProfile, lemmyCommunityProfile, lemmyUserProfile, mastodonProfile, type ExtProfile } from "@/lib/social";
 import type { FeedItem, VideoCard } from "@/lib/types";
 import { withDeArrow } from "@/lib/ytextras";
+import { fetchFeed } from "@/lib/rss";
 import { channelFeed, CHANNEL_ID } from "@/lib/youtube";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ const NETWORK_LABEL: Record<string, string> = {
   lemmy: "Lemmy community",
   "lemmy-user": "Lemmy",
   hackernews: "Hacker News",
+  rss: "News & blogs",
 };
 
 type Loaded = { profile: ExtProfile | (Omit<ExtProfile, "network" | "follow"> & { network: string; follow: { kind: string; ref: string; name: string; picture: string | null } | null }); posts: FeedItem[]; videos: VideoCard[] };
@@ -38,6 +40,32 @@ async function load(kind: string, ref: string): Promise<Loaded | null> {
       const fn = { bluesky: blueskyProfile, mastodon: mastodonProfile, lemmy: lemmyCommunityProfile, "lemmy-user": lemmyUserProfile, hackernews: hnUserProfile }[kind];
       const r = await fn(ref);
       return r ? { ...r, videos: [] } : null;
+    }
+    case "rss": {
+      const feed = await fetchFeed(ref);
+      if (!feed) return null;
+      const host = (() => {
+        try {
+          return new URL(feed.site).hostname.replace(/^www\./, "");
+        } catch {
+          return "News site";
+        }
+      })();
+      return {
+        profile: {
+          network: "rss",
+          name: feed.title,
+          handle: host,
+          picture: feed.items[0]?.author.picture ?? null,
+          banner: null,
+          bio: "",
+          stats: [],
+          url: feed.site,
+          follow: { kind: "rss", ref: feed.url, name: feed.title, picture: null },
+        },
+        posts: feed.items,
+        videos: [],
+      };
     }
     case "youtube": {
       if (!CHANNEL_ID.test(ref)) return null;
@@ -142,7 +170,7 @@ export default async function ChannelPage({ params, searchParams }: PageProps<"/
                 </span>
               ))}
             <a href={profile.url} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">
-              Open on {NETWORK_LABEL[kind].replace(" community", "")} ↗
+              {kind === "rss" ? "Visit site" : `Open on ${NETWORK_LABEL[kind].replace(" community", "")}`} ↗
             </a>
           </p>
         </div>

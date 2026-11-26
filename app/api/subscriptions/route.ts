@@ -2,12 +2,22 @@ import { NextResponse } from "next/server";
 import { readJson, requireViewer } from "@/lib/auth";
 import { isSubKind, setFolder, subscribe, unsubscribe, validRef } from "@/lib/library";
 import { notify } from "@/lib/notifications";
+import { fetchFeed } from "@/lib/rss";
 
 /** Follow (POST) or unfollow (DELETE) a channel, person, or community on any service. */
 async function handle(req: Request, on: boolean): Promise<NextResponse> {
   const viewer = await requireViewer();
   if (viewer instanceof NextResponse) return viewer;
-  const { kind, ref, name, picture } = await readJson(req);
+  const body = await readJson(req);
+  const { kind, picture } = body;
+  let { ref, name } = body;
+  // A website or feed address: check it's a real feed, and use its own address and title.
+  if (on && kind === "rss" && typeof ref === "string") {
+    const feed = await fetchFeed(ref);
+    if (!feed) return NextResponse.json({ error: "Couldn't find a news feed at that address." }, { status: 400 });
+    ref = feed.url;
+    name = feed.title;
+  }
   if (!isSubKind(kind) || typeof ref !== "string" || !validRef(kind, ref)) {
     return NextResponse.json({ error: "That can't be followed." }, { status: 400 });
   }
@@ -23,7 +33,7 @@ async function handle(req: Request, on: boolean): Promise<NextResponse> {
   } else {
     await unsubscribe(viewer.sub, kind, ref);
   }
-  return NextResponse.json({ subscribed: on });
+  return NextResponse.json({ subscribed: on, ref, name });
 }
 
 export async function POST(req: Request) {

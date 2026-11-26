@@ -6,7 +6,7 @@ import { Avatar } from "@/components/Avatar";
 import { useApp } from "@/components/AppProvider";
 import type { SubKind, Subscription } from "@/lib/library";
 
-const KIND: Record<SubKind, string> = { youtube: "YouTube", jace: "Jace", bluesky: "Bluesky", mastodon: "Mastodon", lemmy: "Lemmy" };
+const KIND: Record<SubKind, string> = { youtube: "YouTube", jace: "Jace", bluesky: "Bluesky", mastodon: "Mastodon", lemmy: "Lemmy", rss: "News & blogs" };
 
 /** Every subscription, with folders and unsubscribe. */
 export function SubscriptionManager({ initial }: { initial: Subscription[] }) {

@@ -5,6 +5,7 @@ import { q } from "./db";
 import { jacePosts } from "./feeds";
 import { getTaste, latestVideos, rankPosts, rankVideos, videoCandidates } from "./recommend";
 import { ALL_SERVICES, isService, type Service } from "./services";
+import { fetchFeed } from "./rss";
 import { NETWORKS, blueskyAuthor, lemmyCommunity, mastodonAuthor } from "./social";
 import type { FeedItem, VideoCard } from "./types";
 
@@ -103,6 +104,7 @@ async function followedPosts(services: Service[], folder: string | null): Promis
   if (services.includes("bluesky")) tasks.push(Promise.all(refs("bluesky", 25).map((h) => blueskyAuthor(h, 8))).then((r) => r.flat()));
   if (services.includes("mastodon")) tasks.push(Promise.all(refs("mastodon", 15).map((a) => mastodonAuthor(a, 8))).then((r) => r.flat()));
   if (services.includes("lemmy")) tasks.push(Promise.all(refs("lemmy", 15).map((c) => lemmyCommunity(c, 8))).then((r) => r.flat()));
+  if (services.includes("rss")) tasks.push(Promise.all(refs("rss", 25).map((u) => fetchFeed(u))).then((r) => r.flatMap((f) => f?.items.slice(0, 8) ?? [])));
   return (await Promise.all(tasks)).flat();
 }
 
