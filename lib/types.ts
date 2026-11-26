@@ -88,6 +88,8 @@ export type Network = "jace" | "bluesky" | "mastodon" | "lemmy" | "hackernews" |
 export type Media = { kind: "image" | "video"; url: string; thumb?: string | null; alt?: string };
 
 /** A post from any network, in one shape so every tab can show it the same way. */
+export type PostVideo = { source: "youtube" | "jace"; id: string; title?: string; thumbnail?: string | null; src?: string | null };
+
 export type Poll = { options: string[]; counts: number[]; total: number; myVote: number | null; endsAt: string; ended: boolean };
 
 export type FeedItem = {
@@ -112,6 +114,8 @@ export type FeedItem = {
   /** Set when this is a plain repost: who reposted it, and the repost's own id. */
   repostedBy?: { name: string; handle: string; url: string; repostId: string; canDelete: boolean } | null;
   poll?: Poll | null;
+  /** A video in the post: uploaded with it, or from a YouTube or Jace link in it. */
+  video?: PostVideo | null;
   likedByMe?: boolean;
   canDelete?: boolean;
 };

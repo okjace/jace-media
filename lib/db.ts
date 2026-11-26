@@ -155,6 +155,10 @@ const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS posts_quote_key ON posts (quote_key)`,
   // Polls: {"options": [...], "endsAt": ms}.
   `ALTER TABLE posts ADD COLUMN IF NOT EXISTS poll TEXT`,
+  // Pictures stored on Jace's storage (just their address), and a video in a post ({source, id, title, thumbnail, src}).
+  `ALTER TABLE posts ADD COLUMN IF NOT EXISTS image_url TEXT`,
+  `ALTER TABLE posts ADD COLUMN IF NOT EXISTS video TEXT`,
+  `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT`,
   `CREATE TABLE IF NOT EXISTS poll_votes (
     post_id TEXT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
     sub TEXT NOT NULL,

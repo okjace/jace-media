@@ -30,7 +30,8 @@ type Props = {
   poster?: string | null;
   title: string;
   segments?: Segment[];
-  variant?: "full" | "short" | "mini";
+  /** embed: inside a post (no autoplay, no keyboard shortcuts, several can be on a page). */
+  variant?: "full" | "short" | "mini" | "embed";
   /** Start here (seconds), e.g. the mini player picking up where the page left off. */
   startAt?: number;
   /** The watch page address, for the mini player's "back to video". */
@@ -649,7 +650,7 @@ export function VideoPlayer({
 
   // Keyboard shortcuts (full player; Shorts use ↑/↓ to move between Shorts).
   useEffect(() => {
-    if (compact) return;
+    if (compact || variant === "embed") return;
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.closest("input, textarea, select, [contenteditable=true]") || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -680,7 +681,7 @@ export function VideoPlayer({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [compact, toggle, seekTo, changeVolume, toggleMute, toggleFullscreen, toggleCaptions, source, changeRate, volume, rate, poke]);
+  }, [compact, variant, toggle, seekTo, changeVolume, toggleMute, toggleFullscreen, toggleCaptions, source, changeRate, volume, rate, poke]);
 
   // ----- seek bar -----
   const bar = useRef<HTMLDivElement>(null);

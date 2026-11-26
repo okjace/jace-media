@@ -19,17 +19,18 @@ type Row = Record<string, unknown>;
 export function toProfile(r: Row): Profile {
   const custom = typeof r.display_name === "string" && r.display_name.trim() !== "";
   const avatarId = typeof r.avatar_id === "string" ? r.avatar_id : null;
+  const avatarUrl = typeof r.avatar_url === "string" && r.avatar_url ? r.avatar_url : null;
   const jacePicture = (r.jace_picture as string | null) ?? null;
   return {
     sub: r.sub as string,
     handle: r.handle as string,
     name: custom ? (r.display_name as string) : (r.jace_name as string),
-    picture: avatarId ? `/api/images/${avatarId}` : jacePicture,
+    picture: avatarUrl ?? (avatarId ? `/api/images/${avatarId}` : jacePicture),
     bio: (r.bio as string) ?? "",
     jaceName: r.jace_name as string,
     jacePicture,
     customName: custom,
-    customPicture: !!avatarId,
+    customPicture: !!avatarUrl || !!avatarId,
     isAdmin: !!r.is_admin,
     muted: !!r.muted,
   };
@@ -97,7 +98,15 @@ export async function updateProfile(sub: string, patch: ProfilePatch): Promise<P
     if (bio.length > MAX_BIO) return { error: `Bios can be up to ${MAX_BIO} characters.` };
     await q(`UPDATE profiles SET bio = $2, updated_at = $3 WHERE sub = $1`, [sub, bio, Date.now()]);
   }
-  if (patch.picture !== undefined) {
+  if (patch.picture !== undefined && patch.picture && /^https?:\/\//.test(patch.picture)) {
+    // A picture already uploaded to your folder on Jace's storage.
+    const { isOwnJaceUpload } = await import("./jaceStorage");
+    if (!isOwnJaceUpload(patch.picture, sub)) return { error: "That picture can't be used." };
+    const old = await q(`SELECT avatar_id FROM profiles WHERE sub = $1`, [sub]);
+    await q(`UPDATE profiles SET avatar_url = $2, avatar_id = NULL, updated_at = $3 WHERE sub = $1`, [sub, patch.picture, Date.now()]);
+    const oldId = old[0]?.avatar_id as string | null;
+    if (oldId) await q(`DELETE FROM images WHERE id = $1`, [oldId]);
+  } else if (patch.picture !== undefined) {
     let avatarId: string | null = null;
     if (patch.picture) {
       const saved = await saveImage(sub, patch.picture);
@@ -105,7 +114,7 @@ export async function updateProfile(sub: string, patch: ProfilePatch): Promise<P
       avatarId = saved.id;
     }
     const old = await q(`SELECT avatar_id FROM profiles WHERE sub = $1`, [sub]);
-    await q(`UPDATE profiles SET avatar_id = $2, updated_at = $3 WHERE sub = $1`, [sub, avatarId, Date.now()]);
+    await q(`UPDATE profiles SET avatar_id = $2, avatar_url = NULL, updated_at = $3 WHERE sub = $1`, [sub, avatarId, Date.now()]);
     const oldId = old[0]?.avatar_id as string | null;
     if (oldId && oldId !== avatarId) await q(`DELETE FROM images WHERE id = $1`, [oldId]);
   }

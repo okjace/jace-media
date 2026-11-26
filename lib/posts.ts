@@ -3,7 +3,8 @@ import { randomUUID } from "crypto";
 import { q } from "./db";
 import { notify } from "./notifications";
 import { saveImage, toProfile } from "./profiles";
-import type { FeedItem, Poll, Profile } from "./types";
+import { isOwnJaceUpload } from "./jaceStorage";
+import type { FeedItem, Poll, PostVideo, Profile } from "./types";
 
 /** Jace posts: what people post on Jace Media itself, with likes, replies, reposts, quotes, and polls. */
 
@@ -13,7 +14,7 @@ const POLL_DAYS = [1, 3, 7];
 type Viewer = { sub: string; isAdmin: boolean } | null;
 
 const SELECT = `
-  SELECT p.id, p.parent_id, p.body, p.image_id, p.created_at, p.author_sub, p.quote, p.poll,
+  SELECT p.id, p.parent_id, p.body, p.image_id, p.image_url, p.video, p.created_at, p.author_sub, p.quote, p.poll,
     pr.sub, pr.handle, pr.jace_name, pr.jace_picture, pr.display_name, pr.avatar_id, pr.bio, pr.is_admin, pr.muted,
     (SELECT count(*) FROM likes l WHERE l.post_id = p.id)::int AS like_count,
     (SELECT count(*) FROM posts r WHERE r.parent_id = p.id)::int AS reply_count,
@@ -64,7 +65,7 @@ function toItem(r: Record<string, unknown>, viewer: Viewer): FeedItem & { parent
     url: `/u/${encodeURIComponent(author.handle)}`,
   };
   // A plain repost shows the original post, with who reposted it on top.
-  if (quote && !body && !r.image_id && !r.poll) {
+  if (quote && !body && !r.image_id && !r.image_url && !r.video && !r.poll) {
     return {
       ...quote,
       parentId: null,
@@ -78,7 +79,8 @@ function toItem(r: Record<string, unknown>, viewer: Viewer): FeedItem & { parent
     author: self,
     text: body,
     url: `/post/${r.id}`,
-    media: r.image_id ? [{ kind: "image", url: `/api/images/${r.image_id}` }] : [],
+    media: r.image_url ? [{ kind: "image", url: r.image_url as string }] : r.image_id ? [{ kind: "image", url: `/api/images/${r.image_id}` }] : [],
+    video: json<PostVideo>(r.video),
     createdAt: new Date(Number(r.created_at)).toISOString(),
     stats: { likes: Number(r.like_count), replies: Number(r.reply_count), reposts: Number(r.repost_count) },
     authorSub: r.author_sub as string,
@@ -141,6 +143,10 @@ export type NewPost = {
   body: string;
   parentId?: string | null;
   image?: string | null;
+  /** A picture already uploaded to your folder on Jace's storage. */
+  imageUrl?: string | null;
+  /** A video for the post (already checked by the caller). */
+  video?: PostVideo | null;
   /** The post being quoted or reposted, already fetched by the server (never trusted from the browser). */
   quote?: FeedItem | null;
   poll?: { options: string[]; days: number } | null;
@@ -149,7 +155,8 @@ export type NewPost = {
 export async function createPost(author: Profile, input: NewPost): Promise<{ id: string } | { error: string }> {
   if (author.muted) return { error: "Your Jace account is muted, so you can't post right now." };
   const body = input.body.replace(/\r\n/g, "\n").trim();
-  if (!body && !input.image && !input.quote) return { error: "Write something first." };
+  if (!body && !input.image && !input.imageUrl && !input.quote && !input.video) return { error: "Write something first." };
+  if (input.imageUrl && !isOwnJaceUpload(input.imageUrl, author.sub)) return { error: "That picture can't be used." };
   if (body.length > MAX_POST) return { error: `Posts can be up to ${MAX_POST} characters.` };
 
   let parentAuthor: string | null = null;
@@ -173,7 +180,7 @@ export async function createPost(author: Profile, input: NewPost): Promise<{ id:
   if (Number(recent[0]?.n) >= 10) return { error: "You're posting very fast. Wait a minute and try again." };
 
   const quoteKey = input.quote ? `${input.quote.network}:${input.quote.id}` : null;
-  if (quoteKey && !body && !input.image && !poll) {
+  if (quoteKey && !body && !input.image && !input.imageUrl && !input.video && !poll) {
     // Reposting the same thing twice does nothing.
     const again = await q(`SELECT id FROM posts WHERE author_sub = $1 AND quote_key = $2 AND body = ''`, [author.sub, quoteKey]);
     if (again[0]) return { id: again[0].id as string };
@@ -189,13 +196,26 @@ export async function createPost(author: Profile, input: NewPost): Promise<{ id:
   // A quote never nests another quote (keeps snapshots small).
   const snapshot = input.quote ? JSON.stringify({ ...input.quote, quote: null, repostedBy: null, likedByMe: false, canDelete: false }) : null;
   await q(
-    `INSERT INTO posts (id, author_sub, parent_id, body, image_id, quote, quote_key, poll, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-    [id, author.sub, input.parentId ?? null, body, imageId, snapshot, quoteKey, poll, Date.now()],
+    `INSERT INTO posts (id, author_sub, parent_id, body, image_id, image_url, video, quote, quote_key, poll, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+    [
+      id,
+      author.sub,
+      input.parentId ?? null,
+      body,
+      imageId,
+      input.imageUrl ?? null,
+      input.video ? JSON.stringify(input.video) : null,
+      snapshot,
+      quoteKey,
+      poll,
+      Date.now(),
+    ],
   );
 
   if (parentAuthor) await notify(parentAuthor, "reply", author.sub, id);
   if (input.quote?.network === "jace" && input.quote.authorSub) {
-    await notify(input.quote.authorSub, body || imageId || poll ? "quote" : "repost", author.sub, body || imageId || poll ? id : input.quote.id);
+    await notify(input.quote.authorSub, body || imageId || input.imageUrl || input.video || poll ? "quote" : "repost", author.sub, body || imageId || input.imageUrl || input.video || poll ? id : input.quote.id);
   }
   return { id };
 }

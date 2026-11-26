@@ -4,7 +4,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
 import { Avatar } from "@/components/Avatar";
 import { signInHref, useApp } from "@/components/AppProvider";
-import { shrinkImage } from "@/lib/image";
+import { shrinkImage, shrinkToBlob } from "@/lib/image";
+import { captureThumbnail, publishVideo, uploadPicture } from "@/lib/uploadClient";
 import type { FeedItem } from "@/lib/types";
 import { Markdown } from "./Markdown";
 import { MarkdownToolbar } from "./MarkdownToolbar";
@@ -34,7 +35,11 @@ export function Composer({
   const router = useRouter();
   const pathname = usePathname();
   const [body, setBody] = useState("");
-  const [image, setImage] = useState<string | null>(null);
+  // A picture: shown from the device right away; uploaded to Jace's storage (url), or kept as data if that fails.
+  const [image, setImage] = useState<{ preview: string; url?: string; data?: string; uploading?: boolean } | null>(null);
+  // A video, uploaded to Jace as an unlisted video that only this post shows.
+  const [video, setVideo] = useState<{ id?: string; name: string; thumb: string | null; progress: number } | null>(null);
+  const videoInput = useRef<HTMLInputElement>(null);
   const [poll, setPoll] = useState<string[] | null>(null);
   const [days, setDays] = useState(1);
   const [error, setError] = useState<string | null>(null);
@@ -59,10 +64,44 @@ export function Composer({
     if (!f) return;
     setError(null);
     try {
-      setImage(await shrinkImage(f));
+      const blob = await shrinkToBlob(f);
+      const preview = URL.createObjectURL(blob);
+      setImage({ preview, uploading: true });
       setPoll(null);
+      try {
+        const url = await uploadPicture(blob);
+        setImage({ preview, url });
+      } catch {
+        // Jace's storage didn't take it: keep a small copy in Jace Media instead.
+        setImage({ preview, data: await shrinkImage(f) });
+      }
     } catch (err) {
+      setImage(null);
       setError(err instanceof Error ? err.message : "Couldn't read that picture.");
+    }
+  }
+
+  async function pickVideo(f: File | undefined) {
+    if (!f) return;
+    if (!f.type.startsWith("video/")) {
+      setError("That isn't a video file.");
+      return;
+    }
+    setError(null);
+    setPoll(null);
+    const thumbBlob = await captureThumbnail(f);
+    const thumb = thumbBlob ? URL.createObjectURL(thumbBlob) : null;
+    setVideo({ name: f.name, thumb, progress: 0 });
+    try {
+      const title = (body.split("\n")[0].replace(/[#*_~`>|]/g, "").trim() || f.name.replace(/\.[^.]+$/, "")).slice(0, 140);
+      const { video: uploaded } = await publishVideo(
+        { file: f, thumbnail: thumbBlob, title, description: "Posted on Jace Media", visibility: "unlisted" },
+        (p) => setVideo((v) => (v ? { ...v, progress: p } : v)),
+      );
+      setVideo((v) => (v ? { ...v, id: uploaded.id, progress: 1 } : v));
+    } catch (err) {
+      setVideo(null);
+      setError(err instanceof Error ? err.message : "Couldn't upload that video.");
     }
   }
 
@@ -76,7 +115,9 @@ export function Composer({
       : {
           body,
           parentId,
-          image,
+          image: image?.data,
+          imageUrl: image?.url,
+          video: video?.id ? { source: "jace", id: video.id } : undefined,
           quote: quote ? { network: quote.network, id: quote.id } : undefined,
           poll: poll ? { options: poll.filter((o) => o.trim()), days } : undefined,
         };
@@ -93,13 +134,15 @@ export function Composer({
     }
     setBody("");
     setImage(null);
+    setVideo(null);
     setPoll(null);
     onPosted?.();
     router.refresh();
   }
 
   const left = (extTarget ? MAX_COMMENT : MAX) - body.length;
-  const canSend = !!body.trim() || !!image || !!quote;
+  const mediaBusy = !!image?.uploading || (!!video && !video.id);
+  const canSend = (!!body.trim() || !!image || !!quote || !!video?.id) && !mediaBusy;
 
   return (
     <form onSubmit={submit} className="rounded-2xl border border-line bg-panel p-4">
@@ -141,13 +184,38 @@ export function Composer({
       {image && (
         <div className="relative ml-[52px] mt-3 inline-block">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={image} alt="" className="max-h-60 rounded-xl border border-line" />
+          <img src={image.preview} alt="" className={`max-h-60 rounded-xl border border-line ${image.uploading ? "opacity-60" : ""}`} />
+          {image.uploading && <span className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-0.5 text-xs text-white">Uploading…</span>}
           <button
             type="button"
             onClick={() => setImage(null)}
             aria-label="Remove picture"
             className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white"
           >
+            ✕
+          </button>
+        </div>
+      )}
+      {video && (
+        <div className="ml-[52px] mt-3 flex items-center gap-3 rounded-xl border border-line p-2">
+          <div className="relative aspect-video w-32 shrink-0 overflow-hidden rounded-lg bg-black/40">
+            {video.thumb && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={video.thumb} alt="" className="h-full w-full object-cover" />
+            )}
+            <span className="absolute inset-0 flex items-center justify-center text-xl text-white">▶</span>
+          </div>
+          <div className="min-w-0 flex-1 text-sm">
+            <p className="truncate font-medium">{video.name}</p>
+            {video.id ? (
+              <p className="text-xs text-accent">Ready</p>
+            ) : (
+              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-foreground/10">
+                <div className="h-full bg-accent transition-[width]" style={{ width: `${Math.round(video.progress * 100)}%` }} />
+              </div>
+            )}
+          </div>
+          <button type="button" onClick={() => setVideo(null)} aria-label="Remove video" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full hover:bg-foreground/[.08]">
             ✕
           </button>
         </div>
@@ -206,6 +274,19 @@ export function Composer({
               🖼 Picture
             </button>
             {!parentId && (
+              <>
+                <input ref={videoInput} type="file" accept="video/*" className="hidden" onChange={(e) => pickVideo(e.target.files?.[0])} />
+                <button
+                  type="button"
+                  disabled={!!video}
+                  onClick={() => videoInput.current?.click()}
+                  className="rounded-full px-3 py-1.5 text-sm text-muted hover:bg-foreground/[.06] hover:text-foreground disabled:opacity-50"
+                >
+                  🎬 Video
+                </button>
+              </>
+            )}
+            {!parentId && (
               <button
                 type="button"
                 onClick={() => {
@@ -225,7 +306,7 @@ export function Composer({
           disabled={busy || !canSend}
           className="ml-2 rounded-full bg-accent px-5 py-1.5 text-sm font-medium text-on-accent transition-colors hover:bg-accent-hover disabled:opacity-50"
         >
-          {busy ? "Posting…" : extTarget ? "Comment" : parentId ? "Reply" : quote ? "Quote" : "Post"}
+          {mediaBusy ? "Uploading…" : busy ? "Posting…" : extTarget ? "Comment" : parentId ? "Reply" : quote ? "Quote" : "Post"}
         </button>
       </div>
     </form>

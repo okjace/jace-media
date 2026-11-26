@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
 import { Avatar } from "@/components/Avatar";
 import { useApp } from "@/components/AppProvider";
-import { shrinkImage } from "@/lib/image";
+import { shrinkImage, shrinkToBlob } from "@/lib/image";
+import { uploadPicture } from "@/lib/uploadClient";
 import type { Profile } from "@/lib/types";
 
 const input = "w-full rounded-xl border border-line bg-background px-3 py-2 text-[15px] outline-none focus:border-accent";
@@ -27,7 +28,9 @@ export function ProfileForm({ profile }: { profile: Profile }) {
     if (!f) return;
     setError(null);
     try {
-      setPicture(await shrinkImage(f, 400));
+      // On Jace's storage when possible (just its address is saved); otherwise a small copy here.
+      const blob = await shrinkToBlob(f, 512, 300 * 1024);
+      setPicture(await uploadPicture(blob).catch(() => shrinkImage(f, 400)));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't read that picture.");
     }

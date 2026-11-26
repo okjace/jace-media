@@ -29,6 +29,7 @@ const videos = [
 ];
 const codes = new Map(); // code -> { user, challenge }
 const tokens = new Map(); // token -> username
+const files = new Map(); // storage path -> { type, data }
 
 const json = (res, status, body) => {
   res.writeHead(status, { "Content-Type": "application/json" });
@@ -138,6 +139,89 @@ createServer(async (req, res) => {
     return json(res, 200, { ...user, display_name: user.name });
   }
 
+  // ---- Uploads (like Jace's storage): a ticket, then the browser PUTs the file as multipart field "". ----
+  if (url.pathname === "/api/oauth/videos/uploads" && req.method === "POST") {
+    const user = userFor(req);
+    if (!user) return json(res, 401, { error: "invalid_token" });
+    const body = JSON.parse((await readBody(req)) || "{}");
+    const folder = body.kind === "thumbnail" ? "thumbnails" : "videos";
+    const path = `${folder}/${user.sub}/${randomUUID()}-${String(body.filename || "file").replace(/[^A-Za-z0-9._-]/g, "-")}`;
+    return json(res, 200, {
+      path,
+      upload_url: `http://localhost:${PORT}/storage/upload/${path}`,
+      method: "PUT",
+      headers: {},
+      public_url: `http://localhost:${PORT}/storage/v1/object/public/uploads/${path}`,
+    });
+  }
+  if (url.pathname.startsWith("/storage/upload/") && (req.method === "PUT" || req.method === "OPTIONS")) {
+    const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "PUT", "Access-Control-Allow-Headers": "*" };
+    if (req.method === "OPTIONS") {
+      res.writeHead(204, cors);
+      return res.end();
+    }
+    const raw = await new Promise((resolve) => {
+      const chunks = [];
+      req.on("data", (c) => chunks.push(c));
+      req.on("end", () => resolve(Buffer.concat(chunks)));
+    });
+    // Take the file out of the multipart body.
+    const type = req.headers["content-type"] || "";
+    const boundary = type.match(/boundary=(.+)$/)?.[1];
+    let data = raw;
+    let fileType = "application/octet-stream";
+    if (boundary) {
+      const sep = Buffer.from(`--${boundary}`);
+      let at = 0;
+      while ((at = raw.indexOf(sep, at)) !== -1) {
+        const headEnd = raw.indexOf("\r\n\r\n", at);
+        if (headEnd === -1) break;
+        const head = raw.subarray(at, headEnd).toString();
+        const next = raw.indexOf(sep, headEnd);
+        if (/name=""/.test(head)) {
+          fileType = head.match(/Content-Type: (.+)/i)?.[1]?.trim() ?? fileType;
+          data = raw.subarray(headEnd + 4, next - 2);
+          break;
+        }
+        at = next;
+      }
+    }
+    files.set(url.pathname.slice("/storage/upload/".length), { type: fileType, data });
+    res.writeHead(200, { "Content-Type": "application/json", ...cors });
+    return res.end("{}");
+  }
+  if (url.pathname.startsWith("/storage/v1/object/public/uploads/")) {
+    const f = files.get(url.pathname.slice("/storage/v1/object/public/uploads/".length));
+    if (!f) return json(res, 404, { error: "not_found", error_description: "No file." });
+    res.writeHead(200, { "Content-Type": f.type, "Access-Control-Allow-Origin": "*" });
+    return res.end(f.data);
+  }
+  if (url.pathname === "/api/oauth/videos" && req.method === "POST") {
+    const user = userFor(req);
+    if (!user) return json(res, 401, { error: "invalid_token" });
+    const body = JSON.parse((await readBody(req)) || "{}");
+    if (!files.has(body.path)) return json(res, 400, { error: "invalid_request", error_description: "No uploaded file at that path yet." });
+    const id = randomUUID();
+    const v = {
+      id,
+      url: `http://localhost:${PORT}/storage/v1/object/public/uploads/${body.path}`,
+      title: body.title || "Video",
+      description: body.description || "",
+      thumbnail_url: body.thumbnail_path ? `http://localhost:${PORT}/storage/v1/object/public/uploads/${body.thumbnail_path}` : null,
+      content_type: "video/mp4",
+      size: files.get(body.path).data.length,
+      visibility: body.visibility || "public",
+      owner_id: user.sub,
+      owner_type: "user",
+      owner_name: user.username,
+      owner_picture: null,
+      likes: 0,
+      comment_count: 0,
+      created_at: new Date().toISOString(),
+    };
+    videos.unshift(v);
+    return json(res, 201, { video: { ...v, liked_by_me: false, can_manage: true, comments: [] }, created: true });
+  }
   if (url.pathname === "/api/oauth/videos") return json(res, 200, { videos, next_before: null });
   const m = url.pathname.match(/^\/api\/oauth\/videos\/([^/]+)$/);
   if (m) {

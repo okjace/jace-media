@@ -12,6 +12,7 @@ import { authorHref, placeHref, postHref } from "@/lib/links";
 import { rate } from "@/lib/rate-client";
 import type { FeedItem } from "@/lib/types";
 import { NetworkBadge } from "./NetworkBadge";
+import { VideoPlayer } from "@/components/player/VideoPlayer";
 import { PollView } from "./PollView";
 import { QuotedPost } from "./QuotedPost";
 import { RepostButton } from "./RepostButton";
@@ -251,6 +252,19 @@ export function PostCard({
                 </a>
               );
             })}
+          </div>
+        )}
+        {item.video && (
+          <div className="overflow-hidden rounded-xl" onClick={(e) => e.stopPropagation()}>
+            <VideoPlayer
+              source={item.video.source}
+              id={item.video.id}
+              src={item.video.src ?? undefined}
+              poster={item.video.thumbnail}
+              title={item.video.title ?? "Video"}
+              variant="embed"
+              active={false}
+            />
           </div>
         )}
         {item.poll && isJace && <PollView postId={item.id} poll={item.poll} />}
