@@ -1,0 +1,854 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jace Media</title>
+<!--
+  Jace Media for TVs (LG webOS, Android TV, any TV browser).
+  One self-contained file: plain CSS and simple JavaScript, so it runs on TV
+  browser engines going back years (LG webOS 4+, Chromium 53+): no async/await,
+  no ?. or ??, no CSS gap/inset/aspect-ratio/@layer.
+  Arrow keys move, OK opens, Back goes back. Data comes from /api/app/*.
+-->
+<style>
+  html { font-size: 20px; }
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0b0d10; color: #fff;
+    font-family: "LG Smart UI", Roboto, "Segoe UI", Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; cursor: none; }
+  * { box-sizing: border-box; }
+  button, input { font-family: inherit; color: inherit; }
+  button { background: none; border: 0; padding: 0; margin: 0; text-align: left; }
+  :focus { outline: none; }
+  .hidden { display: none !important; }
+  #app { position: fixed; top: 0; left: 0; right: 0; bottom: 0; }
+
+  /* Side menu */
+  #nav { position: absolute; top: 0; left: 0; bottom: 0; width: 6.4rem; z-index: 5; padding: 2rem 0.9rem;
+    background: linear-gradient(to right, rgba(0,0,0,0.75), rgba(0,0,0,0)); transition: width 0.18s, background-color 0.18s; overflow: hidden; }
+  #nav.open { width: 17rem; background-color: rgba(8,10,12,0.96); }
+  .brand { display: flex; align-items: center; height: 3rem; margin: 0 0 1.6rem 0.4rem; white-space: nowrap; }
+  .brand img { width: 2.8rem; height: 2.8rem; border-radius: 0.7rem; }
+  .brand span { margin-left: 0.9rem; font-size: 1.3rem; font-weight: 700; opacity: 0; transition: opacity 0.15s; }
+  #nav.open .brand span { opacity: 1; }
+  .nav-item { display: flex; align-items: center; width: 100%; height: 3.4rem; margin-bottom: 0.5rem; padding: 0 1rem; border-radius: 0.9rem;
+    color: rgba(255,255,255,0.55); font-size: 1.2rem; white-space: nowrap; }
+  .nav-item .ic { width: 1.8rem; font-size: 1.5rem; text-align: center; flex-shrink: 0; }
+  .nav-item .lb { margin-left: 1rem; opacity: 0; transition: opacity 0.15s; }
+  #nav.open .nav-item .lb { opacity: 1; }
+  .nav-item.on { color: #3ddc84; }
+  .nav-item:focus { background: #fff; color: #000; }
+
+  /* Main area */
+  #main { position: absolute; top: 0; left: 6.4rem; right: 0; bottom: 0; overflow: hidden; }
+  #scroll { position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; padding: 2rem 3rem 4rem 3rem; }
+  h1 { margin: 0 0 1.6rem 0; font-size: 2.2rem; font-weight: 700; }
+  .row { margin-bottom: 2.2rem; }
+  .row h2 { margin: 0 0 0.6rem 0.3rem; font-size: 1.35rem; font-weight: 600; color: rgba(255,255,255,0.85); }
+  .track { white-space: nowrap; overflow: hidden; padding: 1rem 0.6rem; margin: -1rem 0; }
+  .card { display: inline-block; vertical-align: top; width: 19rem; margin-right: 1.2rem; border-radius: 1rem; white-space: normal;
+    transition: transform 0.15s; }
+  .card.tall { width: 11rem; }
+  .card .pic { position: relative; width: 100%; padding-top: 56.25%; border-radius: 1rem; overflow: hidden; background: rgba(255,255,255,0.06); }
+  .card.tall .pic { padding-top: 177.7%; }
+  .card .pic img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+  .card .t { margin-top: 0.6rem; font-size: 1.05rem; font-weight: 600; line-height: 1.3; max-height: 2.7rem; overflow: hidden; color: rgba(255,255,255,0.9); }
+  .card .s { margin-top: 0.2rem; font-size: 0.9rem; color: rgba(255,255,255,0.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card:focus { transform: scale(1.06); }
+  .card:focus .pic { box-shadow: 0 0 0 0.25rem #3ddc84, 0 0.8rem 2rem rgba(0,0,0,0.6); }
+  .card:focus .t { color: #fff; }
+  .badge { position: absolute; top: 0.6rem; left: 0.6rem; padding: 0.1rem 0.45rem; border-radius: 0.3rem; font-size: 0.75rem; font-weight: 700; background: #e5484d; }
+
+  .hero { position: relative; height: 27rem; margin: -2rem -3rem 2rem -3rem; overflow: hidden; }
+  .hero img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.55; }
+  .hero .shade { position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(to top, #0b0d10 0%, rgba(11,13,16,0.6) 40%, rgba(11,13,16,0) 75%), linear-gradient(to right, rgba(11,13,16,0.92), rgba(11,13,16,0) 70%); }
+  .hero .txt { position: absolute; left: 3rem; bottom: 2.2rem; width: 44rem; }
+  .hero .k { color: #3ddc84; font-size: 1.05rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+  .hero .h { margin: 0.6rem 0; font-size: 2.6rem; font-weight: 700; line-height: 1.15; max-height: 6rem; overflow: hidden; }
+  .hero .m { font-size: 1.2rem; color: rgba(255,255,255,0.7); }
+
+  .btn { display: inline-block; margin: 1rem 1rem 0 0; padding: 0.8rem 2rem; border-radius: 3rem; background: rgba(255,255,255,0.1);
+    font-size: 1.2rem; font-weight: 600; transition: transform 0.15s; }
+  .btn.white { background: #fff; color: #000; }
+  .btn.green { background: #3ddc84; color: #0c1410; }
+  .btn:focus { background: #fff; color: #000; transform: scale(1.06); box-shadow: 0 0 0 0.2rem #3ddc84; }
+  .list-btn { display: block; width: 40rem; margin-bottom: 0.8rem; padding: 1rem 1.6rem; border-radius: 1rem; background: rgba(255,255,255,0.07); font-size: 1.2rem; }
+  .list-btn:focus { background: #fff; color: #000; }
+
+  .face { display: inline-block; border-radius: 50%; object-fit: cover; background: rgba(61,220,132,0.18); color: #3ddc84; font-weight: 700; text-align: center; vertical-align: middle; }
+  .center { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; }
+  .muted { color: rgba(255,255,255,0.6); }
+  .spinner { width: 2.4rem; height: 2.4rem; border-radius: 50%; border: 0.25rem solid rgba(255,255,255,0.15); border-top-color: #3ddc84; animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Profiles / PIN / sign in */
+  .profiles .p { display: inline-block; width: 11rem; margin: 0 1.2rem; padding: 0.8rem; border-radius: 1.4rem; text-align: center; vertical-align: top; transition: transform 0.15s; }
+  .profiles .p:focus { transform: scale(1.08); box-shadow: 0 0 0 0.25rem #3ddc84; }
+  .profiles .n { margin-top: 0.8rem; font-size: 1.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dots span { display: inline-block; width: 1.4rem; height: 1.4rem; margin: 0 0.6rem; border-radius: 50%; border: 0.18rem solid rgba(255,255,255,0.4); }
+  .dots span.f { background: #fff; border-color: #fff; }
+  .pad { width: 19rem; margin: 0 auto; }
+  .key { display: inline-block; width: 5.6rem; height: 4.2rem; margin: 0.4rem; border-radius: 1rem; background: rgba(255,255,255,0.08);
+    font-size: 1.8rem; font-weight: 600; text-align: center; transition: transform 0.15s; }
+  .key:focus { background: #fff; color: #000; transform: scale(1.06); }
+  .key.blank { visibility: hidden; }
+  .qr { width: 15rem; height: 15rem; padding: 0.6rem; border-radius: 1.2rem; background: #fff; margin: 0 auto; }
+  .qr svg { width: 100%; height: 100%; display: block; }
+  .code { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 0.4rem; background: rgba(255,255,255,0.1); font-family: monospace; font-size: 1.5rem; letter-spacing: 0.25em; }
+  .err { color: #ff7b7b; height: 1.6rem; font-size: 1.15rem; margin: 0.8rem 0; }
+
+  input.search { width: 50rem; height: 4rem; padding: 0 2rem; border: 0; border-radius: 3rem; background: rgba(255,255,255,0.08); font-size: 1.4rem; }
+  input.search:focus { background: rgba(255,255,255,0.15); box-shadow: 0 0 0 0.2rem #3ddc84; }
+
+  /* Player */
+  #player { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 20; background: #000; }
+  #player video { width: 100%; height: 100%; background: #000; }
+  #yt { position: absolute; left: 0; right: 0; top: -12%; bottom: -12%; pointer-events: none; }
+  #yt iframe { width: 100%; height: 100%; border: 0; }
+  #ui { position: absolute; top: 0; left: 0; right: 0; bottom: 0; transition: opacity 0.3s; }
+  #ui.off { opacity: 0; }
+  #ui .top { position: absolute; top: 0; left: 0; right: 0; padding: 2rem 3rem 5rem 3rem; background: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0)); }
+  #ui .top .h { font-size: 1.8rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #ui .bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 5rem 3rem 1.6rem 3rem; background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.92)); }
+  .bar { display: flex; align-items: center; font-size: 1.05rem; color: rgba(255,255,255,0.8); }
+  .bar .line { flex: 1; height: 0.35rem; margin: 0 1rem; border-radius: 1rem; background: rgba(255,255,255,0.25); overflow: hidden; }
+  .bar .fill { height: 100%; width: 0; background: #3ddc84; }
+  .ctl { display: inline-block; margin: 1rem 0.8rem 0 0; padding: 0.8rem 1.4rem; border-radius: 3rem; background: rgba(255,255,255,0.12); font-size: 1.3rem; font-weight: 600; }
+  .ctl:focus { background: #fff; color: #000; box-shadow: 0 0 0 0.2rem #3ddc84; }
+  .ctl.on { background: #3ddc84; color: #0c1410; }
+  #toast { position: absolute; top: 50%; left: 50%; margin: -2rem 0 0 -6rem; width: 12rem; padding: 1rem; border-radius: 3rem; background: rgba(0,0,0,0.7); font-size: 1.6rem; font-weight: 700; text-align: center; }
+  #ui .next .card { width: 14rem; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="center"><div class="spinner"></div></div>
+</div>
+<script>
+(function () {
+  "use strict";
+
+  // ---------- Sizing: 1rem is 1/96 of the screen width, so it looks the same on every TV ----------
+  function size() { document.documentElement.style.fontSize = (window.innerWidth / 96) + "px"; }
+  size();
+  window.addEventListener("resize", size);
+
+  var app = document.getElementById("app");
+  var UNLOCK = "jm_tv_unlocked";
+  var state = { me: null, screen: "home", stack: [], pinFor: null };
+
+  // ---------- Helpers ----------
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function api(path, method, body) {
+    var opts = { method: method || "GET", credentials: "same-origin", headers: {} };
+    if (body !== undefined) { opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
+    return fetch(path, opts).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (data) {
+        if (!r.ok) throw new Error(data.error || ("Error " + r.status));
+        return data;
+      });
+    });
+  }
+  function compact(n) {
+    if (n == null) return "";
+    if (n >= 1e9) return (n / 1e9).toFixed(1).replace(".0", "") + "B";
+    if (n >= 1e6) return (n / 1e6).toFixed(1).replace(".0", "") + "M";
+    if (n >= 1e3) return (n / 1e3).toFixed(1).replace(".0", "") + "K";
+    return String(Math.round(n));
+  }
+  function two(n) { return n < 10 ? "0" + n : String(n); }
+  function clock(s) {
+    if (!(s >= 0) || !isFinite(s)) return "0:00";
+    var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.floor(s % 60);
+    return h ? h + ":" + two(m) + ":" + two(sec) : m + ":" + two(sec);
+  }
+  function face(name, picture, rem) {
+    var st = "width:" + rem + "rem;height:" + rem + "rem;";
+    if (picture) return '<img class="face" style="' + st + '" src="' + esc(picture) + '" alt="">';
+    return '<span class="face" style="' + st + "line-height:" + rem + "rem;font-size:" + (rem * 0.42) + 'rem">' + esc((name || "?").charAt(0).toUpperCase()) + "</span>";
+  }
+  function spinner(label) {
+    return '<div class="center" style="flex-direction:column"><div class="spinner"></div>' + (label ? '<p class="muted" style="font-size:1.2rem;margin-top:1rem">' + esc(label) + "</p>" : "") + "</div>";
+  }
+  function closest(el, sel) {
+    while (el && el.nodeType === 1) { if (el.matches ? el.matches(sel) : el.webkitMatchesSelector(sel)) return el; el = el.parentNode; }
+    return null;
+  }
+
+  // ---------- Remote: arrow keys move focus between [data-tv] things ----------
+  function visible(el) {
+    var r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  }
+  function focusables(scope) {
+    return Array.prototype.filter.call((scope || document).querySelectorAll("[data-tv]"), visible);
+  }
+  function focusEl(el) {
+    if (!el) return;
+    el.focus();
+    reveal(el);
+    if (closest(el, "#nav")) document.getElementById("nav") && document.getElementById("nav").classList.add("open");
+  }
+  // Scrolls rows and the page so the focused thing is in view.
+  function reveal(el) {
+    var track = closest(el, ".track");
+    if (track) {
+      var left = el.offsetLeft - track.clientWidth / 2 + el.offsetWidth / 2;
+      track.scrollLeft = Math.max(0, left);
+    }
+    var scroller = closest(el, "#scroll");
+    if (scroller) {
+      var row = closest(el, ".row") || el;
+      var top = 0, n = row;
+      while (n && n !== scroller) { top += n.offsetTop; n = n.offsetParent; }
+      if (top - scroller.scrollTop > scroller.clientHeight * 0.55 || top < scroller.scrollTop + 40) scroller.scrollTop = Math.max(0, top - scroller.clientHeight * 0.22);
+      if (row.className.indexOf("hero") >= 0 || row === el && top < scroller.clientHeight * 0.4) scroller.scrollTop = 0;
+    }
+  }
+  function move(dir, scope) {
+    var all = focusables(scope);
+    if (!all.length) return;
+    var cur = document.activeElement;
+    if (!cur || all.indexOf(cur) < 0) { focusEl(document.querySelector("[data-tv-default]") || all[0]); return; }
+    var a = cur.getBoundingClientRect(), ax = a.left + a.width / 2, ay = a.top + a.height / 2;
+    var fromMenu = !!closest(cur, "#nav");
+    var best = null, bestScore = Infinity;
+    for (var i = 0; i < all.length; i++) {
+      var el = all[i];
+      if (el === cur) continue;
+      var inMenu = !!closest(el, "#nav");
+      // Up/down stay on their side; the menu opens with Left and closes with Right.
+      if ((dir === "up" || dir === "down") && inMenu !== fromMenu) continue;
+      var b = el.getBoundingClientRect(), bx = b.left + b.width / 2, by = b.top + b.height / 2;
+      var dx = bx - ax, dy = by - ay, main, side;
+      if (dir === "right") { main = dx; side = dy; } else if (dir === "left") { main = -dx; side = dy; } else if (dir === "down") { main = dy; side = dx; } else { main = -dy; side = dx; }
+      if (main <= 4) continue;
+      var score = main + Math.abs(side) * 2.5;
+      if (score < bestScore) { bestScore = score; best = el; }
+    }
+    if (best && closest(best, "#nav") && !fromMenu) best = document.querySelector("#nav .nav-item.on") || best;
+    if (best) {
+      if (fromMenu && !closest(best, "#nav")) document.getElementById("nav").classList.remove("open");
+      focusEl(best);
+    }
+  }
+  function focusDefault() {
+    setTimeout(function () {
+      var scope = document.getElementById("scroll") || app;
+      focusEl(scope.querySelector("[data-tv-default]") || scope.querySelector("[data-tv]") || app.querySelector("[data-tv]"));
+    }, 50);
+  }
+
+  // Keys: numbers (PIN), media keys, Back.
+  var KEY = { LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, ENTER: 13, BACK: 461, BACK2: 10009, ESC: 27, BKSP: 8, PLAY: 415, PAUSE: 19, PLAYPAUSE: 179, REW: 412, FF: 417, RED: 403 };
+  var keyHandler = null; // the player or PIN pad takes keys first
+  document.addEventListener("keydown", function (e) {
+    var k = e.keyCode;
+    if (keyHandler && keyHandler(e) === true) { e.preventDefault(); return; }
+    var typing = document.activeElement && document.activeElement.tagName === "INPUT";
+    if (k === KEY.BACK || k === KEY.BACK2 || k === KEY.ESC || (k === KEY.BKSP && !typing)) { e.preventDefault(); back(); return; }
+    if (typing && (k === KEY.LEFT || k === KEY.RIGHT)) return;
+    var dir = { 37: "left", 38: "up", 39: "right", 40: "down" }[k];
+    if (dir) { e.preventDefault(); move(dir); }
+  });
+
+  // ---------- Screens and Back ----------
+  function back() {
+    if (state.stack.length) { var prev = state.stack.pop(); prev(); return; }
+    if (state.screen !== "home" && state.me && state.me.account) { go("home"); return; }
+    try { if (window.webOS && window.webOS.platformBack) window.webOS.platformBack(); else window.close(); } catch (err) {}
+  }
+  function shell(content) {
+    var a = state.me && state.me.account;
+    var items = [["search", "Search", "&#9906;"], ["home", "Home", "&#8962;"], ["shorts", "Shorts", "&#9647;"], ["subs", "Subscriptions", "&#9776;"], ["live", "Live", "&#9673;"], ["you", "You", ""]];
+    var nav = '<div id="nav"><div class="brand"><img src="/icon.svg" alt=""><span>Jace Media</span></div>';
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      var icon = it[0] === "you" && a ? face(a.name, a.picture, 1.8) : it[2];
+      nav += '<button class="nav-item' + (state.screen === it[0] ? " on" : "") + '" data-tv data-go="' + it[0] + '"><span class="ic">' + icon + '</span><span class="lb">' + it[1] + "</span></button>";
+    }
+    nav += "</div>";
+    app.innerHTML = nav + '<div id="main"><div id="scroll">' + content + "</div></div>";
+    Array.prototype.forEach.call(app.querySelectorAll("[data-go]"), function (b) {
+      b.addEventListener("click", function () { go(b.getAttribute("data-go")); });
+    });
+  }
+  function go(name) {
+    state.screen = name;
+    state.stack = [];
+    keyHandler = null;
+    ({ home: home, shorts: shorts, subs: subs, live: live, search: search, you: you })[name]();
+  }
+  function onCards(root, list) {
+    Array.prototype.forEach.call(root.querySelectorAll("[data-v]"), function (el) {
+      el.addEventListener("click", function () {
+        var v = list[+el.getAttribute("data-v")];
+        if (v) play(v);
+      });
+    });
+  }
+  function card(v, i, tall, first) {
+    return '<button class="card' + (tall ? " tall" : "") + '" data-tv data-v="' + i + '"' + (first ? " data-tv-default" : "") + '><div class="pic">' +
+      (v.thumbnail ? '<img src="' + esc(v.thumbnail) + '" alt="">' : "") + "</div>" +
+      '<div class="t">' + esc(v.title) + "</div>" + (tall ? "" : '<div class="s">' + esc(v.channelName) + "</div>") + "</button>";
+  }
+  function row(title, cards) {
+    return cards ? '<div class="row"><h2>' + esc(title) + '</h2><div class="track">' + cards + "</div></div>" : "";
+  }
+  function cardsFor(list, offset, tall, firstDefault) {
+    var html = "";
+    for (var i = 0; i < list.length; i++) html += card(list[i], offset + i, tall, firstDefault && i === 0);
+    return html;
+  }
+  function failed(msg) { return '<p class="muted" style="font-size:1.3rem">' + esc(msg) + "</p>"; }
+
+  // ---------- Home ----------
+  function home() {
+    shell(spinner());
+    api("/api/app/home").then(function (d) {
+      if (state.screen !== "home") return;
+      var hero = d.videos[0], rest = d.videos.slice(1), all = d.videos.concat(d.shorts);
+      var html = "";
+      if (hero) {
+        html += '<div class="hero row">' + (hero.thumbnail ? '<img src="' + esc(hero.thumbnail) + '" alt="">' : "") + '<div class="shade"></div><div class="txt">' +
+          '<div class="k">Recommended for you</div><div class="h">' + esc(hero.title) + '</div><div class="m">' + esc(hero.channelName) +
+          (hero.views ? " &middot; " + compact(hero.views) + " views" : "") + '</div><button class="btn white" data-tv data-tv-default data-v="0">&#9654; Play</button></div></div>';
+      }
+      html += row("Recommended", cardsFor(rest.slice(0, 12), 1, false));
+      html += row("Shorts", cardsFor(d.shorts, d.videos.length, true));
+      if (rest.length > 12) html += row("More for you", cardsFor(rest.slice(12), 13, false));
+      document.getElementById("scroll").innerHTML = html;
+      onCards(app, all);
+      focusDefault();
+    }).catch(function (e) { document.getElementById("scroll").innerHTML = failed(e.message); focusDefault(); });
+    focusDefault();
+  }
+
+  // ---------- Subscriptions ----------
+  function subs() {
+    shell(spinner());
+    api("/api/app/subscriptions").then(function (d) {
+      if (state.screen !== "subs") return;
+      var videos = d.videos.filter(function (v) { return !v.short; });
+      var shortsList = d.videos.filter(function (v) { return v.short; });
+      var html = "<h1>Subscriptions</h1>";
+      var chans = d.channels.filter(function (c) { return c.kind === "youtube"; });
+      if (chans.length) {
+        var c = "";
+        for (var i = 0; i < chans.length; i++) {
+          c += '<button class="card" style="width:8rem;text-align:center" data-tv data-ch="' + i + '">' + face(chans[i].name, chans[i].picture, 5.5) +
+            '<div class="s" style="margin-top:0.5rem">' + esc(chans[i].name) + "</div></button>";
+        }
+        html += row("Your channels", c);
+      }
+      html += row("Latest", cardsFor(videos.slice(0, 30), 0, false, true));
+      html += row("Shorts", cardsFor(shortsList, videos.length, true));
+      if (!d.videos.length) html += failed("Nothing new from the channels you follow.");
+      document.getElementById("scroll").innerHTML = html;
+      onCards(app, videos.concat(shortsList));
+      Array.prototype.forEach.call(app.querySelectorAll("[data-ch]"), function (el) {
+        el.addEventListener("click", function () { var ch = chans[+el.getAttribute("data-ch")]; channel(ch.ref, ch.name); });
+      });
+      focusDefault();
+    }).catch(function (e) {
+      document.getElementById("scroll").innerHTML = failed(e.message === "Sign in with Jace first." ? "Sign in to see your subscriptions." : e.message);
+      focusDefault();
+    });
+    focusDefault();
+  }
+
+  // ---------- Channel ----------
+  function channel(id, name) {
+    var screen = state.screen;
+    state.stack.push(function () { go(screen); });
+    shell(spinner("Loading " + name + "…"));
+    api("/api/app/channel/youtube/" + encodeURIComponent(id)).then(function (d) {
+      var html = '<div class="row" style="display:flex;align-items:center">' + face(d.channel.name, d.channel.picture, 6) +
+        '<div style="margin-left:1.4rem"><h1 style="margin:0">' + esc(d.channel.name) + "</h1>" +
+        (d.channel.subscribers ? '<p class="muted" style="margin:0.3rem 0 0;font-size:1.1rem">' + compact(d.channel.subscribers) + " subscribers</p>" : "") + "</div></div>";
+      html += row("Videos", cardsFor(d.videos, 0, false, true));
+      html += row("Shorts", cardsFor(d.shorts, d.videos.length, true));
+      document.getElementById("scroll").innerHTML = html;
+      onCards(app, d.videos.concat(d.shorts));
+      focusDefault();
+    }).catch(function (e) { document.getElementById("scroll").innerHTML = failed(e.message); focusDefault(); });
+  }
+
+  // ---------- Live ----------
+  function live() {
+    shell(spinner());
+    api("/api/app/live").then(function (d) {
+      if (state.screen !== "live") return;
+      var html = "<h1>Live</h1>";
+      if (d.jace.length) {
+        var c = "";
+        for (var i = 0; i < d.jace.length; i++) {
+          var s = d.jace[i];
+          c += '<button class="card" data-tv data-live="' + esc(s.id) + '"><div class="pic">' + (s.thumbnail ? '<img src="' + esc(s.thumbnail) + '" alt="">' : "") +
+            '<span class="badge">&#9679; LIVE</span></div><div class="t">' + esc(s.title) + '</div><div class="s">' + esc(s.host.name) + "</div></button>";
+        }
+        html += row("On Jace Media", c);
+      }
+      html += row("Live on YouTube", cardsFor(d.youtube, 0, false, !d.jace.length));
+      if (!d.jace.length && !d.youtube.length) html += failed("Nobody's live right now.");
+      document.getElementById("scroll").innerHTML = html;
+      onCards(app, d.youtube);
+      Array.prototype.forEach.call(app.querySelectorAll("[data-live]"), function (el) {
+        el.addEventListener("click", function () { location.href = "/live/watch/" + el.getAttribute("data-live"); });
+      });
+      focusDefault();
+    }).catch(function (e) { document.getElementById("scroll").innerHTML = failed(e.message); focusDefault(); });
+    focusDefault();
+  }
+
+  // ---------- Search ----------
+  function search() {
+    shell('<form id="sf"><input class="search" data-tv data-tv-default placeholder="Search videos and channels"><button class="btn green" data-tv type="submit">Search</button></form><div id="sr" style="margin-top:2rem"></div>');
+    var form = document.getElementById("sf");
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var q = form.querySelector("input").value.trim();
+      if (!q) return;
+      var out = document.getElementById("sr");
+      out.innerHTML = '<div style="position:relative;height:10rem">' + spinner("Searching…") + "</div>";
+      api("/api/app/search?q=" + encodeURIComponent(q)).then(function (d) {
+        out.innerHTML = row("Videos", cardsFor(d.videos, 0, false)) + row("Shorts", cardsFor(d.shorts, d.videos.length, true)) + (d.videos.length ? "" : failed("Nothing found."));
+        onCards(out, d.videos.concat(d.shorts));
+        var first = out.querySelector("[data-tv]");
+        if (first) focusEl(first);
+      }).catch(function (err) { out.innerHTML = failed(err.message); });
+    });
+    focusDefault();
+  }
+
+  // ---------- Shorts ----------
+  function shorts() {
+    shell(spinner());
+    api("/api/app/shorts").then(function (d) {
+      if (state.screen !== "shorts") return;
+      var list = d.videos, i = 0;
+      if (!list.length) { document.getElementById("scroll").innerHTML = failed("No Shorts right now."); return; }
+      function show() {
+        var v = list[i];
+        document.getElementById("scroll").innerHTML =
+          '<div style="display:flex;align-items:center;justify-content:center;height:100%">' +
+          '<div id="shortbox" style="position:relative;height:62rem;max-height:92vh;width:34.9rem;border-radius:1.4rem;overflow:hidden;background:#000"></div>' +
+          '<div style="width:26rem;margin-left:3rem"><div style="font-size:1.6rem;font-weight:700">' + esc(v.title) + '</div><p class="muted" style="font-size:1.15rem">' + esc(v.channelName) +
+          '</p><p class="muted" style="margin-top:2rem;font-size:1.05rem;line-height:1.8">&#9650; &#9660; Previous / next<br>OK Pause<br>&#9664; Menu</p><p class="muted">' + (i + 1) + " / " + list.length + "</p></div></div>";
+        surface(document.getElementById("shortbox"), v.source === "jace" ? { type: "file", url: v.src } : { type: "youtube", id: v.id }, true, function () { if (i < list.length - 1) { i++; show(); } });
+      }
+      show();
+      keyHandler = function (e) {
+        if (closest(document.activeElement, "#nav")) return false;
+        if (e.keyCode === KEY.DOWN) { if (i < list.length - 1) { i++; show(); } return true; }
+        if (e.keyCode === KEY.UP) { if (i > 0) { i--; show(); } return true; }
+        if (e.keyCode === KEY.ENTER) { if (current) current.toggle(); return true; }
+        if (e.keyCode === KEY.LEFT) { focusEl(document.querySelector("#nav .nav-item.on")); return true; }
+        return false;
+      };
+    }).catch(function (e) { document.getElementById("scroll").innerHTML = failed(e.message); });
+  }
+
+  // ---------- Video surface: a Jace video file or YouTube (privacy-enhanced, YouTube's buttons cropped out) ----------
+  var current = null;
+  var ytReady = null;
+  function loadYT() {
+    if (window.YT && window.YT.Player) return Promise.resolve(window.YT);
+    if (!ytReady) {
+      ytReady = new Promise(function (resolve) {
+        window.onYouTubeIframeAPIReady = function () { resolve(window.YT); };
+        var s = document.createElement("script");
+        s.src = "https://www.youtube.com/iframe_api";
+        document.head.appendChild(s);
+      });
+    }
+    return ytReady;
+  }
+  function surface(box, stream, cover, onEnded, onState) {
+    if (current) current.destroy();
+    box.innerHTML = "";
+    var api2;
+    if (stream.type === "file") {
+      var v = document.createElement("video");
+      v.src = stream.url;
+      v.autoplay = true;
+      v.setAttribute("playsinline", "");
+      if (cover) v.style.objectFit = "cover";
+      v.style.width = "100%";
+      v.style.height = "100%";
+      v.addEventListener("ended", function () { if (onEnded) onEnded(); });
+      v.addEventListener("play", function () { if (onState) onState(true); });
+      v.addEventListener("pause", function () { if (onState) onState(false); });
+      box.appendChild(v);
+      api2 = {
+        toggle: function () { if (v.paused) v.play(); else v.pause(); },
+        play: function () { v.play(); }, pause: function () { v.pause(); },
+        seek: function (s) { v.currentTime = Math.max(0, v.currentTime + s); },
+        time: function () { return v.currentTime; }, duration: function () { return v.duration || 0; },
+        paused: function () { return v.paused; },
+        captions: function () {},
+        destroy: function () { v.pause(); v.removeAttribute("src"); v.load(); },
+      };
+    } else {
+      var holder = document.createElement("div");
+      holder.id = "yt";
+      var el = document.createElement("div");
+      holder.appendChild(el);
+      box.appendChild(holder);
+      var p = null, gone = false;
+      loadYT().then(function (YT) {
+        if (gone) return;
+        p = new YT.Player(el, {
+          videoId: stream.id,
+          host: "https://www.youtube-nocookie.com",
+          width: "100%", height: "100%",
+          playerVars: { autoplay: 1, controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, origin: location.origin },
+          events: {
+            onReady: function (e) { e.target.playVideo(); },
+            onStateChange: function (e) {
+              if (onState) onState(e.data === 1 || e.data === 3);
+              if (e.data === 0 && onEnded) onEnded();
+            },
+          },
+        });
+      });
+      api2 = {
+        toggle: function () { if (!p) return; if (p.getPlayerState() === 1) p.pauseVideo(); else p.playVideo(); },
+        play: function () { if (p) p.playVideo(); }, pause: function () { if (p) p.pauseVideo(); },
+        seek: function (s) { if (p) p.seekTo(Math.max(0, p.getCurrentTime() + s), true); },
+        time: function () { return p && p.getCurrentTime ? p.getCurrentTime() : 0; },
+        duration: function () { return p && p.getDuration ? p.getDuration() : 0; },
+        paused: function () { return !p || p.getPlayerState() !== 1; },
+        captions: function (on) {
+          if (!p) return;
+          try {
+            if (!on) { p.setOption("captions", "track", {}); p.unloadModule("captions"); return; }
+            p.loadModule("captions");
+            var pick = function () {
+              var list = p.getOption("captions", "tracklist") || [];
+              var t = null;
+              for (var i = 0; i < list.length; i++) if (list[i].languageCode.indexOf("en") === 0) { t = list[i]; break; }
+              t = t || list[0];
+              if (t) p.setOption("captions", "track", { languageCode: t.languageCode });
+            };
+            setTimeout(pick, 800);
+            setTimeout(pick, 2200);
+          } catch (err) {}
+        },
+        destroy: function () { gone = true; try { if (p) p.destroy(); } catch (err) {} },
+      };
+    }
+    current = api2;
+    return api2;
+  }
+
+  // ---------- Player ----------
+  function play(v) {
+    var screenBefore = state.screen;
+    var restore = state.stack.slice();
+    var layer = document.createElement("div");
+    layer.id = "player";
+    layer.innerHTML = '<div id="pbox" style="position:absolute;top:0;left:0;right:0;bottom:0"></div>' +
+      '<div id="ui"><div class="top"><div class="h">' + esc(v.title) + '</div><div class="muted" style="font-size:1.15rem">' + esc(v.channelName) + "</div></div>" +
+      '<div class="bottom"><div class="bar"><span id="t0">0:00</span><div class="line"><div class="fill" id="fill"></div></div><span id="t1">0:00</span></div>' +
+      '<div><button class="ctl" data-tv data-a="rew">&#9194; 10</button><button class="ctl" data-tv data-tv-default data-a="pp">&#10074;&#10074; Pause</button>' +
+      '<button class="ctl" data-tv data-a="ff">10 &#9193;</button>' + (v.source === "youtube" ? '<button class="ctl" data-tv data-a="cc">CC</button>' : "") +
+      '<button class="ctl" data-tv data-a="close" style="float:right">&#10005; Close</button></div><div class="next" id="next"></div></div></div><div id="toast" class="hidden"></div>';
+    document.body.appendChild(layer);
+    var ui = layer.querySelector("#ui"), pp = layer.querySelector('[data-a="pp"]'), cc = false, upNext = [], hideTimer = null, timer = null;
+    var s = null;
+
+    function showUi() {
+      ui.classList.remove("off");
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(function () { if (s && !s.paused()) ui.classList.add("off"); }, 4500);
+    }
+    function close() {
+      clearInterval(timer);
+      clearTimeout(hideTimer);
+      if (current) current.destroy();
+      current = null;
+      keyHandler = null;
+      layer.parentNode.removeChild(layer);
+      state.stack = restore;
+      focusDefault();
+    }
+    state.stack = restore.concat([close]);
+    state.screen = screenBefore;
+
+    function start(stream) {
+      s = surface(layer.querySelector("#pbox"), stream, false,
+        function () { if (upNext[0]) { close(); play(upNext[0]); } },
+        function (playing) { pp.innerHTML = playing ? "&#10074;&#10074; Pause" : "&#9654; Play"; if (!playing) showUi(); });
+      timer = setInterval(function () {
+        var t = s.time(), d = s.duration();
+        layer.querySelector("#t0").textContent = clock(t);
+        layer.querySelector("#t1").textContent = clock(d);
+        layer.querySelector("#fill").style.width = (d ? (t / d) * 100 : 0) + "%";
+      }, 500);
+    }
+    if (v.source === "jace" && v.src) start({ type: "file", url: v.src });
+    api("/api/app/watch/" + v.source + "/" + encodeURIComponent(v.id)).then(function (d) {
+      if (!layer.parentNode) return;
+      if (!s) start(d.video.stream.type === "file" ? { type: "file", url: d.video.stream.url } : { type: "youtube", id: d.video.stream.id || d.video.id });
+      upNext = d.upNext.slice(0, 12);
+      var html = '<p class="muted" style="margin:1rem 0 0;font-size:1.05rem">Up next</p><div class="track">';
+      for (var i = 0; i < upNext.length; i++) html += card(upNext[i], i, false);
+      layer.querySelector("#next").innerHTML = html + "</div>";
+      Array.prototype.forEach.call(layer.querySelectorAll("#next [data-v]"), function (el) {
+        el.addEventListener("click", function () { var n = upNext[+el.getAttribute("data-v")]; close(); play(n); });
+      });
+      // Counts in your history.
+      api("/api/history", "POST", { source: v.source, id: v.id, title: d.video.title, channelId: d.video.channelId, channelName: d.video.channelName, thumbnail: d.video.thumbnail }).catch(function () {});
+    }).catch(function () { if (!s) start({ type: "youtube", id: v.id }); });
+
+    layer.querySelector('[data-a="rew"]').addEventListener("click", function () { if (s) s.seek(-10); });
+    layer.querySelector('[data-a="ff"]').addEventListener("click", function () { if (s) s.seek(10); });
+    pp.addEventListener("click", function () { if (s) s.toggle(); });
+    layer.querySelector('[data-a="close"]').addEventListener("click", function () { back(); });
+    var ccBtn = layer.querySelector('[data-a="cc"]');
+    if (ccBtn) ccBtn.addEventListener("click", function () { cc = !cc; if (s) s.captions(cc); ccBtn.className = "ctl" + (cc ? " on" : ""); });
+
+    function toast(text) {
+      var t = layer.querySelector("#toast");
+      t.textContent = text;
+      t.classList.remove("hidden");
+      setTimeout(function () { t.classList.add("hidden"); }, 700);
+    }
+    keyHandler = function (e) {
+      var k = e.keyCode;
+      if (k === KEY.PLAY) { if (s) s.play(); showUi(); return true; }
+      if (k === KEY.PAUSE) { if (s) s.pause(); showUi(); return true; }
+      if (k === KEY.PLAYPAUSE) { if (s) s.toggle(); showUi(); return true; }
+      if (k === KEY.REW) { if (s) s.seek(-10); toast("⏪ 10s"); return true; }
+      if (k === KEY.FF) { if (s) s.seek(10); toast("10s ⏩"); return true; }
+      if (ui.classList.contains("off")) {
+        // Controls hidden: OK pauses, left/right skip 10 seconds, up/down bring the controls back.
+        if (k === KEY.ENTER) { if (s) s.toggle(); showUi(); return true; }
+        if (k === KEY.LEFT || k === KEY.RIGHT) { if (s) s.seek(k === KEY.LEFT ? -10 : 10); toast(k === KEY.LEFT ? "⏪ 10s" : "10s ⏩"); return true; }
+        if (k === KEY.UP || k === KEY.DOWN) { showUi(); focusEl(pp); return true; }
+      }
+      showUi();
+      var dir = { 37: "left", 38: "up", 39: "right", 40: "down" }[k];
+      if (dir) { move(dir, layer); return true; }
+      return false;
+    };
+    showUi();
+    setTimeout(function () { focusEl(pp); }, 50);
+  }
+  // ---------- QR codes: sign in, or approve a PIN-locked profile, from your phone ----------
+  function tvCode(body, box, onDone) {
+    var poll = null, stopped = false;
+    function startCode() {
+      api("/api/tv", "POST", body).then(function (c) {
+        if (stopped) return;
+        box.innerHTML = '<div class="qr">' + c.qr + '</div><p class="muted" style="font-size:1rem;text-align:center;margin-top:1rem">or go to <b style="color:#fff">' +
+          esc(c.url.replace(/^https?:\/\//, "").replace(/\?.*$/, "")) + '</b> and enter <span class="code">' + esc(c.code) + "</span></p>";
+        poll = setInterval(function () {
+          api("/api/tv?code=" + c.code).then(function (r) {
+            if (stopped) return;
+            if (r.done) { stop(); onDone(r); } else if (r.expired) { clearInterval(poll); startCode(); }
+          }).catch(function () {});
+        }, 2000);
+      }).catch(function () { box.innerHTML = failed("Couldn't get a code. Check the TV's internet."); });
+    }
+    function stop() { stopped = true; clearInterval(poll); }
+    startCode();
+    return stop;
+  }
+
+  var stopCode = null;
+  function clearGate() { if (stopCode) { stopCode(); stopCode = null; } keyHandler = null; }
+
+  function signIn() {
+    clearGate();
+    app.innerHTML = '<div class="center"><div style="width:34rem;margin-right:6rem"><img src="/icon.svg" style="width:5rem;height:5rem;border-radius:1.2rem" alt="">' +
+      '<h1 style="font-size:3rem;margin:1.2rem 0">Sign in to Jace Media</h1><p class="muted" style="font-size:1.4rem;line-height:1.5">Scan the code with your phone&#39;s camera and tap <b style="color:#fff">Sign in the TV</b>. No typing with the remote.</p></div>' +
+      '<div id="qrbox" style="width:24rem"></div></div>';
+    stopCode = tvCode({ purpose: "signin" }, document.getElementById("qrbox"), function () {
+      loadMe().then(function (me) { if (me.account) sessionStorage.setItem(UNLOCK, me.account.sub); enter(); });
+    });
+  }
+
+  function profiles() {
+    clearGate();
+    var list = [state.me.account].concat(state.me.others).filter(Boolean);
+    var html = '<div class="center" style="flex-direction:column"><h1 style="font-size:2.8rem;margin-bottom:3rem">Who&#39;s watching?</h1><div class="profiles">';
+    for (var i = 0; i < list.length; i++) {
+      html += '<button class="p" data-tv data-p="' + i + '"' + (i === 0 ? " data-tv-default" : "") + ">" + face(list[i].name, list[i].picture, 8) +
+        '<div class="n">' + esc(list[i].name) + "</div>" + (list[i].hasPin ? '<div class="muted">&#128274; PIN</div>' : "") + "</button>";
+    }
+    html += '<button class="p" data-tv data-add><span class="face" style="width:8rem;height:8rem;line-height:7.6rem;font-size:3rem;border:0.2rem dashed rgba(255,255,255,0.3);background:none;color:rgba(255,255,255,0.6)">+</span><div class="n muted">Add profile</div></button></div></div>';
+    app.innerHTML = html;
+    Array.prototype.forEach.call(app.querySelectorAll("[data-p]"), function (el) {
+      el.addEventListener("click", function () {
+        var a = list[+el.getAttribute("data-p")];
+        var switching = state.me.account && state.me.account.sub !== a.sub;
+        (switching ? api("/api/accounts/switch", "POST", { sub: a.sub }).catch(function () {}) : Promise.resolve()).then(function () {
+          if (switching) sessionStorage.removeItem(UNLOCK);
+          return loadMe();
+        }).then(enter);
+      });
+    });
+    app.querySelector("[data-add]").addEventListener("click", signIn);
+    focusDefault();
+  }
+
+  function pinPad(who) {
+    clearGate();
+    var digits = "", busy = false, privateEntry = localStorage.getItem("jm_tv_private_pin") === "1";
+    function render() {
+      var dots = "";
+      for (var i = 0; i < 4; i++) dots += '<span class="' + (i < digits.length ? "f" : "") + '"></span>';
+      var pad = "";
+      if (privateEntry) {
+        pad = '<div style="width:22rem;margin:0 auto;padding:1.6rem;border-radius:1.2rem;background:rgba(255,255,255,0.05);text-align:center"><div style="font-size:2.4rem">&#128274;</div>' +
+          '<p class="muted" style="font-size:1.15rem">Private entry: type your PIN with the number buttons on your remote. Nothing shows on screen.</p></div>';
+      } else {
+        var keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫"];
+        pad = '<div class="pad">';
+        for (var j = 0; j < keys.length; j++) {
+          pad += keys[j] ? '<button class="key" data-tv data-k="' + keys[j] + '"' + (keys[j] === "1" ? " data-tv-default" : "") + ">" + keys[j] + "</button>" : '<span class="key blank"></span>';
+        }
+        pad += "</div>";
+      }
+      var left = document.getElementById("pinleft");
+      left.innerHTML = face(who.name, who.picture, 7) + '<h1 style="margin:1.4rem 0">Enter ' + esc(who.name) + '&#39;s PIN</h1><div class="dots">' + dots +
+        '</div><div class="err" id="pinerr"></div>' + pad +
+        '<div style="margin-top:1rem"><button class="btn" data-tv id="privbtn">' + (privateEntry ? "Show number pad" : "&#128274; Private entry") + '</button><button class="btn" data-tv id="otherbtn">Other profiles</button></div>';
+      Array.prototype.forEach.call(left.querySelectorAll("[data-k]"), function (b) {
+        b.addEventListener("click", function () { var k = b.getAttribute("data-k"); if (k === "⌫") { digits = digits.slice(0, -1); render(); refocus(b); } else press(k, b); });
+      });
+      document.getElementById("privbtn").addEventListener("click", function () {
+        privateEntry = !privateEntry;
+        localStorage.setItem("jm_tv_private_pin", privateEntry ? "1" : "0");
+        render();
+        focusEl(document.getElementById("privbtn"));
+      });
+      document.getElementById("otherbtn").addEventListener("click", profiles);
+    }
+    function refocus(b) {
+      var k = b && b.getAttribute("data-k");
+      var again = k ? document.querySelector('[data-k="' + k + '"]') : null;
+      if (again) again.focus();
+    }
+    function press(d, b) {
+      if (busy) return;
+      digits = (digits + d).slice(0, 4);
+      render();
+      refocus(b);
+      if (digits.length === 4) {
+        busy = true;
+        api("/api/tv/pin", "POST", { sub: who.sub, pin: digits }).then(function () {
+          sessionStorage.setItem(UNLOCK, who.sub);
+          clearGate();
+          go("home");
+        }).catch(function (e) {
+          busy = false;
+          digits = "";
+          render();
+          document.getElementById("pinerr").textContent = e.message;
+          refocus(b);
+        });
+      }
+    }
+    app.innerHTML = '<div class="center"><div id="pinleft" style="text-align:center;width:30rem"></div>' +
+      '<div style="margin-left:5rem;padding-left:5rem;border-left:1px solid rgba(255,255,255,0.1);text-align:center;width:30rem"><p style="font-size:1.4rem;font-weight:600">Or approve on your phone</p>' +
+      '<div id="phoneqr"></div><p class="muted" style="font-size:1rem">Open it with the Jace Media app and tap Unlock</p></div></div>';
+    render();
+    stopCode = tvCode({ purpose: "unlock", sub: who.sub }, document.getElementById("phoneqr"), function (r) {
+      if (r.unlocked === who.sub) { sessionStorage.setItem(UNLOCK, who.sub); clearGate(); go("home"); }
+    });
+    // The remote's number buttons type the PIN; red or ⌫ removes one.
+    keyHandler = function (e) {
+      var k = e.keyCode, n = k >= 48 && k <= 57 ? k - 48 : k >= 96 && k <= 105 ? k - 96 : -1;
+      if (n >= 0) { press(String(n), document.activeElement); return true; }
+      if (k === KEY.RED || (k === KEY.BKSP && digits.length)) { digits = digits.slice(0, -1); render(); return true; }
+      if (k === KEY.BACK || k === KEY.BACK2 || k === KEY.ESC) { profiles(); return true; }
+      return false;
+    };
+    focusDefault();
+  }
+
+  // ---------- You ----------
+  function you() {
+    var a = state.me.account;
+    shell('<div class="row" style="display:flex;align-items:center">' + face(a.name, a.picture, 6) + '<div style="margin-left:1.4rem"><h1 style="margin:0">' + esc(a.name) +
+      '</h1><p class="muted" style="margin:0.3rem 0 0;font-size:1.1rem">@' + esc(a.handle) + '</p></div></div><p id="youmsg" style="color:#3ddc84;font-size:1.15rem;min-height:1.5rem"></p>' +
+      '<button class="list-btn" data-tv data-tv-default id="b-prof">&#128101; Switch profile</button>' +
+      (a.hasPin ? '<button class="list-btn" data-tv id="b-lock">&#128274; Lock now</button><button class="list-btn" data-tv id="b-rm">Remove PIN</button>' : '<button class="list-btn" data-tv id="b-set">&#128274; Lock this profile with a PIN</button>') +
+      '<button class="list-btn" data-tv id="b-out">Sign out</button>');
+    document.getElementById("b-prof").addEventListener("click", profiles);
+    function on(id, fn) { var el = document.getElementById(id); if (el) el.addEventListener("click", fn); }
+    on("b-lock", function () { sessionStorage.removeItem(UNLOCK); enter(); });
+    on("b-out", function () {
+      api("/api/auth/signout", "POST").catch(function () {}).then(function () { sessionStorage.removeItem(UNLOCK); return loadMe(); }).then(enter);
+    });
+    on("b-set", function () {
+      newPin("Choose a 4-number PIN", function (first) {
+        newPin("Enter it again", function (second) {
+          if (first !== second) { you(); document.getElementById("youmsg").textContent = "Those didn't match. Try again."; return; }
+          api("/api/tv/pin", "PUT", { pin: first }).then(loadMe).then(function () { you(); document.getElementById("youmsg").textContent = "PIN set. This profile now asks for it on TVs."; })
+            .catch(function (e) { you(); document.getElementById("youmsg").textContent = e.message; });
+        });
+      });
+    });
+    on("b-rm", function () {
+      newPin("Enter your PIN to remove it", function (pin) {
+        api("/api/tv/pin", "PUT", { pin: null, currentPin: pin }).then(loadMe).then(function () { you(); document.getElementById("youmsg").textContent = "PIN removed."; })
+          .catch(function (e) { you(); document.getElementById("youmsg").textContent = e.message; });
+      });
+    });
+    focusDefault();
+  }
+  function newPin(title, done) {
+    var digits = "";
+    state.stack.push(function () { keyHandler = null; you(); });
+    function render() {
+      var dots = "";
+      for (var i = 0; i < 4; i++) dots += '<span class="' + (i < digits.length ? "f" : "") + '"></span>';
+      var keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫"], pad = '<div class="pad">';
+      for (var j = 0; j < keys.length; j++) pad += keys[j] ? '<button class="key" data-tv data-k="' + keys[j] + '"' + (keys[j] === "1" ? " data-tv-default" : "") + ">" + keys[j] + "</button>" : '<span class="key blank"></span>';
+      document.getElementById("scroll").innerHTML = '<div style="text-align:center;padding-top:3rem"><h1>' + esc(title) + '</h1><div class="dots" style="margin-bottom:1.6rem">' + dots + "</div>" + pad + "</div></div>";
+      Array.prototype.forEach.call(document.querySelectorAll("[data-k]"), function (b) {
+        b.addEventListener("click", function () { add(b.getAttribute("data-k")); var again = document.querySelector('[data-k="' + b.getAttribute("data-k") + '"]'); if (again) again.focus(); });
+      });
+    }
+    function add(d) {
+      if (d === "⌫") { digits = digits.slice(0, -1); render(); return; }
+      digits = (digits + d).slice(0, 4);
+      render();
+      if (digits.length === 4) { var pin = digits; keyHandler = null; state.stack.pop(); setTimeout(function () { done(pin); }, 150); }
+    }
+    keyHandler = function (e) {
+      var k = e.keyCode, n = k >= 48 && k <= 57 ? k - 48 : k >= 96 && k <= 105 ? k - 96 : -1;
+      if (n >= 0) { add(String(n)); return true; }
+      return false;
+    };
+    render();
+    focusDefault();
+  }
+
+  // ---------- Start ----------
+  function loadMe() {
+    return api("/api/app/me").then(function (me) { state.me = me; return me; }).catch(function () { state.me = { account: null, others: [] }; return state.me; });
+  }
+  function enter() {
+    var me = state.me;
+    if (!me || !me.account) return signIn();
+    if (me.account.hasPin && sessionStorage.getItem(UNLOCK) !== me.account.sub) return pinPad(me.account);
+    clearGate();
+    go("home");
+  }
+  loadMe().then(function (me) {
+    if (me.account && me.others.length && !sessionStorage.getItem(UNLOCK)) profiles();
+    else enter();
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,10 +1,10 @@
-import type { Metadata, Viewport } from "next";
-import { TvApp } from "@/components/tv/TvApp";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Jace Media for TV" };
-export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#0b0d10" };
-
-/** Jace Media's TV app (LG, Android TV, and any TV browser). */
+/**
+ * Jace Media for TVs lives in public/tv-app/index.html: one self-contained
+ * page with plain CSS and simple JavaScript, so it works on older TV browser
+ * engines (LG webOS 4+) that can't run the rest of the site's styles.
+ */
 export default function TvPage() {
-  return <TvApp />;
+  redirect("/tv-app/index.html");
 }

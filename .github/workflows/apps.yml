@@ -141,7 +141,7 @@ jobs:
           - os: windows-latest
             name: windows
             args: ""
-          - os: macos-14
+          - os: macos-15
             name: mac
             args: --target universal-apple-darwin
     runs-on: ${{ matrix.os }}
