@@ -2,10 +2,10 @@ import AVFoundation
 import SwiftUI
 import WebKit
 
-/// Jace Media for iPhone and iPad, native: Home, Shorts, Subscriptions,
-/// Search, and You are SwiftUI screens on Jace Media's app API, with Apple's
-/// player for Jace videos and YouTube's privacy-enhanced player for YouTube.
-/// Posting, uploading, going live, and settings open the site, signed in.
+/// Jace Media for iPhone and iPad, all native SwiftUI on Jace Media's app API,
+/// with Liquid Glass on iOS 26. Videos (YouTube's too) play in Jace Media's own
+/// player. Only going live uses the site, full screen, because it needs the camera
+/// through the browser engine.
 @main
 struct JaceMediaApp: App {
     @StateObject private var session = SessionStore()
@@ -21,7 +21,10 @@ struct JaceMediaApp: App {
                 .environmentObject(session)
                 .preferredColorScheme(.dark)
                 .tint(jaceGreen)
-                .task { await session.loadMe() }
+                .task {
+                    await session.loadMe()
+                    await session.loadFollowing()
+                }
         }
     }
 }
@@ -31,52 +34,70 @@ struct RootView: View {
     @State private var checkedUpdates = false
 
     var body: some View {
-        TabView {
-            AppTab(title: "Home", icon: "house.fill") { HomeView() }
-            AppTab(title: "Shorts", icon: "play.rectangle.on.rectangle.fill") { ShortsView() }
-            AppTab(title: "Subscriptions", icon: "rectangle.stack.fill") { SubscriptionsView() }
-            AppTab(title: "Search", icon: "magnifyingglass") { SearchView() }
-            AppTab(title: "You", icon: "person.crop.circle.fill") { YouView() }
-        }
-        .background(jaceBackground)
-        .onAppear {
-            guard !checkedUpdates, Updates.automatic else { return }
-            checkedUpdates = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                if let view = UIApplication.shared.connectedScenes.compactMap({ ($0 as? UIWindowScene)?.keyWindow }).first {
-                    Updates.check(manual: false, from: view)
+        tabs
+            .background(jaceBackground)
+            .onAppear {
+                guard !checkedUpdates, Updates.automatic else { return }
+                checkedUpdates = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    if let view = UIApplication.shared.connectedScenes.compactMap({ ($0 as? UIWindowScene)?.keyWindow }).first {
+                        Updates.check(manual: false, from: view)
+                    }
                 }
+            }
+    }
+
+    @ViewBuilder
+    private var tabs: some View {
+        if #available(iOS 26.0, *) {
+            // Liquid Glass tab bar: it shrinks while you scroll, and Search is its own glass button.
+            TabView {
+                Tab("Home", systemImage: "house.fill") { TabStack { HomeView() } }
+                Tab("Shorts", systemImage: "play.rectangle.on.rectangle.fill") { TabStack { ShortsView() } }
+                Tab("Subscriptions", systemImage: "rectangle.stack.fill") { TabStack { SubscriptionsView() } }
+                Tab("You", systemImage: "person.crop.circle.fill") { TabStack { YouView() } }
+                Tab("Search", systemImage: "magnifyingglass", role: .search) { TabStack { SearchView() } }
+            }
+            .tabBarMinimizeBehavior(.onScrollDown)
+        } else {
+            TabView {
+                AppTab(title: "Home", icon: "house.fill") { HomeView() }
+                AppTab(title: "Shorts", icon: "play.rectangle.on.rectangle.fill") { ShortsView() }
+                AppTab(title: "Subscriptions", icon: "rectangle.stack.fill") { SubscriptionsView() }
+                AppTab(title: "Search", icon: "magnifyingglass") { SearchView() }
+                AppTab(title: "You", icon: "person.crop.circle.fill") { YouView() }
             }
         }
     }
 }
 
-/// One tab: its own navigation stack, so going back stays inside the tab.
-struct AppTab<Content: View>: View {
-    let title: String
-    let icon: String
+/// A tab's own navigation stack, so going back stays inside the tab.
+struct TabStack<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         NavigationStack {
             content()
                 .background(jaceBackground)
-                .navigationDestination(for: Route.self) { route in
-                    switch route {
-                    case let .watch(source, id): WatchView(source: source, id: id)
-                    case let .channel(id, name): ChannelView(id: id, name: name)
-                    case let .web(path, title): WebScreen(path: path, title: title)
-                    }
-                }
+                .navigationDestination(for: Route.self) { destination($0) }
         }
-        .tabItem { Label(title, systemImage: icon) }
+    }
+}
+
+struct AppTab<Content: View>: View {
+    let title: String
+    let icon: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        TabStack(content: content).tabItem { Label(title, systemImage: icon) }
     }
 }
 
 let site = URL(string: "https://jace-media.vercel.app")!
 let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
 
-/// The full Jace Media site in the app (for posting, uploading, going live, and settings).
+/// The site in the app: only for going live (it needs the camera through the browser engine).
 struct WebView: UIViewRepresentable {
     var start: URL = site
 

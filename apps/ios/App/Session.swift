@@ -32,6 +32,52 @@ final class SessionStore: NSObject, ObservableObject, ASWebAuthenticationPresent
         }
     }
 
+    /// Who you subscribe to and follow, as "kind:ref" (lowercase).
+    @Published var following: Set<String> = []
+
+    func isFollowing(_ kind: String, _ ref: String) -> Bool { following.contains("\(kind):\(ref.lowercased())") }
+
+    @MainActor
+    func loadFollowing() async {
+        guard token != nil else { following = []; return }
+        if let f = try? await API.get("/api/app/following", as: FollowingResponse.self) { following = Set(f.following) }
+    }
+
+    /// Subscribe / unsubscribe (follow / unfollow). Returns the new state.
+    @MainActor
+    @discardableResult
+    func toggleFollow(kind: String, ref: String, name: String, picture: String?) async -> Bool {
+        let key = "\(kind):\(ref.lowercased())"
+        let on = !following.contains(key)
+        if on { following.insert(key) } else { following.remove(key) }
+        let ok = await API.send("/api/subscriptions", method: on ? "POST" : "DELETE", body: ["kind": kind, "ref": ref, "name": name, "picture": picture])
+        if !ok { if on { following.remove(key) } else { following.insert(key) } }
+        return ok ? on : !on
+    }
+
+    /// Use another account that's on this phone.
+    @MainActor
+    func switchTo(_ sub: String) async {
+        guard let a = try? await API.post("/api/app/session", body: ["action": "switch", "sub": sub], as: SessionAnswer.self) else {
+            error = "Couldn't switch accounts. Try again."
+            return
+        }
+        set(a.session)
+        if a.reauth == true { error = "That account needs to sign in again." }
+        await loadMe()
+        await loadFollowing()
+    }
+
+    /// Signs one account out of this phone (the others stay).
+    @MainActor
+    func remove(_ sub: String) async {
+        guard let a = try? await API.post("/api/app/session", body: ["action": "remove", "sub": sub], as: SessionAnswer.self) else { return }
+        set(a.session)
+        if a.session == nil { me = nil }
+        await loadMe()
+        await loadFollowing()
+    }
+
     @MainActor
     func signIn(addAccount: Bool = false) {
         let url = API.url("/api/app/signin" + (addAccount ? "?mode=add" : ""))
@@ -40,8 +86,17 @@ final class SessionStore: NSObject, ObservableObject, ASWebAuthenticationPresent
                   let value = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "session" })?.value
             else { return }
             Task { @MainActor in
-                self?.set(value)
-                await self?.loadMe()
+                guard let self else { return }
+                // Adding an account keeps the ones already on this phone.
+                if addAccount, self.token != nil,
+                   let merged = try? await API.post("/api/app/session", body: ["action": "merge", "other": value], as: SessionAnswer.self),
+                   let s = merged.session {
+                    self.set(s)
+                } else {
+                    self.set(value)
+                }
+                await self.loadMe()
+                await self.loadFollowing()
             }
         }
         session.presentationContextProvider = self
@@ -54,6 +109,7 @@ final class SessionStore: NSObject, ObservableObject, ASWebAuthenticationPresent
     func signOut() {
         set(nil)
         me = nil
+        following = []
         WKWebsiteDataStore.default().httpCookieStore.getAllCookies { cookies in
             for c in cookies where c.domain.contains("jace-media") {
                 WKWebsiteDataStore.default().httpCookieStore.delete(c)

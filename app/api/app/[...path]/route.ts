@@ -10,7 +10,9 @@ import { filterPosts, filterVideos } from "@/lib/ratingfilter";
 import { getTaste, rankPosts, rankVideos, recommendedVideos } from "@/lib/recommend";
 import { ACCOUNTS_COOKIE, getCurrent } from "@/lib/session";
 import { listMyVideos } from "@/lib/jace";
-import { NETWORKS } from "@/lib/social";
+import { NETWORKS, blueskyThread, hnThread, lemmyThread, mastodonThread, type Thread } from "@/lib/social";
+import { getThread } from "@/lib/posts";
+import { isExtNetwork, listExtComments } from "@/lib/extcomments";
 import { followedRss } from "@/lib/rss";
 import { channelFeed, channelInfo, channelPictures, channelUploads, search, searchChannels, searchShorts, videoDetail } from "@/lib/youtube";
 import { dislikes, withDeArrow } from "@/lib/ytextras";
@@ -264,6 +266,29 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
         const items = await listNotifications(viewer.sub, 60);
         await markAllRead(viewer.sub);
         return send({ items: items.map((n) => ({ ...n, actor: { ...n.actor, picture: abs(n.actor.picture) } })) });
+      }
+      case "post": {
+        // A post with its replies (and, for other networks, comments from people on Jace Media).
+        const network = path[1] ?? "";
+        const id = decodeURIComponent(path.slice(2).join("/"));
+        const viewer = await getViewer();
+        const v = viewer ? { sub: viewer.sub, isAdmin: viewer.isAdmin } : null;
+        if (network === "jace") {
+          const t = await getThread(v, id).catch(() => null);
+          if (!t) return json({ error: "That post can't be found." }, 404);
+          return send({ post: post(t.post), replies: (await filterPosts(t.replies)).map(post), comments: [] });
+        }
+        if (!isExtNetwork(network) || network === "comment" || network === "youtube") return json({ error: "That post can't be found." }, 404);
+        const loaders: Record<string, () => Promise<Thread | null>> = {
+          bluesky: () => (id.startsWith("at://") ? blueskyThread(id) : Promise.resolve(null)),
+          mastodon: () => (/^\d+$/.test(id) ? mastodonThread(id) : Promise.resolve(null)),
+          lemmy: () => lemmyThread(id),
+          hackernews: () => hnThread(id),
+        };
+        const [t, comments] = await Promise.all([loaders[network]?.() ?? null, listExtComments(network, id, v).then(filterPosts).catch(() => [])]);
+        if (!t) return json({ error: "That post can't be found." }, 404);
+        const replies = await filterPosts(t.replies.map((r) => r.item));
+        return send({ post: post(t.post), replies: replies.map(post), comments: comments.map(post) });
       }
       case "posts": {
         const h = await home();

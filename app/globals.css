@@ -122,3 +122,12 @@ html.tv :focus-visible {
   0%, 100% { box-shadow: 0 0 0 0 rgb(239 68 68 / .45); }
   50% { box-shadow: 0 0 0 4px rgb(239 68 68 / 0); }
 }
+
+/* Inside the phone apps: the app draws its own bars. */
+.app-bare [data-shell] {
+  display: none !important;
+}
+.app-bare main {
+  padding-top: calc(env(safe-area-inset-top) + 3.25rem) !important;
+  padding-bottom: calc(env(safe-area-inset-bottom) + 1rem) !important;
+}

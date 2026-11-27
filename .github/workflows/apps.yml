@@ -77,7 +77,7 @@ jobs:
   # iPhone and iPad, unsigned: AltStore / SideStore sign it with your own Apple ID when they install it.
   ios:
     needs: version
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v7
       - name: Generate the Xcode project

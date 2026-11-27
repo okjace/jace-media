@@ -254,6 +254,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // Inside the phone apps (?app=1): no top bar, sidebar, or bottom bar; the app has its own.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("app")) sessionStorage.setItem("jm-app", "1");
+    if (sessionStorage.getItem("jm-app") === "1") document.documentElement.classList.add("app-bare");
+  }, []);
+
   // Shorts fill the screen: the page itself doesn't scroll (no scrollbar), only the Shorts do.
   useEffect(() => {
     if (!fullBleed) return;
@@ -276,7 +282,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <>
-      <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-line/60 bg-background/90 px-2 backdrop-blur-md sm:gap-4 sm:px-4">
+      <header data-shell className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-line/60 bg-background/90 px-2 backdrop-blur-md sm:gap-4 sm:px-4">
         <button type="button" onClick={toggleMenu} aria-label="Menu" className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-foreground/[.07]">
           <Icon name="menu" />
         </button>
@@ -310,6 +316,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="flex flex-1">
         {/* Desktop sidebar */}
         <aside
+          data-shell
           className={`no-scrollbar sticky top-14 hidden h-[calc(100dvh-3.5rem)] shrink-0 overflow-y-auto md:block ${wide ? "lg:w-60" : "lg:w-[76px]"} md:w-[76px]`}
           aria-label="Sidebar"
         >
@@ -347,7 +354,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <MiniPlayer />
 
       {/* Phone bottom bar */}
-      <nav aria-label="Bottom" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-line bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+      <nav data-shell aria-label="Bottom" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-line bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         {[
           { href: "/", label: "Home", icon: "home" as IconName },
           { href: "/shorts", label: "Shorts", icon: "shorts" as IconName },
