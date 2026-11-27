@@ -37,7 +37,7 @@ export async function appReleases(): Promise<AppReleases> {
   try {
     const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=30`, {
       headers: { Accept: "application/vnd.github+json", "User-Agent": "JaceMedia" },
-      next: { revalidate: 600 },
+      next: { revalidate: 120 },
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) return empty;

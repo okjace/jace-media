@@ -3,6 +3,9 @@ import { appReleases } from "@/lib/appReleases";
 
 const SITE = "https://jace-media.vercel.app";
 
+// Always built fresh (from the release list, cached for two minutes), so a new release shows up right away.
+export const dynamic = "force-dynamic";
+
 /**
  * The AltStore / SideStore source (their "apps.json" format). Add it once in
  * AltStore or SideStore and they install the iPhone app and keep it updated.
@@ -43,6 +46,6 @@ export async function GET(): Promise<NextResponse> {
       ],
       news: [],
     },
-    { headers: { "Cache-Control": "public, max-age=300, s-maxage=600" } },
+    { headers: { "Cache-Control": "public, max-age=60, s-maxage=60" } },
   );
 }
