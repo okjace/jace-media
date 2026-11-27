@@ -180,6 +180,9 @@ export function VideoPlayer({
   const [playing, setPlaying] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const [ended, setEnded] = useState(false);
+  // YouTube flashes its own play/pause sign in the middle when the state changes; ours covers it.
+  const [bezel, setBezel] = useState(false);
+  const bezelTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [buffered, setBuffered] = useState(0);
@@ -355,6 +358,11 @@ export function VideoPlayer({
             if (activeRef.current) p.playVideo();
           },
           onStateChange: ({ data }) => {
+            if (data === YT_STATE.PLAYING || data === YT_STATE.PAUSED) {
+              setBezel(true);
+              if (bezelTimer.current) clearTimeout(bezelTimer.current);
+              bezelTimer.current = setTimeout(() => setBezel(false), 900);
+            }
             setPlaying(data === YT_STATE.PLAYING || data === YT_STATE.BUFFERING);
             setWaiting(data === YT_STATE.BUFFERING);
             if (data === YT_STATE.PLAYING) setStarted(true);
@@ -936,17 +944,21 @@ export function VideoPlayer({
             <span className="h-12 w-12 animate-spin rounded-full border-4 border-white/25 border-t-white" />
           </div>
         )}
-        {!playing && !waiting && (ready || !armed) && !error && countdown === null && !compact && (
+        {((!playing && !waiting) || (bezel && mode === "youtube" && started)) && (ready || !armed) && !error && countdown === null && !compact && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <span className="flex h-[72px] w-[72px] items-center justify-center rounded-full bg-black/55 text-white ring-1 ring-white/20 backdrop-blur-sm transition-transform group-hover/player:scale-105">
-              <Icon d={ended ? ICONS.replay : ICONS.play} size={34} />
+            <span
+              className={`flex h-[88px] w-[88px] items-center justify-center rounded-full bg-[#111317] text-white ring-1 ring-white/20 transition-transform group-hover/player:scale-105 ${
+                playing ? "animate-[fadeout_0.9s_ease-in_forwards]" : ""
+              }`}
+            >
+              <Icon d={ended ? ICONS.replay : playing ? ICONS.pause : ICONS.play} size={38} />
             </span>
           </div>
         )}
         {compact && (flash || (!playing && ready && !waiting)) && (
           // A tap flashes play/pause; while paused, a play button stays up.
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <span className={`flex h-16 w-16 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm ${flash ? "animate-[fadeout_0.5s_ease-out_forwards]" : ""}`}>
+            <span className={`flex h-[88px] w-[88px] items-center justify-center rounded-full bg-[#111317] text-white ${flash ? "animate-[fadeout_0.5s_ease-out_forwards]" : ""}`}>
               <Icon d={flash === "pause" ? ICONS.pause : ICONS.play} size={30} />
             </span>
           </div>

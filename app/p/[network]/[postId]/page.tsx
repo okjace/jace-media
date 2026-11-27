@@ -38,7 +38,7 @@ export async function generateMetadata({ params }: PageProps<"/p/[network]/[post
 export default async function ExternalPostPage({ params }: PageProps<"/p/[network]/[postId]">) {
   const { network, postId } = await params;
   const id = decodeURIComponent(postId);
-  if (!isExtNetwork(network)) notFound();
+  if (!isExtNetwork(network) || network === "comment") notFound();
   const viewer = await getViewer();
   const [thread, comments, taste] = await Promise.all([
     load(network, id),

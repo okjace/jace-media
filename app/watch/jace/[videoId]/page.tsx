@@ -108,7 +108,7 @@ export default async function JaceWatchPage({ params, searchParams }: PageProps<
           )}
           text={video.description}
         />
-        <VideoComments source="jace" id={video.id} jace={video} />
+        <VideoComments source="jace" id={video.id} />
       </div>
       <aside className="flex w-full shrink-0 flex-col gap-3 lg:w-[360px]">
         <h2 className="font-semibold">Up next</h2>

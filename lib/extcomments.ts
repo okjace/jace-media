@@ -6,7 +6,8 @@ import type { FeedItem, Profile } from "./types";
 
 /** Jace Media comments on posts from other networks. They live here; the other network never sees them. */
 
-export const EXT_NETWORKS = ["bluesky", "mastodon", "lemmy", "hackernews", "youtube"] as const;
+// "comment": Jace Media replies to a comment (post_id is the comment's key, like "yt:<id>").
+export const EXT_NETWORKS = ["bluesky", "mastodon", "lemmy", "hackernews", "youtube", "comment"] as const;
 export type ExtCommentNetwork = (typeof EXT_NETWORKS)[number];
 const MAX = 1000;
 
@@ -85,4 +86,13 @@ export async function editExtComment(author: { sub: string; muted: boolean }, id
   if (body.length > MAX) return { error: `Comments can be up to ${MAX} characters.` };
   await q(`UPDATE ext_comments SET body = $2, edited_at = $3 WHERE id = $1`, [id, body, Date.now()]);
   return { ok: true };
+}
+
+/** How many Jace Media replies each comment has (keys like "yt:<id>"). */
+export async function replyCounts(keys: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (keys.length === 0) return out;
+  const rows = await q(`SELECT post_id, count(*)::int AS n FROM ext_comments WHERE network = 'comment' AND post_id = ANY($1) GROUP BY post_id`, [keys]).catch(() => []);
+  for (const r of rows) out.set(r.post_id as string, Number(r.n));
+  return out;
 }

@@ -115,6 +115,13 @@ const SCHEMA = [
     created_at BIGINT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS ext_comments_post ON ext_comments (network, post_id, created_at)`,
+  // Likes on comments from anywhere ("yt:<comment id>", "jace:<comment id>", "ext:<Jace Media comment id>").
+  `CREATE TABLE IF NOT EXISTS comment_likes (
+    comment_key TEXT NOT NULL,
+    sub TEXT NOT NULL,
+    created_at BIGINT NOT NULL,
+    PRIMARY KEY (comment_key, sub)
+  )`,
   // Appropriate (1) / inappropriate (-1) ratings of any post or video ("bluesky:<uri>", "youtube:<id>", …).
   `CREATE TABLE IF NOT EXISTS content_ratings (
     sub TEXT NOT NULL,
