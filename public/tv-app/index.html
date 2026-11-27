@@ -225,6 +225,7 @@
     live: "M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8",
     posts: "M4 5h16M4 10h16M4 15h10M4 20h7",
     library: "M5 3v18M10 3v18M15 4l4.5 16",
+    feeds: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
     play: "M7 4.5v15l12-7.5z",
     pause: "M8 5v14M16 5v14",
     rew: "M11 7l-5 5 5 5M18 7l-5 5 5 5",
@@ -634,19 +635,19 @@
   // ---------- Page frame: side menu + page ----------
   var TABS = [
     ["search", "Search", "search"], ["home", "Home", "home"], ["shorts", "Shorts", "shorts"], ["videos", "Videos", "videos"],
-    ["subs", "Subscriptions", "subs"], ["live", "Live", "live"], ["posts", "Posts", "posts"], ["library", "Library", "library"], ["you", "You", "user"],
+    ["subs", "Subscriptions", "subs"], ["feeds", "Feeds", "feeds"], ["live", "Live", "live"], ["posts", "Posts", "posts"], ["library", "Library", "library"], ["you", "You", "user"],
   ];
   function frame(content, noScroll) {
     var a = signedIn() ? state.me.account : null;
     var nav = '<div id="nav"><div class="brand"><img src="/icon.svg" alt=""><span>Jace Media</span></div>';
     for (var i = 0; i < TABS.length; i++) {
       var t = TABS[i];
-      if ((t[0] === "library" || t[0] === "subs") && !a) continue;
+      if ((t[0] === "library" || t[0] === "subs" || t[0] === "feeds") && !a) continue;
       var ic = t[0] === "you" && a ? face(a.name, a.picture, 1.8) : icon(t[2], 1.6);
       nav += '<button class="nav-item' + (state.tab === t[0] ? " on" : "") + '" data-tv data-go="' + t[0] + '"><span class="ic">' + ic + '</span><span class="lb">' + t[1] + "</span></button>";
     }
     // Feeds get a Reload button in the top-right corner.
-    var reloadable = !noScroll && stack.length <= 1 && { home: 1, videos: 1, subs: 1, live: 1, posts: 1, library: 1 }[state.tab];
+    var reloadable = !noScroll && stack.length <= 1 && { home: 1, videos: 1, subs: 1, feeds: 1, live: 1, posts: 1, library: 1 }[state.tab];
     app.innerHTML = nav + '</div><div id="main">' + (noScroll ? content : '<div id="scroll">' + content + "</div>") +
       (reloadable ? '<button id="reload" class="reload" data-tv>' + icon("reload", 1.3) + "Reload</button>" : "") + "</div>";
     each(app.querySelectorAll("[data-go]"), function (b) { b.addEventListener("click", function () { goTab(b.getAttribute("data-go")); }); });
@@ -663,28 +664,44 @@
     if (locked()) { pinPad(state.me.account); return; }
     state.tab = name;
     keyHandler = null;
-    var screens = { home: home, shorts: shortsTab, videos: videos, subs: subs, live: live, posts: posts, library: library, search: search, you: you };
+    var screens = { home: home, shorts: shortsTab, videos: videos, subs: subs, feeds: feeds, live: live, posts: posts, library: library, search: search, you: you };
     root({ render: screens[name] });
     focusDefault();
   }
   function loading(name, label) { frame(spinner(label)); return function (ok) { return state.tab === name && ok !== false; }; }
 
   // ---------- Home ----------
+  var forYou = false;
   function home() {
     var still = loading("home");
-    get("/api/app/home").then(function (d) {
+    get("/api/app/home" + (forYou ? "?for=you" : "")).then(function (d) {
       if (!still()) return;
+      // Your custom feed as Home (set on the website), with For you one button away.
+      var label = d.feed ? "Your Home feed \u00B7 " + d.feed.name : "Recommended for you";
+      var switcher = d.feed ? '<button class="btn" data-tv id="foryou">' + icon("home", 1.2) + "For you</button>"
+        : forYou ? '<button class="btn" data-tv id="foryou">' + icon("posts", 1.2) + "Back to your Home feed</button>" : "";
       var hero = d.videos[0], rest = d.videos.slice(1), html = "";
       if (hero) {
         var key = remember(hero);
         html += '<div class="hero row">' + (hero.thumbnail ? '<img src="' + esc(hero.thumbnail) + '" alt="">' : "") + '<div class="shade"></div><div class="txt">' +
-          '<div class="k">Recommended for you</div><div class="h">' + esc(hero.title) + '</div><div class="m">' + esc(hero.channelName) +
-          (hero.views ? " · " + compact(hero.views) + " views" : "") + '</div><button class="btn white" data-tv data-tv-default data-menu="' + key + '">' + icon("play", 1.2) + 'Play</button></div></div>';
+          '<div class="k">' + esc(label) + '</div><div class="h">' + esc(hero.title) + '</div><div class="m">' + esc(hero.channelName) +
+          (hero.views ? " · " + compact(hero.views) + " views" : "") + '</div><button class="btn white" data-tv data-tv-default data-menu="' + key + '">' + icon("play", 1.2) + "Play</button>" + switcher + "</div></div>";
       }
       html += row("Recommended", cards(rest.slice(0, 12)));
       html += row("Shorts", cards(d.shorts.map(function (s) { s.short = true; return s; }), true));
+      if (d.feed && d.posts.length) {
+        var ps = "";
+        for (var pi = 0; pi < Math.min(d.posts.length, 12); pi++) ps += postCard(d.posts[pi], pi, false);
+        html += row("Posts", ps);
+      }
+      if (!hero) html = '<h1>' + esc(label) + "</h1>" + (switcher ? '<div style="margin:-0.8rem 0 1.6rem">' + switcher + "</div>" : "") + html + (d.videos.length || d.posts.length ? "" : failed("Nothing in this feed right now."));
       if (rest.length > 12) html += row("More for you", cards(rest.slice(12)));
       fill(html);
+      var fy = byId("foryou");
+      if (fy) fy.addEventListener("click", function () { forYou = !d.feed ? false : true; goTab("home"); });
+      each(page().querySelectorAll("[data-post]"), function (el) {
+        el.addEventListener("click", function () { readPost(d.posts[+el.getAttribute("data-post")]); });
+      });
       focusDefault();
     }).catch(function (e) { fill(failed(e.message)); });
   }
@@ -697,6 +714,49 @@
       fill("<h1>Videos</h1>" + grid(cards(d.videos.filter(function (v) { return !v.short; }), false, true)));
       focusDefault();
     }).catch(function (e) { fill(failed(e.message)); });
+  }
+
+  // ---------- Feeds: your custom feeds, each laid out like Home ----------
+  function feeds() {
+    var still = loading("feeds");
+    get("/api/app/feeds").then(function (d) {
+      if (!still()) return;
+      var html = "";
+      for (var i = 0; i < d.feeds.length; i++) {
+        var f = d.feeds[i];
+        html += '<button class="list-btn" data-tv data-feed="' + i + '"' + (i === 0 ? " data-tv-default" : "") + ">" + icon("feeds") + esc(f.name) +
+          '<span class="v">' + (f.home ? "Your Home" : "") + "</span></button>";
+      }
+      fill("<h1>Feeds</h1>" + (html ? '<div class="list">' + html + "</div>" : failed("Make custom feeds on the Jace Media website, and they show up here.")));
+      each(page().querySelectorAll("[data-feed]"), function (el) {
+        el.addEventListener("click", function () { var f = d.feeds[+el.getAttribute("data-feed")]; feedPage(f.id, f.name); });
+      });
+      focusDefault();
+    }).catch(function (e) { fill(failed(e.message)); });
+  }
+  function feedPage(id, name) {
+    open({
+      render: function () {
+        frame(spinner("Loading " + name + "\u2026"));
+        get("/api/app/feed/" + encodeURIComponent(id)).then(function (d) {
+          var vids = d.videos, html = "<h1>" + esc(d.feed.name) + "</h1>";
+          html += row("Videos", cards(vids.slice(0, 15), false, true));
+          html += row("Shorts", cards(d.shorts.map(function (x) { x.short = true; return x; }), true));
+          if (d.posts.length) {
+            var ps = "";
+            for (var i = 0; i < Math.min(d.posts.length, 12); i++) ps += postCard(d.posts[i], i, !vids.length && i === 0);
+            html += row("Posts", ps);
+          }
+          if (vids.length > 15) html += row("More", cards(vids.slice(15)));
+          if (!vids.length && !d.shorts.length && !d.posts.length) html += failed("Nothing in this feed right now.");
+          fill(html);
+          each(page().querySelectorAll("[data-post]"), function (el) {
+            el.addEventListener("click", function () { readPost(d.posts[+el.getAttribute("data-post")]); });
+          });
+          focusDefault();
+        }).catch(function (e) { fill(failed(e.message)); });
+      },
+    });
   }
 
   // ---------- Subscriptions ----------

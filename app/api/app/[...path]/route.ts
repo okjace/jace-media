@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { getAccountList, getViewer } from "@/lib/auth";
-import { buildFeed } from "@/lib/customfeeds";
+import { buildFeed, getFeed, listFeeds } from "@/lib/customfeeds";
 import { jaceVideo, jaceVideos } from "@/lib/data";
 import { jacePosts } from "@/lib/feeds";
 import { dislikeCount, listSubscriptions, recentHistory, videoVote } from "@/lib/library";
@@ -148,8 +148,44 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
         return json({ account: current ? fix(current) : null, others: others.map(fix), services, extensions: ext });
       }
       case "home": {
+        // Your custom feed as Home, like on the website (?for=you shows For you instead).
+        const taste = await getTaste();
+        const viewer = taste.ext.homeFeed && sp.get("for") !== "you" ? await getViewer() : null;
+        const feed = viewer ? await getFeed(viewer.sub, taste.ext.homeFeed!).catch(() => null) : null;
+        if (feed) {
+          const entries = await buildFeed(feed.rules, 80);
+          const vids = entries.flatMap((e) => (e.kind === "video" ? [e.video] : []));
+          return send({
+            feed: { id: feed.id, name: feed.name },
+            videos: vids.filter((v) => !v.short).map(video),
+            shorts: vids.filter((v) => v.short).map(video),
+            posts: entries.flatMap((e) => (e.kind === "post" ? [post(e.item)] : [])),
+          });
+        }
         const h = await home();
-        return send({ videos: h.videos.map(video), shorts: h.shorts.map(video), posts: h.posts.map(post) });
+        return send({ feed: null, videos: h.videos.map(video), shorts: h.shorts.map(video), posts: h.posts.map(post) });
+      }
+      case "feeds": {
+        // Your custom feeds.
+        const viewer = await getViewer();
+        if (!viewer) return json({ error: "Sign in with Jace first." }, 401);
+        const taste = await getTaste();
+        return json({ feeds: (await listFeeds(viewer.sub)).map((f) => ({ id: f.id, name: f.name, home: taste.ext.homeFeed === f.id })) });
+      }
+      case "feed": {
+        // One custom feed, split into videos, Shorts, and posts.
+        const viewer = await getViewer();
+        if (!viewer) return json({ error: "Sign in with Jace first." }, 401);
+        const feed = await getFeed(viewer.sub, path[1] ?? "").catch(() => null);
+        if (!feed) return json({ error: "That feed doesn't exist." }, 404);
+        const entries = await buildFeed(feed.rules, 80);
+        const vids = entries.flatMap((e) => (e.kind === "video" ? [e.video] : []));
+        return send({
+          feed: { id: feed.id, name: feed.name },
+          videos: vids.filter((v) => !v.short).map(video),
+          shorts: vids.filter((v) => v.short).map(video),
+          posts: entries.flatMap((e) => (e.kind === "post" ? [post(e.item)] : [])),
+        });
       }
       case "videos": {
         const list = await recommendedVideos({ limit: 48 }).then(withDeArrow);
