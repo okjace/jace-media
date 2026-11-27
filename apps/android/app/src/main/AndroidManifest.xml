@@ -41,6 +41,20 @@
             </intent-filter>
         </activity>
 
+        <!-- The native phone app (MainActivity hands phones over to it). -->
+        <activity
+            android:name=".AppActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- Pages of the site opened from the native app. -->
+        <activity
+            android:name=".WebScreenActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+            android:windowSoftInputMode="adjustResize" />
+
         <!-- Shares a downloaded update with Android's installer. -->
         <provider
             android:name="androidx.core.content.FileProvider"

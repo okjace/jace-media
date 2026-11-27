@@ -37,7 +37,7 @@ import androidx.core.view.WindowInsetsControllerCompat
  * with what an app adds: fullscreen video, uploads, downloads, the back
  * button, opening other websites in the browser, and updates.
  */
-class MainActivity : AppCompatActivity() {
+open class MainActivity : AppCompatActivity() {
     private lateinit var web: WebView
     private lateinit var root: FrameLayout
     private var fullscreenView: View? = null
@@ -60,12 +60,20 @@ class MainActivity : AppCompatActivity() {
         fileCallback = null
     }
 
-    private val isTv: Boolean
+    protected val isTv: Boolean
         get() = (getSystemService(Context.UI_MODE_SERVICE) as UiModeManager).currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Phones and tablets get the native app; TVs (and Jace Media links) stay here.
+        if (this !is WebScreenActivity && !isTv && intent?.data == null) {
+            updater = Updater(this)
+            if (updater.automatic) updater.check(manual = false)
+            startActivity(Intent(this, AppActivity::class.java))
+            finish()
+            return
+        }
         WindowCompat.setDecorFitsSystemWindows(window, true)
         window.statusBarColor = Color.parseColor("#111317")
         window.navigationBarColor = Color.parseColor("#111317")
@@ -98,6 +106,12 @@ class MainActivity : AppCompatActivity() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url
                 if (!request.isForMainFrame) return false
+                // Signing in from the native app finished: the session is in the cookies now, so go back.
+                if (url.scheme == "jacemedia") {
+                    CookieManager.getInstance().flush()
+                    finish()
+                    return true
+                }
                 if (url.scheme == "https" && url.host in inside) return false
                 // Everything else (other websites, mail links…) opens outside the app.
                 try {
@@ -175,10 +189,12 @@ class MainActivity : AppCompatActivity() {
         })
 
         // TVs open Jace Media's own TV interface (made for the remote); phones open the full site.
-        val home = if (isTv) "${BuildConfig.SITE}/tv" else BuildConfig.SITE
-        val start = intent?.data?.takeIf { it.host == "jace-media.vercel.app" }?.toString() ?: home
+        val home = if (isTv) "${BuildConfig.SITE}/tv-app/index.html" else BuildConfig.SITE
+        val start = intent?.getStringExtra("path")?.let { BuildConfig.SITE + it }
+            ?: intent?.data?.takeIf { it.host == "jace-media.vercel.app" }?.toString()
+            ?: home
         if (savedInstanceState == null) web.loadUrl(start) else web.restoreState(savedInstanceState)
-        if (updater.automatic) updater.check(manual = false)
+        if (updater.automatic && this !is WebScreenActivity) updater.check(manual = false)
     }
 
     override fun onNewIntent(intent: Intent) {

@@ -1,7 +1,18 @@
 # Jace Media apps
 
-The apps show the live Jace Media site, so new Jace Media features arrive without an app update. These are
-changes to the apps themselves.
+Changes to the apps themselves. Pages that open the site inside the apps (and the TV app) update with the
+site, without an app update.
+
+## 2.0.0
+
+- iPhone and iPad: a native app (SwiftUI). Home, Shorts (swipe up), Subscriptions, Search, and You are
+  built into the app, with Apple's player for Jace videos (picture-in-picture, AirPlay) and YouTube's
+  privacy-enhanced player. Subscribe, like, dislike, Save to Watch Later, and share right from a video.
+  Sign in with Jace in a secure sheet; your session is kept in the iPhone's Keychain.
+- Android phones and tablets: a native app (Jetpack Compose) with the same screens, Android's own video
+  player (Media3), and swipe-up Shorts. Android TV keeps the TV app.
+- Posting, uploading, going live, comments, and settings open the site inside the apps, already signed in.
+- Mac: the desktop app now builds for Mac too (Intel and Apple Silicon).
 
 ## 1.1.0
 
