@@ -75,7 +75,7 @@ type BskyPost = {
     thumbnail?: string;
     playlist?: string;
     external?: { uri: string; title?: string; thumb?: string };
-    media?: { $type: string; images?: { thumb: string; fullsize: string; alt?: string }[]; thumbnail?: string };
+    media?: { $type: string; images?: { thumb: string; fullsize: string; alt?: string }[]; thumbnail?: string; playlist?: string };
   };
   likeCount?: number;
   replyCount?: number;
@@ -88,7 +88,7 @@ function bskyMedia(embed: BskyPost["embed"]): { media: Media[]; link: string | n
   const source = embed.$type.startsWith("app.bsky.embed.recordWithMedia") ? embed.media : embed;
   const media: Media[] = [];
   for (const img of source?.images ?? []) media.push({ kind: "image", url: img.fullsize, thumb: img.thumb, alt: img.alt });
-  if (source?.thumbnail) media.push({ kind: "video", url: source.thumbnail, thumb: source.thumbnail });
+  if (source?.thumbnail) media.push({ kind: "video", url: source.thumbnail, thumb: source.thumbnail, src: source.playlist ?? null });
   return { media, link: embed.external?.uri ?? null };
 }
 
@@ -168,6 +168,7 @@ function fromMastodon(s: MastoStatus): FeedItem | null {
         kind: m.type === "image" ? ("image" as const) : ("video" as const),
         url: m.type === "image" ? m.url : (m.preview_url ?? m.url),
         thumb: m.preview_url,
+        src: m.type === "image" ? null : m.url,
         alt: m.description ?? undefined,
       })),
     createdAt: status.created_at,

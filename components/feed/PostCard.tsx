@@ -186,7 +186,8 @@ export function PostCard({
 
   if (deleted) return null;
 
-  const images = item.media.slice(0, 4);
+  const playable = item.media.filter((m) => m.kind === "video" && m.src);
+  const images = item.media.filter((m) => !(m.kind === "video" && m.src)).slice(0, 4);
   const target = followTarget(item);
   const canFollow = !isComment && !!target && !(isJace && item.authorSub === current?.sub);
   const clickable = linkToThread && !isComment && !isArticle;
@@ -312,6 +313,12 @@ export function PostCard({
           ) : (
             <Body item={item} text={text} />
           ))}
+        {playable.map((m) => (
+          // Videos in posts play right here, in Jace Media's own player.
+          <div key={m.src} className="overflow-hidden rounded-xl" onClick={(e) => e.stopPropagation()}>
+            <VideoPlayer source="file" id={m.src!} src={m.src!} poster={m.thumb ?? null} title={m.alt || "Video"} variant="embed" active={false} />
+          </div>
+        ))}
         {images.length > 0 && (
           <div className={`grid gap-1.5 overflow-hidden rounded-xl ${images.length > 1 ? "grid-cols-2" : ""}`}>
             {images.map((m, i) => {

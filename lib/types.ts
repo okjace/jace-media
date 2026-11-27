@@ -87,7 +87,8 @@ export type YouTubeVideoDetail = {
 
 export type Network = "jace" | "bluesky" | "mastodon" | "lemmy" | "hackernews" | "rss";
 
-export type Media = { kind: "image" | "video"; url: string; thumb?: string | null; alt?: string };
+/** `src`: a video file or HLS playlist (.m3u8) to play in Jace Media's own player. */
+export type Media = { kind: "image" | "video"; url: string; thumb?: string | null; alt?: string; src?: string | null };
 
 /** A post from any network, in one shape so every tab can show it the same way. */
 export type PostVideo = { source: "youtube" | "jace"; id: string; title?: string; thumbnail?: string | null; src?: string | null };

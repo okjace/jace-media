@@ -10,7 +10,7 @@ type Notice = { kind: "error" | "info"; text: string; signIn?: boolean };
 
 export type FeedTab = { id: string; name: string };
 /** A video that keeps playing in the corner after you leave its page. */
-export type MiniVideo = { source: "youtube" | "jace"; id: string; src?: string; poster?: string | null; title: string; start: number; href: string };
+export type MiniVideo = { source: "youtube" | "jace" | "file"; id: string; src?: string; poster?: string | null; title: string; start: number; href: string };
 export type SidebarSub = { kind: string; ref: string; name: string; picture: string | null; folder: string | null };
 
 type AppState = {

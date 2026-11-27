@@ -23,7 +23,8 @@ import { YT_STATE, loadYouTubeApi, type YTPlayer } from "./youtubeApi";
  */
 
 type Props = {
-  source: "youtube" | "jace";
+  /** "file": any video file or HLS playlist in `src` (videos in posts), not saved to history. */
+  source: "youtube" | "jace" | "file";
   id: string;
   /** The video file (Jace videos). */
   src?: string;
@@ -118,6 +119,8 @@ const ICONS = {
   gear: "M19.4 13a7.5 7.5 0 0 0 0-2l2.1-1.6-2-3.4-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.4L6.6 11a7.5 7.5 0 0 0 0 2l-2.1 1.6 2 3.4 2.5-1a7.4 7.4 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.4zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z",
 };
 
+const isHls = (url: string) => /\.m3u8(\?|$)/.test(url);
+
 export function VideoPlayer({
   source,
   id,
@@ -159,10 +162,10 @@ export function VideoPlayer({
   // How it plays: "native" is our own <video> (Jace videos, and YouTube through
   // Invidious with Private playback); "youtube" is YouTube's player behind our controls.
   const wantsPrivate = source === "youtube" && invidious && ext.privatePlayback;
-  const [mode, setMode] = useState<"native" | "youtube" | "pending">(source === "jace" ? "native" : wantsPrivate ? "pending" : "youtube");
+  const [mode, setMode] = useState<"native" | "youtube" | "pending">(source !== "youtube" ? "native" : wantsPrivate ? "pending" : "youtube");
   const [privateSrc, setPrivateSrc] = useState<{ url: string; captions: { label: string; lang: string; url: string }[] } | null>(null);
-  const nativeSrc = source === "jace" ? src : privateSrc?.url;
-  const [armed, setArmed] = useState(source === "jace" || compact || !ext.privacy || autoStart);
+  const nativeSrc = source !== "youtube" ? src : privateSrc?.url;
+  const [armed, setArmed] = useState(source !== "youtube" || compact || !ext.privacy || autoStart);
   const [cc, setCc] = useState(false);
   /** Caption size: -1 small, 0 normal, 1 large, 2 huge (YouTube's fontSize steps). */
   const [ccSize, setCcSize] = useState<number>(() => stored("captionSize", 1));
@@ -254,6 +257,23 @@ export function VideoPlayer({
     if (mode !== "native") return;
     const v = videoEl.current;
     if (!v) return;
+    // HLS playlists (Bluesky videos): hls.js feeds the <video> where it can (Chrome says "maybe" but
+    // can't); iPhones without it play the playlist themselves.
+    let hls: { destroy(): void } | null = null;
+    let gone = false;
+    if (nativeSrc && isHls(nativeSrc)) {
+      import("hls.js").then(({ default: Hls }) => {
+        if (gone) return;
+        if (!Hls.isSupported()) {
+          v.src = nativeSrc;
+          return;
+        }
+        const h = new Hls({ capLevelToPlayerSize: true });
+        h.loadSource(nativeSrc);
+        h.attachMedia(v);
+        hls = h;
+      });
+    }
     engine.current = {
       play: () => {
         v.play().catch(() => {
@@ -299,6 +319,8 @@ export function VideoPlayer({
     for (const [name, fn] of events) v.addEventListener(name, fn);
     if (v.readyState >= 1) onMeta();
     return () => {
+      gone = true;
+      hls?.destroy();
       for (const [name, fn] of events) v.removeEventListener(name, fn);
     };
   }, [mode, nativeSrc, applySaved]);
@@ -445,7 +467,7 @@ export function VideoPlayer({
       if (ext.resume && !live && t > 10 && d && t < d - 20) store(posKey, Math.floor(t));
       // Every 15 seconds of playing, tell the account (Continue watching on every device).
       ticks += 1;
-      if (current && !e.paused() && ticks % 3 === 0 && d > 0) {
+      if (current && source !== "file" && !e.paused() && ticks % 3 === 0 && d > 0) {
         fetch("/api/progress", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -877,7 +899,7 @@ export function VideoPlayer({
         {mode === "native" ? (
           <video
             ref={videoEl}
-            src={nativeSrc}
+            src={nativeSrc && !isHls(nativeSrc) ? nativeSrc : undefined}
             poster={posterUrl ?? undefined}
             loop={short}
             playsInline
