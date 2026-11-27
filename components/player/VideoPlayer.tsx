@@ -94,6 +94,17 @@ function Icon({ d, size = 22 }: { d: string; size?: number }) {
   );
 }
 
+/** YouTube's quality names. */
+const QUALITY: [string, string][] = [
+  ["default", "Auto"],
+  ["highres", "4K"],
+  ["hd1440", "1440p"],
+  ["hd1080", "1080p"],
+  ["hd720", "720p"],
+  ["large", "480p"],
+  ["medium", "360p"],
+];
+
 const ICONS = {
   play: "M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14z",
   pause: "M7 4h3.5v16H7zM13.5 4H17v16h-3.5z",
@@ -157,6 +168,8 @@ export function VideoPlayer({
   const [ccSize, setCcSize] = useState<number>(() => stored("captionSize", 1));
   const [ccStyle, setCcStyle] = useState<"box" | "outline">(() => stored("captionStyle", "box"));
   const [cue, setCue] = useState("");
+  /** YouTube quality you asked for ("default" is Auto). YouTube treats it as a request. */
+  const [quality, setQuality] = useState<string>(() => stored("quality", "default"));
   const captionsPending = useRef(false);
   const ytCaptionsOnRef = useRef<(p: YTPlayer) => void>(() => {});
   const [ready, setReady] = useState(false);
@@ -308,10 +321,15 @@ export function VideoPlayer({
           iv_load_policy: 3,
           playsinline: 1,
           cc_load_policy: 0,
+          vq: stored("quality", "default"),
           origin: window.location.origin,
         },
         events: {
           onReady: ({ target: p }) => {
+            try {
+              const q = stored("quality", "default");
+              if (q !== "default") p.setPlaybackQuality(q);
+            } catch {}
             engine.current = {
               play: () => p.playVideo(),
               pause: () => p.pauseVideo(),
@@ -586,6 +604,23 @@ export function VideoPlayer({
     setCc(next);
     store("captions", next);
   }, [cc, mode, ytCaptionsOn]);
+
+  const changeQuality = useCallback(
+    (q: string) => {
+      setQuality(q);
+      store("quality", q);
+      const p = yt.current;
+      if (mode !== "youtube" || !p) return;
+      try {
+        const at = p.getCurrentTime();
+        const wasPlaying = p.getPlayerState() === YT_STATE.PLAYING;
+        p.setPlaybackQuality(q);
+        p.loadVideoById({ videoId: idRef.current, startSeconds: at, suggestedQuality: q });
+        if (!wasPlaying) setTimeout(() => p.pauseVideo(), 600);
+      } catch {}
+    },
+    [mode],
+  );
 
   const changeCaptionSize = useCallback(
     (n: number) => {
@@ -1054,7 +1089,7 @@ export function VideoPlayer({
                 </button>
               )}
               <div className="relative">
-                <button type="button" onClick={() => setMenu((m) => !m)} aria-label="Settings" aria-expanded={menu} className={btn}>
+                <button type="button" onClick={() => setMenu((m) => !m)} aria-label="Settings" aria-expanded={menu} className={btn} title="Settings and quality">
                   <Icon d={ICONS.gear} />
                 </button>
                 {menu && (
@@ -1072,6 +1107,25 @@ export function VideoPlayer({
                         </button>
                       ))}
                     </div>
+                    {mode === "youtube" && (
+                      <>
+                        <p className="px-2 pb-1 pt-1 text-xs text-white/60" title="YouTube treats this as a request: on slow internet it may pick lower">
+                          Quality
+                        </p>
+                        <div className="grid grid-cols-4 gap-1 px-1 pb-2">
+                          {QUALITY.map(([q, label]) => (
+                            <button
+                              key={q}
+                              type="button"
+                              onClick={() => changeQuality(q)}
+                              className={`rounded-lg py-1.5 text-xs ${q === quality ? "bg-accent font-medium text-on-accent" : "hover:bg-white/10"}`}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
                     <p className="px-2 pb-1 pt-1 text-xs text-white/60">Caption size</p>
                     <div className="grid grid-cols-4 gap-1 px-1 pb-2">
                       {[

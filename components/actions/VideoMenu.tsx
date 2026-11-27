@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { copyText, MenuAt, type MenuItem } from "@/components/ui/ContextMenu";
@@ -28,6 +29,8 @@ export function VideoMenu({
   short?: boolean;
 }) {
   const { current, showNotice } = useApp();
+  // Hiding something refreshes saved pages, so it doesn't come back when you go back to them.
+  const router = useRouter();
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
   const [gone, setGone] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
@@ -87,6 +90,7 @@ export function VideoMenu({
     });
     if (res.ok) {
       setGone(true);
+      router.refresh();
       showNotice({ kind: "info", text: kind === "video" ? "Got it. You'll see less like this." : `You won't be recommended ${channelName} anymore.` });
     }
   }
@@ -104,6 +108,7 @@ export function VideoMenu({
     if (!(await rate(`${source}:${id}`, rating))) return;
     if (rating === -1) {
       setGone(true);
+      router.refresh();
       showNotice({ kind: "info", text: "Thanks. It's hidden for you, and your rating helps hide it for others." });
     } else showNotice({ kind: "info", text: "Thanks for rating it appropriate." });
   }

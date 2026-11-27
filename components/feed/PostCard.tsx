@@ -143,6 +143,7 @@ export function PostCard({
     });
     if (res.ok) {
       setDeleted(true);
+      router.refresh();
       showNotice({ kind: "info", text: kind === "post" ? "Got it. You won't see this post again." : `You won't see posts from ${item.author.name} anymore.` });
     } else showNotice({ kind: "error", text: "Couldn't hide that." });
   }
@@ -151,6 +152,7 @@ export function PostCard({
     if (!(await rate(`${item.network}:${item.id}`, rating))) return;
     if (rating === -1) {
       setDeleted(true);
+      router.refresh();
       showNotice({ kind: "info", text: "Thanks. It's hidden for you, and your rating helps hide it for others." });
     } else showNotice({ kind: "info", text: "Thanks for rating it appropriate." });
   }

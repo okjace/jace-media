@@ -100,6 +100,9 @@
   svg.icon { display: inline-block; vertical-align: middle; flex-shrink: 0; }
   .ctl svg.icon, .btn svg.icon, .list-btn svg.icon { margin: -0.15rem 0.45rem 0 0; }
   .ctl.only svg.icon { margin: -0.15rem 0 0; }
+  .reload { position: absolute; top: 1.4rem; right: 2rem; z-index: 4; display: flex; align-items: center; padding: 0.6rem 1.2rem; border-radius: 3rem; background: rgba(0,0,0,0.55); font-size: 1.05rem; font-weight: 600; color: rgba(255,255,255,0.85); transition: transform 0.12s; }
+  .reload svg.icon { margin-right: 0.45rem; }
+  .reload:focus { background: #fff; color: #0b0d10; transform: scale(1.06); box-shadow: 0 0 0 0.2rem #3ddc84; }
   .face { display: inline-block; border-radius: 50%; object-fit: cover; background: rgba(61,220,132,0.18); color: #3ddc84; font-weight: 700; text-align: center; vertical-align: middle; }
 
   .post { display: inline-block; vertical-align: top; width: 30rem; margin: 0 1.3rem 1.6rem 0; padding: 1.3rem; border-radius: 1.1rem; background: rgba(255,255,255,0.05); white-space: normal; transition: transform 0.15s; }
@@ -141,14 +144,18 @@
   .yt { position: absolute; left: 0; right: 0; top: -12%; bottom: -12%; pointer-events: none; }
   .yt iframe { width: 100%; height: 100%; border: 0; }
   #ui { position: absolute; top: 0; left: 0; right: 0; bottom: 0; transition: opacity 0.3s; }
-  #ui.off { opacity: 0; }
+  #ui { visibility: visible; transition: opacity 0.3s, visibility 0s; }
+  #ui.off { opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0s 0.3s; }
+  #ui .top .who { display: flex; align-items: center; margin-top: 0.5rem; font-size: 1.15rem; color: rgba(255,255,255,0.85); }
+  #ui .top .who .face { margin-right: 0.7rem; }
   #ui .top { position: absolute; top: 0; left: 0; right: 0; padding: 2.2rem 3rem 5rem 3rem; background: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0)); }
   #ui .top .h { font-size: 1.8rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #ui .bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 6rem 3rem 1.8rem 3rem; background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.92)); }
   .bar { display: flex; align-items: center; font-size: 1.05rem; color: rgba(255,255,255,0.82); }
   .bar .line { flex: 1; height: 0.35rem; margin: 0 1rem; border-radius: 1rem; background: rgba(255,255,255,0.22); overflow: hidden; }
   .bar .fill { height: 100%; width: 0; background: #3ddc84; }
-  .ctls { margin-top: 1rem; white-space: nowrap; }
+  .ctls { margin-top: 1rem; }
+  .ctls .ctl { margin-bottom: 0.6rem; }
   .ctl { display: inline-block; margin: 0 0.7rem 0 0; padding: 0.75rem 1.35rem; border-radius: 3rem; background: rgba(255,255,255,0.12); font-size: 1.2rem; font-weight: 600; transition: transform 0.12s; }
   .ctl:focus { background: #fff; color: #0b0d10; transform: scale(1.06); box-shadow: 0 0 0 0.2rem #3ddc84; }
   .ctl.on { background: #3ddc84; color: #0c1410; }
@@ -241,6 +248,7 @@
     close: "M6 6l12 12M18 6 6 18",
     back: "M9 7l-5 5 5 5M4 12h11a5 5 0 0 1 0 10",
     send: "M4 12l16-8-6 16-3-7z",
+    reload: "M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7",
   };
   function icon(name, rem) {
     var size = (rem || 1.4) + "rem", fill = name === "play";
@@ -637,8 +645,17 @@
       var ic = t[0] === "you" && a ? face(a.name, a.picture, 1.8) : icon(t[2], 1.6);
       nav += '<button class="nav-item' + (state.tab === t[0] ? " on" : "") + '" data-tv data-go="' + t[0] + '"><span class="ic">' + ic + '</span><span class="lb">' + t[1] + "</span></button>";
     }
-    app.innerHTML = nav + '</div><div id="main">' + (noScroll ? content : '<div id="scroll">' + content + "</div>") + "</div>";
+    // Feeds get a Reload button in the top-right corner.
+    var reloadable = !noScroll && stack.length <= 1 && { home: 1, videos: 1, subs: 1, live: 1, posts: 1, library: 1 }[state.tab];
+    app.innerHTML = nav + '</div><div id="main">' + (noScroll ? content : '<div id="scroll">' + content + "</div>") +
+      (reloadable ? '<button id="reload" class="reload" data-tv>' + icon("reload", 1.3) + "Reload</button>" : "") + "</div>";
     each(app.querySelectorAll("[data-go]"), function (b) { b.addEventListener("click", function () { goTab(b.getAttribute("data-go")); }); });
+    var rl = byId("reload");
+    if (rl) rl.addEventListener("click", function () {
+      cache = {};
+      toast("Reloading\u2026");
+      goTab(state.tab);
+    });
   }
   function page() { return byId("scroll"); }
   function fill(html) { var p = page(); if (p) { p.innerHTML = html; wire(p); } }
@@ -957,6 +974,7 @@
         time: function () { return v.currentTime; }, duration: function () { return v.duration || 0; },
         paused: function () { return v.paused; },
         rate: function (r) { v.playbackRate = r; },
+        quality: function () {},
         captions: function () { return false; },
         destroy: function () { v.pause(); v.removeAttribute("src"); try { v.load(); } catch (err) {} },
       };
@@ -971,9 +989,13 @@
         if (gone) return;
         p = new YT.Player(el, {
           videoId: stream.id, host: "https://www.youtube-nocookie.com", width: "100%", height: "100%",
-          playerVars: { autoplay: 1, controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, loop: opts.loop ? 1 : 0, playlist: opts.loop ? stream.id : undefined, origin: location.origin },
+          playerVars: { autoplay: 1, controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, loop: opts.loop ? 1 : 0, playlist: opts.loop ? stream.id : undefined, origin: location.origin, vq: QUALITIES[qualityIndex()][0] },
           events: {
-            onReady: function (e) { e.target.playVideo(); },
+            onReady: function (e) {
+              var q = QUALITIES[qualityIndex()][0];
+              try { if (q !== "default") e.target.setPlaybackQuality(q); } catch (err) {}
+              e.target.playVideo();
+            },
             onStateChange: function (e) {
               if (opts.onState) opts.onState(e.data === 1 || e.data === 3);
               if (e.data === 0 && opts.onEnded) opts.onEnded();
@@ -989,6 +1011,14 @@
         duration: function () { return p && p.getDuration ? p.getDuration() : 0; },
         paused: function () { return !p || p.getPlayerState() !== 1; },
         rate: function (r) { if (p) p.setPlaybackRate(r); },
+        quality: function (q) {
+          if (!p) return;
+          try {
+            var at = p.getCurrentTime();
+            p.setPlaybackQuality(q);
+            p.loadVideoById({ videoId: stream.id, startSeconds: at, suggestedQuality: q });
+          } catch (err) {}
+        },
         captions: function (on) {
           if (!p) return false;
           try {
@@ -1014,6 +1044,13 @@
 
   // ---------- Player ----------
   var SPEEDS = [1, 1.25, 1.5, 2, 0.75];
+  // YouTube's names for qualities. It treats the choice as a request (it may pick lower on slow internet).
+  var QUALITIES = [["default", "Auto"], ["highres", "4K"], ["hd1440", "1440p"], ["hd1080", "1080p"], ["hd720", "720p"], ["large", "480p"]];
+  function qualityIndex() {
+    var q = localStorage.getItem("jm_tv_quality") || "default";
+    for (var i = 0; i < QUALITIES.length; i++) if (QUALITIES[i][0] === q) return i;
+    return 0;
+  }
   function play(v) {
     var layerEl = null, s = null, info = null, hideTimer = null, timer = null, upNext = [];
     var cc = false, speed = 0, vote = 0, subscribed = false;
@@ -1033,6 +1070,7 @@
       var paused = s && s.paused();
       w.innerHTML = btn("rew", icon("rew") + "10") + btn("pp", icon(paused ? "play" : "pause") + (paused ? "Play" : "Pause")) + btn("ff", "10&nbsp;" + icon("ff")) +
         (v.source === "youtube" ? btn("cc", icon("cc") + "CC", cc ? " on" : "") : "") + btn("speed", icon("speed") + SPEEDS[speed] + "×") +
+        (v.source === "youtube" ? btn("quality", icon("expand") + QUALITIES[qualityIndex()][1]) : "") +
         (signed ? btn("like", icon("like") + (info && info.video.likes ? compact(info.video.likes + (vote === 1 ? 1 : 0) - (info.video.myVote === 1 ? 1 : 0)) : "Like"), vote === 1 ? " on" : "") +
           btn("dislike", icon("dislike"), (vote === -1 ? " on" : "") + " only") : "") +
         (signed ? btn("save", icon("clock") + "Save") : "") + btn("info", icon("info") + "Info") + btn("comments", icon("comment") + "Comments") +
@@ -1049,6 +1087,12 @@
       else if (a === "ff") s.seek(10);
       else if (a === "pp") s.toggle();
       else if (a === "cc") { cc = !cc; s.captions(cc); toast(cc ? "Captions on" : "Captions off"); }
+      else if (a === "quality") {
+        var qi = (qualityIndex() + 1) % QUALITIES.length;
+        localStorage.setItem("jm_tv_quality", QUALITIES[qi][0]);
+        s.quality(QUALITIES[qi][0]);
+        toast("Quality: " + QUALITIES[qi][1] + (qi ? " (if YouTube has it)" : ""));
+      }
       else if (a === "speed") { speed = (speed + 1) % SPEEDS.length; s.rate(SPEEDS[speed]); toast("Speed " + SPEEDS[speed] + "×"); }
       else if (a === "like" || a === "dislike") {
         var want = a === "like" ? 1 : -1;
@@ -1091,32 +1135,37 @@
       render: function () {
         layerEl = document.createElement("div");
         layerEl.id = "player";
-        layerEl.innerHTML = '<div id="pbox"></div><div id="ui"><div class="top"><div class="h">' + esc(v.title) + '</div><div class="muted" style="font-size:1.15rem;margin-top:0.3rem">' + esc(v.channelName) + "</div></div>" +
+        layerEl.innerHTML = '<div id="pbox"></div><div id="ui"><div class="top"><div class="h">' + esc(v.title) + '</div><div class="who" id="pwho">' + face(v.channelName, v.channelPicture, 2.2) + esc(v.channelName) + "</div></div>" +
           '<div class="bottom"><div class="bar"><span id="t0">0:00</span><div class="line"><div class="fill" id="fill"></div></div><span id="t1">0:00</span></div>' +
           '<div class="ctls" id="ctls"></div><div class="next" id="next"></div></div></div>';
         document.body.appendChild(layerEl);
         renderButtons();
         if (v.source === "jace" && v.src) start({ type: "file", url: v.src });
+        else if (v.source === "youtube") start({ type: "youtube", id: v.id });
         api("/api/app/watch/" + v.source + "/" + encodeURIComponent(v.id)).then(function (d) {
           if (!layerEl) return;
           info = d;
           vote = d.video.myVote || 0;
           subscribed = !!d.video.subscribed;
           if (d.video.channelId) following[v.source + ":" + String(d.video.channelId).toLowerCase()] = subscribed;
+          if (d.video.channelPicture) byId("pwho").innerHTML = face(d.video.channelName, d.video.channelPicture, 2.2) + esc(d.video.channelName);
           if (!s) start(d.video.stream.type === "file" ? { type: "file", url: d.video.stream.url } : { type: "youtube", id: d.video.stream.id || d.video.id });
           upNext = d.upNext.slice(0, 12);
           var focused = document.activeElement && document.activeElement.getAttribute("data-a");
           renderButtons();
           if (focused) { var f = layerEl.querySelector('[data-a="' + focused + '"]'); if (f) f.focus(); }
-          layerEl.querySelector("#next").innerHTML = '<p class="muted" style="margin:1.2rem 0 0;font-size:1rem">Up next</p><div class="track">' + cards(upNext) + "</div>";
-          each(layerEl.querySelectorAll("#next [data-menu]"), function (el) {
-            // Up next replaces this video (so Back goes to where you were, not through every video).
-            el.addEventListener("click", function () {
-              var n = menuVideos[el.getAttribute("data-menu")];
-              back();
-              setTimeout(function () { play(n); }, 80);
+          setTimeout(function () {
+            if (!layerEl) return;
+            layerEl.querySelector("#next").innerHTML = '<p class="muted" style="margin:1.2rem 0 0;font-size:1rem">Up next</p><div class="track">' + cards(upNext) + "</div>";
+            each(layerEl.querySelectorAll("#next [data-menu]"), function (el) {
+              // Up next replaces this video (so Back goes to where you were, not through every video).
+              el.addEventListener("click", function () {
+                var n = menuVideos[el.getAttribute("data-menu")];
+                back();
+                setTimeout(function () { play(n); }, 80);
+              });
             });
-          });
+          }, 3500);
           if (signedIn()) api("/api/history", "POST", { source: v.source, id: v.id, title: d.video.title, channelId: d.video.channelId, channelName: d.video.channelName, thumbnail: d.video.thumbnail }).catch(function () {});
         }).catch(function () { if (!s) start({ type: "youtube", id: v.id }); });
 
@@ -1133,6 +1182,13 @@
             if (k === KEY.ENTER) { s && s.toggle(); showUi(); return true; }
             if (k === KEY.LEFT || k === KEY.RIGHT) { s && s.seek(k === KEY.LEFT ? -10 : 10); toast(k === KEY.LEFT ? "Back 10 seconds" : "Forward 10 seconds"); return true; }
             if (k === KEY.UP || k === KEY.DOWN) { showUi(); focusEl(layerEl.querySelector('[data-a="pp"]')); return true; }
+          }
+          // Up past the top row (just under the progress bar) closes the controls.
+          if (k === KEY.UP && document.activeElement && closest(document.activeElement, "#ctls")) {
+            clearTimeout(hideTimer);
+            layerEl.querySelector("#ui").className = "off";
+            document.activeElement.blur();
+            return true;
           }
           showUi();
           return false;
@@ -1577,6 +1633,7 @@
   }
   // One base step in the history, so Back always reaches the app first.
   history.replaceState({ d: 0 }, "");
+  setTimeout(loadYT, 1500);
   loadMe().then(function (me) {
     if (me.account && me.others.length && !sessionStorage.getItem(UNLOCK) && !state.guest) profiles();
     else enter();

@@ -14,7 +14,9 @@ export type YTPlayer = {
   unMute(): void;
   setPlaybackRate(rate: number): void;
   getAvailablePlaybackRates(): number[];
-  loadVideoById(videoId: string): void;
+  loadVideoById(video: string | { videoId: string; startSeconds?: number; suggestedQuality?: string }): void;
+  /** A request: YouTube may still pick a lower quality. */
+  setPlaybackQuality(quality: string): void;
   cueVideoById(videoId: string): void;
   loadModule(name: string): void;
   unloadModule(name: string): void;

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { FollowButton } from "@/components/actions/FollowButton";
 import { ChannelHold } from "@/components/actions/ChannelHold";
@@ -35,6 +35,7 @@ function RailButton({ label, onClick, active, children }: { label: string; onCli
 export function ShortsPlayer({ shorts: initial, start = 0, followed = [] }: { shorts: VideoCard[]; start?: number; followed?: string[] }) {
   const { current, showNotice } = useApp();
   const pathname = usePathname();
+  const router = useRouter();
   const [shorts, setShorts] = useState(initial);
   const [index, setIndex] = useState(Math.max(0, Math.min(start, initial.length - 1)));
   const [liked, setLiked] = useState<Set<string>>(new Set());
@@ -141,6 +142,8 @@ export function ShortsPlayer({ shorts: initial, start = 0, followed = [] }: { sh
     await fetch("/api/hidden", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "video", ref: key }) });
     showNotice({ kind: "info", text: "Got it. You'll see fewer Shorts like that." });
     setShorts((list) => list.filter((_, i) => i !== index));
+    // So Home and other saved pages don't show it again.
+    router.refresh();
     setIndex((i) => Math.max(0, Math.min(i, shorts.length - 2)));
   }
 

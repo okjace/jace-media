@@ -12,7 +12,7 @@ import { ACCOUNTS_COOKIE, getCurrent } from "@/lib/session";
 import { listMyVideos } from "@/lib/jace";
 import { NETWORKS } from "@/lib/social";
 import { followedRss } from "@/lib/rss";
-import { channelFeed, channelInfo, channelUploads, search, searchChannels, searchShorts, videoDetail } from "@/lib/youtube";
+import { channelFeed, channelInfo, channelPictures, channelUploads, search, searchChannels, searchShorts, videoDetail } from "@/lib/youtube";
 import { dislikes, withDeArrow } from "@/lib/ytextras";
 import { sponsorSegments } from "@/lib/sponsorblock";
 import { liveNow } from "@/lib/golive";
@@ -68,6 +68,34 @@ function absolute(origin: string) {
   return { abs, video, post };
 }
 
+/**
+ * Fills in YouTube channel pictures anywhere in a response (videos, Up next,
+ * Shorts…): one request per 50 channels, cached, through Jace Media's image route.
+ */
+async function withPictures(data: unknown, origin: string): Promise<unknown> {
+  const need: Record<string, unknown>[] = [];
+  const walk = (x: unknown) => {
+    if (Array.isArray(x)) return x.forEach(walk);
+    if (!x || typeof x !== "object") return;
+    const o = x as Record<string, unknown>;
+    if (o.source === "youtube" && typeof o.channelId === "string" && o.channelId && !o.channelPicture) need.push(o);
+    for (const v of Object.values(o)) if (v && typeof v === "object") walk(v);
+  };
+  walk(data);
+  if (!need.length) return data;
+  const ids = [...new Set(need.map((o) => o.channelId as string))];
+  const found = new Map<string, string>();
+  for (let i = 0; i < ids.length; i += 50) {
+    const got = await channelPictures(ids.slice(i, i + 50)).catch(() => new Map<string, string>());
+    got.forEach((v, k) => found.set(k, v));
+  }
+  for (const o of need) {
+    const pic = found.get(o.channelId as string);
+    if (pic) o.channelPicture = pic.startsWith("/") ? `${origin}${pic}` : pic;
+  }
+  return data;
+}
+
 const json = (data: unknown, status = 200) =>
   NextResponse.json(data, { status, headers: { "Cache-Control": "private, no-store", "Access-Control-Allow-Origin": "*" } });
 
@@ -99,6 +127,7 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
   const origin = req.nextUrl.origin;
   const { video, post, abs } = absolute(origin);
   const sp = req.nextUrl.searchParams;
+  const send = async (data: unknown, status = 200) => json(await withPictures(data, origin), status);
 
   try {
     switch (path[0]) {
@@ -120,22 +149,22 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       }
       case "home": {
         const h = await home();
-        return json({ videos: h.videos.map(video), shorts: h.shorts.map(video), posts: h.posts.map(post) });
+        return send({ videos: h.videos.map(video), shorts: h.shorts.map(video), posts: h.posts.map(post) });
       }
       case "videos": {
         const list = await recommendedVideos({ limit: 48 }).then(withDeArrow);
-        return json({ videos: list.map(video) });
+        return send({ videos: list.map(video) });
       }
       case "shorts": {
         const list = await recommendedVideos({ shorts: true, limit: 40 }).then(withDeArrow);
-        return json({ videos: list.map(video) });
+        return send({ videos: list.map(video) });
       }
       case "subscriptions": {
         const viewer = await getViewer();
         if (!viewer) return json({ error: "Sign in with Jace first." }, 401);
         const [taste, subs] = await Promise.all([getTaste(), listSubscriptions(viewer.sub)]);
         const entries = await buildFeed({ services: taste.services, only: "subscriptions", content: "all", include: [], exclude: [], sort: "latest", folder: null }, 80);
-        return json({
+        return send({
           channels: subs.map((s) => ({ kind: s.kind, ref: s.ref, name: s.name, picture: abs(s.picture), folder: s.folder ?? null })),
           videos: entries.flatMap((e) => (e.kind === "video" ? [video(e.video)] : [])),
           posts: entries.flatMap((e) => (e.kind === "post" ? [post(e.item)] : [])),
@@ -144,7 +173,7 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
       case "live": {
         const taste = await getTaste();
         const [own, yt] = await Promise.all([liveNow().catch(() => []), taste.services.includes("youtube") ? youtubeLive(24).catch(() => []) : []]);
-        return json({
+        return send({
           jace: own.map((s) => ({ ...s, thumbnail: abs(s.thumbnail), host: { ...s.host, picture: abs(s.host.picture) } })),
           youtube: (await filterVideos(yt)).map(video),
         });
@@ -154,7 +183,7 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
         if (!viewer) return json({ error: "Sign in with Jace first." }, 401);
         const wl = await watchLaterId(viewer.sub);
         const [cont, later, lists] = await Promise.all([continueWatching(viewer.sub, 20), getPlaylist(viewer.sub, wl), listPlaylists(viewer.sub)]);
-        return json({
+        return send({
           continueWatching: cont.map((v) => ({ ...video(v), progress: v.progress })),
           watchLater: (later?.videos ?? []).map(video),
           playlists: lists.filter((pl) => pl.kind !== "watch_later").map((pl) => ({ ...pl, thumbnail: abs(pl.thumbnail) })),
@@ -165,7 +194,7 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
         if (!viewer) return json({ error: "Sign in with Jace first." }, 401);
         const pl = await getPlaylist(viewer.sub, path[1] ?? "");
         if (!pl) return json({ error: "That playlist doesn't exist." }, 404);
-        return json({ name: pl.playlist.name, videos: pl.videos.map(video) });
+        return send({ name: pl.playlist.name, videos: pl.videos.map(video) });
       }
       case "following": {
         // Everyone you follow, as "kind:ref" (lowercase), so apps can show Subscribed correctly.
@@ -176,7 +205,7 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
         const current = await getCurrent();
         if (!current) return json({ error: "Sign in with Jace first." }, 401);
         const page = await listMyVideos(current.token);
-        return json({
+        return send({
           videos: page.videos.map((v) => ({
             source: "jace",
             id: v.id,
@@ -198,7 +227,7 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
         if (!viewer) return json({ error: "Sign in with Jace first." }, 401);
         const items = await listNotifications(viewer.sub, 60);
         await markAllRead(viewer.sub);
-        return json({ items: items.map((n) => ({ ...n, actor: { ...n.actor, picture: abs(n.actor.picture) } })) });
+        return send({ items: items.map((n) => ({ ...n, actor: { ...n.actor, picture: abs(n.actor.picture) } })) });
       }
       case "posts": {
         const h = await home();
@@ -208,11 +237,11 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
         const viewer = await getViewer();
         if (!viewer) return json({ error: "Sign in with Jace first." }, 401);
         const items = await recentHistory(viewer.sub, 60);
-        return json({ items });
+        return send({ items });
       }
       case "search": {
         const q = (sp.get("q") ?? "").trim().slice(0, 200);
-        if (!q) return json({ videos: [], shorts: [], channels: [], posts: [] });
+        if (!q) return send({ videos: [], shorts: [], channels: [], posts: [] });
         const taste = await getTaste();
         const [yt, jace, shorts, channels, posts] = await Promise.all([
           taste.services.includes("youtube") ? search(q, 30).then((r) => r ?? []) : [],
@@ -222,7 +251,7 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
           taste.services.includes("jace") ? jacePosts({ q, limit: 20 }).then((r) => r.items) : [],
         ]);
         const videos = await filterVideos(dedupe([...jace, ...yt]));
-        return json({
+        return send({
           videos: (await withDeArrow(videos)).map(video),
           shorts: (await filterVideos(shorts)).map(video),
           channels: channels.map((c) => ({ ...c, picture: abs((c as { picture?: string | null }).picture) })),
@@ -241,7 +270,7 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
             viewer ? videoVote(viewer.sub, "jace", id).catch(() => 0) : 0,
             dislikeCount("jace", id).catch(() => 0),
           ]);
-          return json({
+          return send({
             video: {
               source: "jace",
               id: v.id,
@@ -276,7 +305,7 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
           ]);
           const fromChannel = rankVideos((channel?.videos ?? []).filter((v) => !v.short && v.id !== id), taste, 4);
           const upNext = dedupe([...fromChannel, ...more]).filter((v) => v.id !== id).slice(0, 20);
-          return json({
+          return send({
             video: {
               source: "youtube",
               id,
@@ -309,7 +338,7 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
           const uploads = info ? await channelUploads(info.uploads, sp.get("page") ?? undefined) : null;
           const fallback = uploads ? null : await channelFeed(ref);
           const list = uploads?.videos ?? fallback?.videos ?? [];
-          return json({
+          return send({
             channel: info ? { ...info, picture: abs(info.picture), banner: abs(info.banner) } : { id: ref, name: fallback?.name ?? "Channel", picture: null },
             videos: (await filterVideos(list.filter((v) => !v.short))).map(video),
             shorts: (await filterVideos(list.filter((v) => v.short))).map(video),
