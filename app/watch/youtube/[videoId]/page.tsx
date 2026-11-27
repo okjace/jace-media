@@ -5,6 +5,7 @@ import { SourceBadge, VideoRow } from "@/components/videos/VideoGrid";
 import { Description } from "@/components/videos/Description";
 import { VideoComments } from "@/components/videos/VideoComments";
 import { FollowButton } from "@/components/actions/FollowButton";
+import { ChannelHold } from "@/components/actions/ChannelHold";
 import { RecordWatch } from "@/components/actions/RecordWatch";
 import { SaveButton } from "@/components/actions/SaveButton";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
@@ -121,7 +122,12 @@ export default async function YouTubeWatchPage({ params, searchParams }: PagePro
         </div>
         <h1 className="text-xl font-semibold leading-snug">{title}</h1>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
+          <ChannelHold
+            target={{ kind: "youtube", ref: channelId ?? "", name: channelName, picture: channelPicture }}
+            initial={subscribed}
+            href={channelId ? `/channel/youtube/${channelId}` : null}
+            className="flex min-w-0 items-center gap-3"
+          >
             {detail?.channelId ? (
               <Link href={`/channel/youtube/${detail.channelId}`} className="shrink-0">
                 <Avatar name={channelName} src={channelPicture} size={40} />
@@ -141,8 +147,13 @@ export default async function YouTubeWatchPage({ params, searchParams }: PagePro
                 <SourceBadge source="youtube" /> on YouTube
               </p>
             </div>
-            {channelId && <FollowButton target={{ kind: "youtube", ref: channelId, name: channelName }} initial={subscribed} label="Subscribe" />}
-          </div>
+            {/* Computers: Subscribe next to the channel. Phones: press and hold the channel. */}
+            {channelId && (
+              <span className="hidden sm:block">
+                <FollowButton target={{ kind: "youtube", ref: channelId, name: channelName }} initial={subscribed} label="Subscribe" />
+              </span>
+            )}
+          </ChannelHold>
           <div className="flex flex-wrap items-center gap-2">
             <VideoVotes
               source="youtube"

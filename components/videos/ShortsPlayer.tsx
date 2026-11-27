@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { FollowButton } from "@/components/actions/FollowButton";
+import { ChannelHold } from "@/components/actions/ChannelHold";
 import { signInHref, useApp } from "@/components/AppProvider";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
 import type { VideoCard } from "@/lib/types";
@@ -205,11 +206,29 @@ export function ShortsPlayer({ shorts: initial, start = 0, followed = [] }: { sh
         <VideoPlayer key={s.source} source={s.source} id={s.id} src={s.src} poster={s.thumbnail} title={s.title} variant="short" active />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent px-4 pb-7 pt-20 text-white">
           {channelHref ? (
-            <Link href={channelHref} className="pointer-events-auto flex w-fit max-w-full items-center gap-2 text-sm hover:underline">
-              <Avatar name={s.channelName} src={s.channelPicture} size={32} />
-              <span className="truncate font-semibold">{s.channelName}</span>
-              <SourceBadge source={s.source} />
-            </Link>
+            // Phones: press and hold the channel to subscribe. Computers: Subscribe sits next to it.
+            <ChannelHold
+              key={`${s.source}:${s.channelId}`}
+              target={{ kind: s.source === "youtube" ? "youtube" : "jace", ref: s.channelId, name: s.channelName, picture: s.channelPicture }}
+              initial={followed.includes(`${s.source}:${s.channelId.toLowerCase()}`)}
+              href={channelHref}
+              className="pointer-events-auto flex w-fit max-w-full items-center gap-2"
+            >
+              <Link href={channelHref} className="flex min-w-0 items-center gap-2 text-sm hover:underline">
+                <Avatar name={s.channelName} src={s.channelPicture} size={32} />
+                <span className="truncate font-semibold">{s.channelName}</span>
+                <SourceBadge source={s.source} />
+              </Link>
+              <span className="hidden md:block">
+                <FollowButton
+                  key={`${s.source}:${s.channelId}`}
+                  target={{ kind: s.source === "youtube" ? "youtube" : "jace", ref: s.channelId, name: s.channelName }}
+                  initial={followed.includes(`${s.source}:${s.channelId.toLowerCase()}`)}
+                  size="sm"
+                  label="Subscribe"
+                />
+              </span>
+            </ChannelHold>
           ) : (
             <div className="flex items-center gap-2 text-sm">
               <SourceBadge source={s.source} />
@@ -253,15 +272,6 @@ export function ShortsPlayer({ shorts: initial, start = 0, followed = [] }: { sh
           More
         </button>
         {menuAt && <MenuAt x={menuAt.x} y={menuAt.y} items={menuAt.items} onClose={() => setMenuAt(null)} />}
-        {s.channelId && (
-          <FollowButton
-            key={`${s.source}:${s.channelId}`}
-            target={{ kind: s.source === "youtube" ? "youtube" : "jace", ref: s.channelId, name: s.channelName }}
-            initial={followed.includes(`${s.source}:${s.channelId.toLowerCase()}`)}
-            size="sm"
-            label="Subscribe"
-          />
-        )}
         <div className="mt-4 hidden flex-col gap-2 sm:flex">
           <button
             type="button"

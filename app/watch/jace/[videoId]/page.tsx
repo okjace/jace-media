@@ -5,6 +5,7 @@ import { SourceBadge, VideoRow } from "@/components/videos/VideoGrid";
 import { Description } from "@/components/videos/Description";
 import { VideoComments } from "@/components/videos/VideoComments";
 import { FollowButton } from "@/components/actions/FollowButton";
+import { ChannelHold } from "@/components/actions/ChannelHold";
 import { RecordWatch } from "@/components/actions/RecordWatch";
 import { SaveButton } from "@/components/actions/SaveButton";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
@@ -54,23 +55,33 @@ export default async function JaceWatchPage({ params, searchParams }: PageProps<
         </div>
         <h1 className="text-xl font-semibold leading-snug">{video.title}</h1>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <a href={`/channel/jace/${video.owner_id}`} className="flex min-w-0 items-center gap-3">
-            <Avatar name={video.owner_name} src={video.owner_picture} size={40} />
-            <div className="min-w-0">
-              <p className="truncate font-medium">{video.owner_name}</p>
-              <p className="flex items-center gap-1.5 text-xs text-muted">
-                <SourceBadge source="jace" /> on Jace
-              </p>
-            </div>
-          </a>
-          <div className="flex flex-wrap items-center gap-2">
+          <ChannelHold
+            target={{ kind: "jace", ref: video.owner_id, name: video.owner_name, picture: video.owner_picture }}
+            initial={following}
+            href={`/channel/jace/${video.owner_id}`}
+            className="flex min-w-0 items-center gap-3"
+          >
+            <a href={`/channel/jace/${video.owner_id}`} className="flex min-w-0 items-center gap-3">
+              <Avatar name={video.owner_name} src={video.owner_picture} size={40} />
+              <div className="min-w-0">
+                <p className="truncate font-medium">{video.owner_name}</p>
+                <p className="flex items-center gap-1.5 text-xs text-muted">
+                  <SourceBadge source="jace" /> on Jace
+                </p>
+              </div>
+            </a>
+            {/* Computers: Subscribe next to the channel. Phones: press and hold the channel. */}
             {video.owner_type === "user" && viewer?.sub !== video.owner_id && (
-              <FollowButton
-                target={{ kind: "jace", ref: video.owner_id, name: video.owner_name, picture: video.owner_picture }}
-                initial={following}
-                label="Subscribe"
-              />
+              <span className="hidden sm:block">
+                <FollowButton
+                  target={{ kind: "jace", ref: video.owner_id, name: video.owner_name, picture: video.owner_picture }}
+                  initial={following}
+                  label="Subscribe"
+                />
+              </span>
             )}
+          </ChannelHold>
+          <div className="flex flex-wrap items-center gap-2">
             <VideoVotes
               source="jace"
               id={video.id}
