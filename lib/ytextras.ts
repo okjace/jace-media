@@ -29,7 +29,7 @@ async function dearrowTitle(id: string): Promise<string | null> {
     const res = await fetch(`https://sponsor.ajay.app/api/branding?videoID=${id}`, {
       headers: UA,
       next: { revalidate: 3600 },
-      signal: AbortSignal.timeout(3000),
+      signal: AbortSignal.timeout(1500),
     });
     if (!res.ok) return null;
     const d = (await res.json()) as { titles?: { title: string; original: boolean; votes: number; locked: boolean }[] };

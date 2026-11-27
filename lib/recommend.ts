@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { after } from "next/server";
 import { getViewer } from "./auth";
 import { featuredYouTube, jaceVideos } from "./data";
 import { q } from "./db";
@@ -203,8 +204,42 @@ export function latestVideos(videos: VideoCard[], taste: Taste, limit = 48): Vid
  * and watch most, popular videos (or a starter set of channels), searches
  * for topics you've been watching (with a YouTube API key), and Jace videos.
  */
+/**
+ * Your pool of videos to recommend from, remembered for a few minutes per
+ * person (and refreshed in the background), so Home, Shorts, and Videos
+ * don't fetch dozens of channel feeds on every visit.
+ */
+type Pool = { at: number; videos: VideoCard[]; refreshing?: boolean };
+const POOL_FRESH = 2 * 60_000;
+const POOL_MAX_AGE = 15 * 60_000;
+const pools: Map<string, Pool> = ((globalThis as unknown as { __jmPools?: Map<string, Pool> }).__jmPools ??= new Map());
+
 export const videoCandidates = cache(async (subscriptionsOnly: boolean = false, folder: string | null = null): Promise<VideoCard[]> => {
   const taste = await getTaste();
+  const viewer = await getViewer();
+  const key = `${viewer?.sub ?? "guest"}|${subscriptionsOnly}|${folder ?? ""}|${[...taste.services].sort().join(",")}`;
+  const hit = pools.get(key);
+  const age = hit ? Date.now() - hit.at : Infinity;
+  if (hit && age < POOL_MAX_AGE) {
+    if (age > POOL_FRESH && !hit.refreshing) {
+      hit.refreshing = true;
+      const refresh = buildCandidates(subscriptionsOnly, folder, taste)
+        .then((videos) => void pools.set(key, { at: Date.now(), videos }))
+        .catch(() => void (hit.refreshing = false));
+      // Keeps the refresh running after the answer has been sent.
+      try {
+        after(refresh);
+      } catch {}
+    }
+    return hit.videos;
+  }
+  const videos = await buildCandidates(subscriptionsOnly, folder, taste);
+  if (pools.size > 500) pools.clear();
+  pools.set(key, { at: Date.now(), videos });
+  return videos;
+});
+
+async function buildCandidates(subscriptionsOnly: boolean, folder: string | null, taste: Taste): Promise<VideoCard[]> {
   const wantYouTube = taste.services.includes("youtube");
   const wantJace = taste.services.includes("jacevideos");
 
@@ -237,7 +272,7 @@ export const videoCandidates = cache(async (subscriptionsOnly: boolean = false, 
     } else tasks.push(jaceVideos({ limit: 60 }).then((r) => r.videos));
   }
   return (await Promise.all(tasks)).flat();
-});
+}
 
 async function jaceFolderIds(folder: string): Promise<string[]> {
   const viewer = await getViewer();

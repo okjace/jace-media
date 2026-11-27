@@ -183,6 +183,8 @@
   #shorts { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
   #shortstage { position: absolute; top: 1.4rem; bottom: 1.4rem; left: 50%; width: 31.6rem; margin-left: -19rem; border-radius: 1.4rem; overflow: hidden; background: #000; box-shadow: 0 1rem 3rem rgba(0,0,0,0.6); transition: box-shadow 0.15s; }
   #shortstage:focus { box-shadow: 0 0 0 0.25rem #3ddc84, 0 1rem 3rem rgba(0,0,0,0.6); }
+  #shortposter { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; transition: opacity 0.25s; }
+  #shortposter.gone { opacity: 0; }
   #shortinfo { position: absolute; left: 0; right: 0; bottom: 0; padding: 6rem 1.4rem 1.4rem; background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.85)); pointer-events: none; }
   #shortinfo .who { display: flex; align-items: center; font-size: 1.05rem; font-weight: 600; }
   #shortinfo .who .face { margin-right: 0.7rem; }
@@ -697,6 +699,7 @@
       if (!hero) html = '<h1>' + esc(label) + "</h1>" + (switcher ? '<div style="margin:-0.8rem 0 1.6rem">' + switcher + "</div>" : "") + html + (d.videos.length || d.posts.length ? "" : failed("Nothing in this feed right now."));
       if (rest.length > 12) html += row("More for you", cards(rest.slice(12)));
       fill(html);
+      setTimeout(function () { get("/api/app/shorts").catch(function () {}); }, 1500);
       var fy = byId("foryou");
       if (fy) fy.addEventListener("click", function () { forYou = !d.feed ? false : true; goTab("home"); });
       each(page().querySelectorAll("[data-post]"), function (el) {
@@ -1044,26 +1047,31 @@
       var el = document.createElement("div");
       holder.appendChild(el);
       box.appendChild(holder);
-      var p = null, gone = false;
+      var p = null, gone = false, pendingId = null;
       loadYT().then(function (YT) {
         if (gone) return;
         p = new YT.Player(el, {
           videoId: stream.id, host: "https://www.youtube-nocookie.com", width: "100%", height: "100%",
-          playerVars: { autoplay: 1, controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, loop: opts.loop ? 1 : 0, playlist: opts.loop ? stream.id : undefined, origin: location.origin, vq: QUALITIES[qualityIndex()][0] },
+          playerVars: { autoplay: 1, controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, origin: location.origin, vq: QUALITIES[qualityIndex()][0] },
           events: {
             onReady: function (e) {
+              if (pendingId && pendingId !== stream.id) { e.target.loadVideoById(pendingId); pendingId = null; return; }
               var q = QUALITIES[qualityIndex()][0];
               try { if (q !== "default") e.target.setPlaybackQuality(q); } catch (err) {}
               e.target.playVideo();
             },
             onStateChange: function (e) {
-              if (opts.onState) opts.onState(e.data === 1 || e.data === 3);
-              if (e.data === 0 && opts.onEnded) opts.onEnded();
+              if (opts.onState) opts.onState(e.data === 1 || e.data === 3, e.data);
+              if (e.data === 0 && opts.loop) { e.target.seekTo(0, true); e.target.playVideo(); }
+              else if (e.data === 0 && opts.onEnded) opts.onEnded();
             },
           },
         });
       });
       s = {
+        kind: "youtube",
+        // Switch to another video in the same player (much faster than a new player).
+        load: function (id) { if (p && p.loadVideoById) p.loadVideoById(id); else pendingId = id; },
         toggle: function () { if (!p) return; if (p.getPlayerState() === 1) p.pauseVideo(); else p.playVideo(); },
         play: function () { if (p) p.playVideo(); }, pause: function () { if (p) p.pauseVideo(); },
         seek: function (x) { if (p) p.seekTo(Math.max(0, p.getCurrentTime() + x), true); },
@@ -1286,7 +1294,7 @@
   function shortsView(list, start, asTab) {
     var i = start, liked = {}, disliked = {};
     if (!list.length) { fill(failed("No Shorts right now.")); return; }
-    frame('<div id="shorts"><div id="shortstage" data-tv data-tv-default tabindex="0"><div class="vbox" id="shortbox"></div><div id="shortinfo"></div></div><div id="rail"></div>' +
+    frame('<div id="shorts"><div id="shortstage" data-tv data-tv-default tabindex="0"><div class="vbox" id="shortbox"></div><img id="shortposter" alt=""><div id="shortinfo"></div></div><div id="rail"></div>' +
       '<div id="shortcount"></div><div id="shorthint">Up / Down: previous, next<br>OK: pause · Right: buttons<br>Hold OK: more</div></div>', true);
     var stage = byId("shortstage");
     function rb(a, icon, label, on) { return '<button class="rb' + (on ? " on" : "") + '" data-tv data-r="' + a + '"><span class="o">' + icon + "</span>" + label + "</button>"; }
@@ -1323,7 +1331,15 @@
       stage.setAttribute("data-menu", "short");
       byId("shortinfo").innerHTML = '<div class="who">' + face(v.channelName, v.channelPicture, 2.4) + esc(v.channelName) + '</div><div class="tt">' + esc(v.title) + "</div>";
       byId("shortcount").textContent = (i + 1) + " / " + list.length;
-      surface(byId("shortbox"), v.source === "jace" && v.src ? { type: "file", url: v.src } : { type: "youtube", id: v.id }, { cover: true, loop: true });
+      // The Short's picture shows at once; it fades when the video is playing.
+      var poster = byId("shortposter");
+      poster.className = "";
+      if (v.thumbnail) poster.src = v.thumbnail; else poster.removeAttribute("src");
+      var reveal = function (playing, ytState) { if (playing && ytState !== 3) poster.className = "gone"; };
+      if (v.source === "youtube" && current && current.kind === "youtube" && byId("shortbox").firstChild) current.load(v.id);
+      else surface(byId("shortbox"), v.source === "jace" && v.src ? { type: "file", url: v.src } : { type: "youtube", id: v.id }, { cover: true, loop: true, onState: function (pl, st) { reveal(pl, st); } });
+      // The next Short's picture, ready for when you move on.
+      if (list[i + 1] && list[i + 1].thumbnail) { var pre = new Image(); pre.src = list[i + 1].thumbnail; }
       rail();
       if (signedIn()) api("/api/history", "POST", { source: v.source, id: v.id, title: v.title, channelId: v.channelId, channelName: v.channelName, thumbnail: v.thumbnail }).catch(function () {});
     }

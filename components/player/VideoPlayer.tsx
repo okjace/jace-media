@@ -168,6 +168,9 @@ export function VideoPlayer({
   const [ccSize, setCcSize] = useState<number>(() => stored("captionSize", 1));
   const [ccStyle, setCcStyle] = useState<"box" | "outline">(() => stored("captionStyle", "box"));
   const [cue, setCue] = useState("");
+  // With captions on, YouTube's frame is shown whole (its captions sit at its bottom edge), but only
+  // while playing and after YouTube's own title has faded; paused, it's cropped again.
+  const [ccClear, setCcClear] = useState(false);
   /** YouTube quality you asked for ("default" is Auto). YouTube treats it as a request. */
   const [quality, setQuality] = useState<string>(() => stored("quality", "default"));
   const captionsPending = useRef(false);
@@ -605,6 +608,16 @@ export function VideoPlayer({
     store("captions", next);
   }, [cc, mode, ytCaptionsOn]);
 
+  useEffect(() => {
+    if (!cc || !playing) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCcClear(false);
+      return;
+    }
+    const t = setTimeout(() => setCcClear(true), 3500);
+    return () => clearTimeout(t);
+  }, [cc, playing]);
+
   const changeQuality = useCallback(
     (q: string) => {
       setQuality(q);
@@ -872,7 +885,7 @@ export function VideoPlayer({
           // With captions on it fits the box exactly, because YouTube draws captions at its bottom edge.
           <div
             ref={ytHost}
-            className={`absolute ${cc ? "inset-0" : "inset-x-0 -bottom-[120px] -top-[120px]"} [&_iframe]:h-full [&_iframe]:w-full ${ytClickThrough ? "" : "pointer-events-none"}`}
+            className={`absolute ${cc && ccClear ? "inset-0" : "inset-x-0 -bottom-[120px] -top-[120px]"} [&_iframe]:h-full [&_iframe]:w-full ${ytClickThrough ? "" : "pointer-events-none"}`}
           />
         )}
         {/* Captions Jace Media draws itself (Jace videos and private playback). */}

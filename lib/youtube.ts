@@ -211,7 +211,8 @@ export async function channelFeed(channelId: string): Promise<ChannelFeed | null
   try {
     const res = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`, {
       next: { revalidate: 900 },
-      signal: AbortSignal.timeout(8_000),
+      // A slow channel feed is skipped rather than holding up Home and Shorts.
+      signal: AbortSignal.timeout(3_500),
     });
     if (!res.ok) return null;
     xml = await res.text();
