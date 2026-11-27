@@ -93,6 +93,21 @@ export function UploadForm() {
   const controls = useRef<EditorControls | null>(null);
   const started = useRef(0);
 
+  // Remix: credit the Short you're remixing (from Shorts → Remix).
+  const [remix, setRemix] = useState<{ ref: string; title: string; channel: string } | null>(null);
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    const ref = p.get("remix");
+    if (!ref || !/^(youtube|jace):[\w-]{1,64}$/.test(ref)) return;
+    const r = { ref, title: p.get("rtitle") ?? "a Short", channel: p.get("rchannel") ?? "" };
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setRemix(r);
+    setShort(true);
+    setTitle((t) => t || `Remix: ${r.title}`.slice(0, 140));
+    setDescription((d) => d || `Remix of "${r.title}"${r.channel ? ` by ${r.channel}` : ""}\n${window.location.origin}/shorts?v=${r.ref}`);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, []);
+
   // Pick up where you left off (the words, not the file).
   useEffect(() => {
     try {
@@ -254,6 +269,19 @@ export function UploadForm() {
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-5">
+      {remix && (
+        <div className="flex items-center gap-3 rounded-xl border border-accent/40 bg-accent/[.07] px-4 py-3 text-sm">
+          <span className="text-xl" aria-hidden="true">🔁</span>
+          <span className="min-w-0 flex-1">
+            Remixing <b>{remix.title}</b>
+            {remix.channel && <> by {remix.channel}</>}. The original is credited and linked in your description.
+          </span>
+          <a href={`/shorts?v=${remix.ref}`} className="shrink-0 text-accent hover:underline">
+            Watch original
+          </a>
+        </div>
+      )}
+
       {!file || !url ? (
         <div
           onDragOver={(e) => {

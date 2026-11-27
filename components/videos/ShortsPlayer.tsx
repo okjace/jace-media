@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { FollowButton } from "@/components/actions/FollowButton";
@@ -7,6 +8,9 @@ import { signInHref, useApp } from "@/components/AppProvider";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
 import type { VideoCard } from "@/lib/types";
 import { SourceBadge } from "./SourceBadge";
+import { ShortComments } from "./ShortComments";
+import { Avatar } from "@/components/Avatar";
+import { copyText, MenuAt, type MenuItem } from "@/components/ui/ContextMenu";
 
 function RailButton({ label, onClick, active, children }: { label: string; onClick: () => void; active?: boolean; children: ReactNode }) {
   return (
@@ -33,6 +37,10 @@ export function ShortsPlayer({ shorts: initial, start = 0, followed = [] }: { sh
   const [shorts, setShorts] = useState(initial);
   const [index, setIndex] = useState(Math.max(0, Math.min(start, initial.length - 1)));
   const [liked, setLiked] = useState<Set<string>>(new Set());
+  const [disliked, setDisliked] = useState<Set<string>>(new Set());
+  const [comments, setComments] = useState(false);
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
+  const moreBtn = useRef<HTMLButtonElement>(null);
   const lastMove = useRef(0);
   const touchY = useRef<number | null>(null);
   const recorded = useRef(new Set<string>());
@@ -52,7 +60,7 @@ export function ShortsPlayer({ shorts: initial, start = 0, followed = [] }: { sh
   // ↑/↓ keys.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).closest("input, textarea")) return;
+      if ((e.target as HTMLElement).closest("input, textarea, [contenteditable]")) return;
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault();
         move(e.key === "ArrowDown" ? 1 : -1);
@@ -106,12 +114,65 @@ export function ShortsPlayer({ shorts: initial, start = 0, followed = [] }: { sh
     });
   }
 
+  async function dislike() {
+    if (needSignIn()) return;
+    const on = !disliked.has(key);
+    setDisliked((set) => {
+      const n = new Set(set);
+      if (on) n.add(key);
+      else n.delete(key);
+      return n;
+    });
+    if (on) setLiked((set) => {
+      const n = new Set(set);
+      n.delete(key);
+      return n;
+    });
+    await fetch("/api/video-likes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source: s.source, id: s.id, channelId: s.channelId || null, value: on ? -1 : 0 }),
+    });
+  }
+
   async function notInterested() {
     if (needSignIn()) return;
     await fetch("/api/hidden", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "video", ref: key }) });
     showNotice({ kind: "info", text: "Got it. You'll see fewer Shorts like that." });
     setShorts((list) => list.filter((_, i) => i !== index));
     setIndex((i) => Math.max(0, Math.min(i, shorts.length - 2)));
+  }
+
+  const channelHref = s.channelId ? `/channel/${s.source}/${encodeURIComponent(s.channelId)}` : null;
+  const remixHref = `/upload?short=1&remix=${encodeURIComponent(key)}&rtitle=${encodeURIComponent(s.title)}&rchannel=${encodeURIComponent(s.channelName)}`;
+
+  const moreItems = (): MenuItem[] => [
+    { label: "Save to Watch Later", icon: "🕒", onSelect: () => void saveLater() },
+    { label: "Open as a full video", icon: "▭", href: `/watch/${s.source}/${encodeURIComponent(s.id)}` },
+    ...(channelHref ? [{ label: `Go to ${s.channelName}`, icon: "👤", href: channelHref } as MenuItem] : []),
+    { label: "Copy link", icon: "🔗", onSelect: async () => showNotice((await copyText(`${window.location.origin}/shorts?v=${key}`)) ? { kind: "info", text: "Link copied." } : { kind: "error", text: "Couldn't copy." }) },
+    "divider",
+    { label: "Not interested", icon: "🚫", onSelect: () => void notInterested() },
+    {
+      label: "Don't recommend channel",
+      icon: "⊘",
+      onSelect: async () => {
+        if (needSignIn()) return;
+        await fetch("/api/hidden", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "channel", ref: `${s.source}:${s.channelId}` }) });
+        showNotice({ kind: "info", text: `You won't be recommended ${s.channelName} anymore.` });
+        move(1);
+      },
+    },
+  ];
+
+  async function saveLater() {
+    if (needSignIn()) return;
+    const res = await fetch("/api/playlists/watch-later/items", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ video: { source: s.source, id: s.id, title: s.title, thumbnail: s.thumbnail, channelId: s.channelId, channelName: s.channelName, short: true } }),
+    });
+    showNotice(res.ok ? { kind: "info", text: "Saved to Watch Later." } : { kind: "error", text: "Couldn't save that." });
   }
 
   async function share() {
@@ -143,10 +204,18 @@ export function ShortsPlayer({ shorts: initial, start = 0, followed = [] }: { sh
         {/* One player per source, reused for every Short. */}
         <VideoPlayer key={s.source} source={s.source} id={s.id} src={s.src} poster={s.thumbnail} title={s.title} variant="short" active />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent px-4 pb-7 pt-20 text-white">
-          <div className="flex items-center gap-2 text-sm">
-            <SourceBadge source={s.source} />
-            <span className="truncate font-semibold">{s.channelName}</span>
-          </div>
+          {channelHref ? (
+            <Link href={channelHref} className="pointer-events-auto flex w-fit max-w-full items-center gap-2 text-sm hover:underline">
+              <Avatar name={s.channelName} src={s.channelPicture} size={32} />
+              <span className="truncate font-semibold">{s.channelName}</span>
+              <SourceBadge source={s.source} />
+            </Link>
+          ) : (
+            <div className="flex items-center gap-2 text-sm">
+              <SourceBadge source={s.source} />
+              <span className="truncate font-semibold">{s.channelName}</span>
+            </div>
+          )}
           <p key={key} className="mt-1.5 line-clamp-2 text-[15px] leading-snug">
             {s.title}
           </p>
@@ -157,12 +226,33 @@ export function ShortsPlayer({ shorts: initial, start = 0, followed = [] }: { sh
         <RailButton label={liked.has(key) ? "Liked" : "Like"} onClick={like} active={liked.has(key)}>
           👍
         </RailButton>
-        <RailButton label="Not for me" onClick={notInterested}>
-          🚫
+        <RailButton label={disliked.has(key) ? "Disliked" : "Dislike"} onClick={dislike} active={disliked.has(key)}>
+          👎
+        </RailButton>
+        <RailButton label="Comments" onClick={() => setComments((c) => !c)} active={comments}>
+          💬
         </RailButton>
         <RailButton label="Share" onClick={share}>
           ↗
         </RailButton>
+        <Link href={remixHref} aria-label="Remix: make your own Short with this one" className="group flex flex-col items-center gap-1 text-xs text-muted">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-foreground/[.08] text-xl text-foreground group-hover:bg-foreground/[.14]">🔁</span>
+          Remix
+        </Link>
+        <button
+          ref={moreBtn}
+          type="button"
+          aria-label="More"
+          onClick={() => {
+            const r = moreBtn.current!.getBoundingClientRect();
+            setMenuAt(menuAt ? null : { x: r.left - 230, y: r.top - 120, items: moreItems() });
+          }}
+          className="group flex flex-col items-center gap-1 text-xs text-muted"
+        >
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-foreground/[.08] text-xl text-foreground group-hover:bg-foreground/[.14]">⋯</span>
+          More
+        </button>
+        {menuAt && <MenuAt x={menuAt.x} y={menuAt.y} items={menuAt.items} onClose={() => setMenuAt(null)} />}
         {s.channelId && (
           <FollowButton
             key={`${s.source}:${s.channelId}`}
@@ -193,6 +283,8 @@ export function ShortsPlayer({ shorts: initial, start = 0, followed = [] }: { sh
           </button>
         </div>
       </div>
+
+      {comments && <ShortComments key={key} source={s.source} id={s.id} title={s.title} onClose={() => setComments(false)} />}
 
       {/* Warm the next thumbnails so moving on looks instant. */}
       <div hidden>
