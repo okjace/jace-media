@@ -6,124 +6,188 @@
 <title>Jace Media</title>
 <!--
   Jace Media for TVs (LG webOS, Android TV, any TV browser).
-  One self-contained file: plain CSS and simple JavaScript, so it runs on TV
-  browser engines going back years (LG webOS 4+, Chromium 53+): no async/await,
-  no ?. or ??, no CSS gap/inset/aspect-ratio/@layer.
-  Arrow keys move, OK opens, Back goes back. Data comes from /api/app/*.
+  One self-contained file: plain CSS and simple JavaScript (var, function, no
+  arrow functions, no async/await, no ?. or ??, no CSS gap/inset/aspect-ratio),
+  so it runs on TV browser engines going back years (LG webOS 4+).
+
+  Remote: arrows move, OK opens, Back goes back (every screen is a step in the
+  page's history, so Back works on every TV), hold OK or press a colored
+  button for a menu, number buttons type a PIN, media buttons control video.
+  Data comes from /api/app/* on the same site.
 -->
 <style>
   html { font-size: 20px; }
-  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0b0d10; color: #fff;
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0b0d10; color: #f2f4f7;
     font-family: "LG Smart UI", Roboto, "Segoe UI", Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; cursor: none; }
   * { box-sizing: border-box; }
-  button, input { font-family: inherit; color: inherit; }
-  button { background: none; border: 0; padding: 0; margin: 0; text-align: left; }
+  button, input { font-family: inherit; color: inherit; font-size: inherit; }
+  button { background: none; border: 0; padding: 0; margin: 0; text-align: left; cursor: none; }
   :focus { outline: none; }
   .hidden { display: none !important; }
   #app { position: fixed; top: 0; left: 0; right: 0; bottom: 0; }
+  .muted { color: rgba(255,255,255,0.58); }
+  .center { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; }
+  .spinner { width: 2.6rem; height: 2.6rem; border-radius: 50%; border: 0.25rem solid rgba(255,255,255,0.12); border-top-color: #3ddc84; animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes rise { from { opacity: 0; transform: translateY(0.8rem); } to { opacity: 1; transform: none; } }
 
   /* Side menu */
-  #nav { position: absolute; top: 0; left: 0; bottom: 0; width: 6.4rem; z-index: 5; padding: 2rem 0.9rem;
-    background: linear-gradient(to right, rgba(0,0,0,0.75), rgba(0,0,0,0)); transition: width 0.18s, background-color 0.18s; overflow: hidden; }
-  #nav.open { width: 17rem; background-color: rgba(8,10,12,0.96); }
-  .brand { display: flex; align-items: center; height: 3rem; margin: 0 0 1.6rem 0.4rem; white-space: nowrap; }
-  .brand img { width: 2.8rem; height: 2.8rem; border-radius: 0.7rem; }
-  .brand span { margin-left: 0.9rem; font-size: 1.3rem; font-weight: 700; opacity: 0; transition: opacity 0.15s; }
+  #nav { position: absolute; top: 0; left: 0; bottom: 0; width: 6.4rem; z-index: 5; padding: 2.2rem 0.9rem;
+    background: linear-gradient(to right, rgba(0,0,0,0.8), rgba(0,0,0,0)); transition: width 0.2s ease, background-color 0.2s ease; overflow: hidden; }
+  #nav.open { width: 18rem; background-color: rgba(10,12,15,0.97); box-shadow: 1rem 0 3rem rgba(0,0,0,0.5); }
+  .brand { display: flex; align-items: center; height: 3rem; margin: 0 0 2rem 0.35rem; white-space: nowrap; }
+  .brand img { width: 2.9rem; height: 2.9rem; border-radius: 0.75rem; }
+  .brand span { margin-left: 0.9rem; font-size: 1.35rem; font-weight: 700; opacity: 0; transition: opacity 0.15s; }
   #nav.open .brand span { opacity: 1; }
-  .nav-item { display: flex; align-items: center; width: 100%; height: 3.4rem; margin-bottom: 0.5rem; padding: 0 1rem; border-radius: 0.9rem;
-    color: rgba(255,255,255,0.55); font-size: 1.2rem; white-space: nowrap; }
-  .nav-item .ic { width: 1.8rem; font-size: 1.5rem; text-align: center; flex-shrink: 0; }
-  .nav-item .lb { margin-left: 1rem; opacity: 0; transition: opacity 0.15s; }
+  .nav-item { display: flex; align-items: center; width: 100%; height: 3.3rem; margin-bottom: 0.35rem; padding: 0 1rem; border-radius: 0.9rem;
+    color: rgba(255,255,255,0.55); font-size: 1.2rem; white-space: nowrap; transition: background-color 0.12s, color 0.12s; }
+  .nav-item .ic { display: inline-block; width: 1.8rem; font-size: 1.45rem; text-align: center; flex-shrink: 0; }
+  .nav-item .lb { margin-left: 1.1rem; opacity: 0; transition: opacity 0.15s; }
   #nav.open .nav-item .lb { opacity: 1; }
   .nav-item.on { color: #3ddc84; }
-  .nav-item:focus { background: #fff; color: #000; }
+  .nav-item.on .ic { text-shadow: 0 0 1rem rgba(61,220,132,0.6); }
+  .nav-item:focus { background: #fff; color: #0b0d10; }
 
-  /* Main area */
+  /* Pages */
   #main { position: absolute; top: 0; left: 6.4rem; right: 0; bottom: 0; overflow: hidden; }
-  #scroll { position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; padding: 2rem 3rem 4rem 3rem; }
-  h1 { margin: 0 0 1.6rem 0; font-size: 2.2rem; font-weight: 700; }
-  .row { margin-bottom: 2.2rem; }
-  .row h2 { margin: 0 0 0.6rem 0.3rem; font-size: 1.35rem; font-weight: 600; color: rgba(255,255,255,0.85); }
+  #scroll { position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; padding: 2.4rem 3rem 5rem 3rem; animation: rise 0.25s ease; }
+  h1 { margin: 0 0 1.8rem 0.3rem; font-size: 2.3rem; font-weight: 700; letter-spacing: -0.01em; }
+  .row { margin-bottom: 2.4rem; }
+  .row h2 { margin: 0 0 0.7rem 0.3rem; font-size: 1.35rem; font-weight: 600; color: rgba(255,255,255,0.88); }
   .track { white-space: nowrap; overflow: hidden; padding: 1rem 0.6rem; margin: -1rem 0; }
-  .card { display: inline-block; vertical-align: top; width: 19rem; margin-right: 1.2rem; border-radius: 1rem; white-space: normal;
-    transition: transform 0.15s; }
-  .card.tall { width: 11rem; }
+  .grid { white-space: normal; padding: 0.6rem; margin: -0.6rem; }
+  .grid .card { margin-bottom: 2rem; }
+
+  .card { display: inline-block; vertical-align: top; width: 19rem; margin-right: 1.3rem; border-radius: 1rem; white-space: normal; transition: transform 0.15s ease; }
+  .card.tall { width: 11.5rem; }
+  .card.round { width: 9rem; text-align: center; }
   .card .pic { position: relative; width: 100%; padding-top: 56.25%; border-radius: 1rem; overflow: hidden; background: rgba(255,255,255,0.06); }
   .card.tall .pic { padding-top: 177.7%; }
   .card .pic img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
-  .card .t { margin-top: 0.6rem; font-size: 1.05rem; font-weight: 600; line-height: 1.3; max-height: 2.7rem; overflow: hidden; color: rgba(255,255,255,0.9); }
+  .card .prog { position: absolute; left: 0; bottom: 0; height: 0.3rem; background: #3ddc84; }
+  .card .t { margin-top: 0.65rem; font-size: 1.05rem; font-weight: 600; line-height: 1.3; max-height: 2.7rem; overflow: hidden; color: rgba(255,255,255,0.9); }
   .card .s { margin-top: 0.2rem; font-size: 0.9rem; color: rgba(255,255,255,0.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .card:focus { transform: scale(1.06); }
-  .card:focus .pic { box-shadow: 0 0 0 0.25rem #3ddc84, 0 0.8rem 2rem rgba(0,0,0,0.6); }
+  .card:focus .pic, .card.round:focus .face { box-shadow: 0 0 0 0.25rem #3ddc84, 0 0.8rem 2rem rgba(0,0,0,0.6); }
   .card:focus .t { color: #fff; }
-  .badge { position: absolute; top: 0.6rem; left: 0.6rem; padding: 0.1rem 0.45rem; border-radius: 0.3rem; font-size: 0.75rem; font-weight: 700; background: #e5484d; }
+  .badge { position: absolute; top: 0.6rem; left: 0.6rem; padding: 0.1rem 0.45rem; border-radius: 0.3rem; font-size: 0.75rem; font-weight: 700; background: #e5484d; color: #fff; }
+  .src { position: absolute; top: 0.6rem; left: 0.6rem; padding: 0.1rem 0.45rem; border-radius: 0.3rem; font-size: 0.7rem; font-weight: 700; }
+  .src.src-yt { background: #e5484d; color: #fff; }
+  .src.src-jace { background: #3ddc84; color: #0c1410; }
 
-  .hero { position: relative; height: 27rem; margin: -2rem -3rem 2rem -3rem; overflow: hidden; }
+  .hero { position: relative; height: 28rem; margin: -2.4rem -3rem 2.2rem -3rem; overflow: hidden; }
   .hero img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.55; }
   .hero .shade { position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-    background: linear-gradient(to top, #0b0d10 0%, rgba(11,13,16,0.6) 40%, rgba(11,13,16,0) 75%), linear-gradient(to right, rgba(11,13,16,0.92), rgba(11,13,16,0) 70%); }
-  .hero .txt { position: absolute; left: 3rem; bottom: 2.2rem; width: 44rem; }
-  .hero .k { color: #3ddc84; font-size: 1.05rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+    background: linear-gradient(to top, #0b0d10 0%, rgba(11,13,16,0.55) 42%, rgba(11,13,16,0) 75%), linear-gradient(to right, rgba(11,13,16,0.94), rgba(11,13,16,0) 70%); }
+  .hero .txt { position: absolute; left: 3rem; bottom: 2.4rem; width: 46rem; }
+  .hero .k { color: #3ddc84; font-size: 1rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
   .hero .h { margin: 0.6rem 0; font-size: 2.6rem; font-weight: 700; line-height: 1.15; max-height: 6rem; overflow: hidden; }
-  .hero .m { font-size: 1.2rem; color: rgba(255,255,255,0.7); }
+  .hero .m { font-size: 1.2rem; color: rgba(255,255,255,0.72); }
 
-  .btn { display: inline-block; margin: 1rem 1rem 0 0; padding: 0.8rem 2rem; border-radius: 3rem; background: rgba(255,255,255,0.1);
-    font-size: 1.2rem; font-weight: 600; transition: transform 0.15s; }
-  .btn.white { background: #fff; color: #000; }
+  .btn { display: inline-block; margin: 1rem 1rem 0 0; padding: 0.8rem 1.9rem; border-radius: 3rem; background: rgba(255,255,255,0.1);
+    font-size: 1.2rem; font-weight: 600; transition: transform 0.15s, background-color 0.12s; }
+  .btn.white { background: #fff; color: #0b0d10; }
   .btn.green { background: #3ddc84; color: #0c1410; }
-  .btn:focus { background: #fff; color: #000; transform: scale(1.06); box-shadow: 0 0 0 0.2rem #3ddc84; }
-  .list-btn { display: block; width: 40rem; margin-bottom: 0.8rem; padding: 1rem 1.6rem; border-radius: 1rem; background: rgba(255,255,255,0.07); font-size: 1.2rem; }
-  .list-btn:focus { background: #fff; color: #000; }
+  .btn:focus { background: #fff; color: #0b0d10; transform: scale(1.06); box-shadow: 0 0 0 0.22rem #3ddc84; }
+  .list { width: 46rem; }
+  .list-btn { display: flex; align-items: center; width: 100%; margin-bottom: 0.7rem; padding: 1.05rem 1.6rem; border-radius: 1rem; background: rgba(255,255,255,0.06); font-size: 1.2rem; transition: background-color 0.12s; }
+  .list-btn .v { margin-left: auto; color: rgba(255,255,255,0.55); font-size: 1.05rem; }
+  .list-btn:focus { background: #fff; color: #0b0d10; }
+  .list-btn:focus .v { color: rgba(0,0,0,0.6); }
+  .list-btn.on .v { color: #3ddc84; }
+  .section-title { margin: 2rem 0 0.8rem 0.3rem; font-size: 1.05rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.5); }
 
   .face { display: inline-block; border-radius: 50%; object-fit: cover; background: rgba(61,220,132,0.18); color: #3ddc84; font-weight: 700; text-align: center; vertical-align: middle; }
-  .center { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; }
-  .muted { color: rgba(255,255,255,0.6); }
-  .spinner { width: 2.4rem; height: 2.4rem; border-radius: 50%; border: 0.25rem solid rgba(255,255,255,0.15); border-top-color: #3ddc84; animation: spin 0.9s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* Profiles / PIN / sign in */
-  .profiles .p { display: inline-block; width: 11rem; margin: 0 1.2rem; padding: 0.8rem; border-radius: 1.4rem; text-align: center; vertical-align: top; transition: transform 0.15s; }
-  .profiles .p:focus { transform: scale(1.08); box-shadow: 0 0 0 0.25rem #3ddc84; }
-  .profiles .n { margin-top: 0.8rem; font-size: 1.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .dots span { display: inline-block; width: 1.4rem; height: 1.4rem; margin: 0 0.6rem; border-radius: 50%; border: 0.18rem solid rgba(255,255,255,0.4); }
+  .post { display: inline-block; vertical-align: top; width: 30rem; margin: 0 1.3rem 1.6rem 0; padding: 1.3rem; border-radius: 1.1rem; background: rgba(255,255,255,0.05); white-space: normal; transition: transform 0.15s; }
+  .post:focus { transform: scale(1.03); box-shadow: 0 0 0 0.22rem #3ddc84; background: rgba(255,255,255,0.08); }
+  .post .who { display: flex; align-items: center; font-size: 1rem; }
+  .post .who b { margin-left: 0.7rem; }
+  .post .txt { margin-top: 0.8rem; font-size: 1.1rem; line-height: 1.45; max-height: 9.6rem; overflow: hidden; color: rgba(255,255,255,0.88); }
+  .post img.pp { width: 100%; height: 14rem; margin-top: 0.8rem; border-radius: 0.8rem; object-fit: cover; }
+
+  /* Profiles, PIN, sign in */
+  .profiles { white-space: nowrap; }
+  .profiles .p { display: inline-block; width: 11rem; margin: 0 1.2rem; padding: 1rem 0.6rem; border-radius: 1.4rem; text-align: center; vertical-align: top; transition: transform 0.15s; }
+  .profiles .p:focus { transform: scale(1.08); background: rgba(255,255,255,0.06); }
+  .profiles .p:focus .face { box-shadow: 0 0 0 0.28rem #3ddc84; }
+  .profiles .n { margin-top: 0.9rem; font-size: 1.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dots { margin: 1.4rem 0 0.4rem; }
+  .dots span { display: inline-block; width: 1.3rem; height: 1.3rem; margin: 0 0.55rem; border-radius: 50%; border: 0.16rem solid rgba(255,255,255,0.45); transition: background-color 0.1s; }
   .dots span.f { background: #fff; border-color: #fff; }
-  .pad { width: 19rem; margin: 0 auto; }
-  .key { display: inline-block; width: 5.6rem; height: 4.2rem; margin: 0.4rem; border-radius: 1rem; background: rgba(255,255,255,0.08);
-    font-size: 1.8rem; font-weight: 600; text-align: center; transition: transform 0.15s; }
-  .key:focus { background: #fff; color: #000; transform: scale(1.06); }
-  .key.blank { visibility: hidden; }
-  .qr { width: 15rem; height: 15rem; padding: 0.6rem; border-radius: 1.2rem; background: #fff; margin: 0 auto; }
+  .pad { display: inline-block; margin-top: 0.4rem; }
+  .pad-row { white-space: nowrap; }
+  .key { display: inline-block; width: 5.4rem; height: 4.2rem; margin: 0.35rem; border-radius: 1.1rem; background: rgba(255,255,255,0.08);
+    font-size: 1.75rem; font-weight: 600; text-align: center; line-height: 4.2rem; vertical-align: top; transition: transform 0.12s, background-color 0.12s; }
+  .key.small { font-size: 1.3rem; }
+  .key:focus { background: #fff; color: #0b0d10; transform: scale(1.07); }
+  .panel { padding: 2.4rem; border-radius: 1.6rem; background: rgba(255,255,255,0.04); }
+  .qr { width: 14rem; height: 14rem; padding: 0.6rem; border-radius: 1.1rem; background: #fff; margin: 0 auto; }
   .qr svg { width: 100%; height: 100%; display: block; }
-  .code { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 0.4rem; background: rgba(255,255,255,0.1); font-family: monospace; font-size: 1.5rem; letter-spacing: 0.25em; }
-  .err { color: #ff7b7b; height: 1.6rem; font-size: 1.15rem; margin: 0.8rem 0; }
+  .code { display: inline-block; margin-top: 0.4rem; padding: 0.2rem 0.7rem; border-radius: 0.5rem; background: rgba(255,255,255,0.1); font-family: monospace; font-size: 1.5rem; letter-spacing: 0.25em; color: #fff; }
+  .err { color: #ff8a8a; min-height: 1.6rem; font-size: 1.1rem; margin: 0.4rem 0; }
 
-  input.search { width: 50rem; height: 4rem; padding: 0 2rem; border: 0; border-radius: 3rem; background: rgba(255,255,255,0.08); font-size: 1.4rem; }
-  input.search:focus { background: rgba(255,255,255,0.15); box-shadow: 0 0 0 0.2rem #3ddc84; }
+  input.search { width: 52rem; height: 4rem; padding: 0 2rem; border: 0; border-radius: 3rem; background: rgba(255,255,255,0.08); font-size: 1.4rem; vertical-align: top; }
+  input.search:focus { background: rgba(255,255,255,0.14); box-shadow: 0 0 0 0.22rem #3ddc84; }
 
   /* Player */
   #player { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 20; background: #000; }
-  #player video { width: 100%; height: 100%; background: #000; }
-  #yt { position: absolute; left: 0; right: 0; top: -12%; bottom: -12%; pointer-events: none; }
-  #yt iframe { width: 100%; height: 100%; border: 0; }
+  #pbox, .vbox { position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; background: #000; }
+  .vbox video { width: 100%; height: 100%; background: #000; }
+  .yt { position: absolute; left: 0; right: 0; top: -12%; bottom: -12%; pointer-events: none; }
+  .yt iframe { width: 100%; height: 100%; border: 0; }
   #ui { position: absolute; top: 0; left: 0; right: 0; bottom: 0; transition: opacity 0.3s; }
   #ui.off { opacity: 0; }
-  #ui .top { position: absolute; top: 0; left: 0; right: 0; padding: 2rem 3rem 5rem 3rem; background: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0)); }
+  #ui .top { position: absolute; top: 0; left: 0; right: 0; padding: 2.2rem 3rem 5rem 3rem; background: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0)); }
   #ui .top .h { font-size: 1.8rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #ui .bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 5rem 3rem 1.6rem 3rem; background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.92)); }
-  .bar { display: flex; align-items: center; font-size: 1.05rem; color: rgba(255,255,255,0.8); }
-  .bar .line { flex: 1; height: 0.35rem; margin: 0 1rem; border-radius: 1rem; background: rgba(255,255,255,0.25); overflow: hidden; }
+  #ui .bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 6rem 3rem 1.8rem 3rem; background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.92)); }
+  .bar { display: flex; align-items: center; font-size: 1.05rem; color: rgba(255,255,255,0.82); }
+  .bar .line { flex: 1; height: 0.35rem; margin: 0 1rem; border-radius: 1rem; background: rgba(255,255,255,0.22); overflow: hidden; }
   .bar .fill { height: 100%; width: 0; background: #3ddc84; }
-  .ctl { display: inline-block; margin: 1rem 0.8rem 0 0; padding: 0.8rem 1.4rem; border-radius: 3rem; background: rgba(255,255,255,0.12); font-size: 1.3rem; font-weight: 600; }
-  .ctl:focus { background: #fff; color: #000; box-shadow: 0 0 0 0.2rem #3ddc84; }
+  .ctls { margin-top: 1rem; white-space: nowrap; }
+  .ctl { display: inline-block; margin: 0 0.7rem 0 0; padding: 0.75rem 1.35rem; border-radius: 3rem; background: rgba(255,255,255,0.12); font-size: 1.2rem; font-weight: 600; transition: transform 0.12s; }
+  .ctl:focus { background: #fff; color: #0b0d10; transform: scale(1.06); box-shadow: 0 0 0 0.2rem #3ddc84; }
   .ctl.on { background: #3ddc84; color: #0c1410; }
-  #toast { position: absolute; top: 50%; left: 50%; margin: -2rem 0 0 -6rem; width: 12rem; padding: 1rem; border-radius: 3rem; background: rgba(0,0,0,0.7); font-size: 1.6rem; font-weight: 700; text-align: center; }
+  #toast { position: fixed; top: 50%; left: 50%; z-index: 60; margin: -2rem 0 0 -9rem; width: 18rem; padding: 1rem; border-radius: 3rem; background: rgba(0,0,0,0.78); font-size: 1.4rem; font-weight: 700; text-align: center; }
   #ui .next .card { width: 14rem; }
+  #ui .next .card .t { font-size: 0.95rem; max-height: 2.5rem; }
+
+  /* Side sheet (comments, description) and menu */
+  .sheet { position: fixed; top: 0; right: 0; bottom: 0; width: 38rem; z-index: 40; padding: 2rem 2rem 2rem 2.2rem; background: rgba(14,16,20,0.97); box-shadow: -1rem 0 3rem rgba(0,0,0,0.6); overflow: hidden; animation: rise 0.2s ease; }
+  .sheet h2 { margin: 0 0 1rem; font-size: 1.5rem; }
+  .sheet .body { position: absolute; top: 5rem; left: 2.2rem; right: 2rem; bottom: 1.5rem; overflow: hidden; }
+  .item { display: block; width: 100%; margin-bottom: 0.7rem; padding: 0.9rem 1rem; border-radius: 0.9rem; font-size: 1.05rem; line-height: 1.45; }
+  .item:focus { background: rgba(255,255,255,0.08); box-shadow: inset 0 0 0 0.15rem #3ddc84; }
+  .item b { display: block; font-size: 0.95rem; color: rgba(255,255,255,0.65); margin-bottom: 0.25rem; }
+  #menu { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 80; background: rgba(0,0,0,0.55); }
+  #menu .box { position: absolute; top: 50%; left: 50%; width: 30rem; margin-left: -15rem; transform: translateY(-50%); padding: 1rem; border-radius: 1.4rem; background: #15181d; box-shadow: 0 1.5rem 4rem rgba(0,0,0,0.6); animation: rise 0.18s ease; }
+  #menu .ttl { padding: 0.6rem 1rem 1rem; font-size: 1.05rem; color: rgba(255,255,255,0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #menu button { display: block; width: 100%; padding: 0.9rem 1.1rem; border-radius: 0.8rem; font-size: 1.2rem; }
+  #menu button:focus { background: #fff; color: #0b0d10; }
+  #menu button.danger { color: #ff8a8a; }
+  #menu button.danger:focus { background: #ff8a8a; color: #0b0d10; }
+
+  /* Shorts */
+  #shorts { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+  #shortstage { position: absolute; top: 1.4rem; bottom: 1.4rem; left: 50%; width: 31.6rem; margin-left: -19rem; border-radius: 1.4rem; overflow: hidden; background: #000; box-shadow: 0 1rem 3rem rgba(0,0,0,0.6); transition: box-shadow 0.15s; }
+  #shortstage:focus { box-shadow: 0 0 0 0.25rem #3ddc84, 0 1rem 3rem rgba(0,0,0,0.6); }
+  #shortinfo { position: absolute; left: 0; right: 0; bottom: 0; padding: 6rem 1.4rem 1.4rem; background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.85)); pointer-events: none; }
+  #shortinfo .who { display: flex; align-items: center; font-size: 1.05rem; font-weight: 600; }
+  #shortinfo .who .face { margin-right: 0.7rem; }
+  #shortinfo .tt { margin-top: 0.6rem; font-size: 1.1rem; line-height: 1.35; max-height: 3rem; overflow: hidden; }
+  #rail { position: absolute; top: 50%; left: 50%; margin-left: 14.2rem; transform: translateY(-50%); width: 6rem; text-align: center; }
+  .rb { display: block; width: 6rem; margin-bottom: 1rem; font-size: 0.9rem; color: rgba(255,255,255,0.75); text-align: center; }
+  .rb .o { display: block; width: 4rem; height: 4rem; margin: 0 auto 0.35rem; border-radius: 50%; background: rgba(255,255,255,0.1); font-size: 1.6rem; line-height: 4rem; transition: transform 0.12s, background-color 0.12s; }
+  .rb.on .o { background: #3ddc84; color: #0c1410; }
+  .rb:focus .o { background: #fff; color: #0b0d10; transform: scale(1.12); box-shadow: 0 0 0 0.2rem #3ddc84; }
+  .rb:focus { color: #fff; }
+  #shorthint { position: absolute; right: 3rem; bottom: 2rem; font-size: 1rem; line-height: 1.8; color: rgba(255,255,255,0.45); text-align: right; }
+  #shortcount { position: absolute; right: 3rem; top: 2rem; font-size: 1rem; color: rgba(255,255,255,0.45); }
 </style>
 </head>
 <body>
-<div id="app">
-  <div class="center"><div class="spinner"></div></div>
-</div>
+<div id="app"><div class="center"><div class="spinner"></div></div></div>
+<div id="toast" class="hidden"></div>
 <script>
 (function () {
   "use strict";
@@ -135,7 +199,7 @@
 
   var app = document.getElementById("app");
   var UNLOCK = "jm_tv_unlocked";
-  var state = { me: null, screen: "home", stack: [], pinFor: null };
+  var state = { me: null, tab: "home" };
 
   // ---------- Helpers ----------
   function esc(s) {
@@ -143,15 +207,23 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   }
+  var cache = {};
   function api(path, method, body) {
     var opts = { method: method || "GET", credentials: "same-origin", headers: {} };
     if (body !== undefined) { opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
+    if (opts.method !== "GET") cache = {};
     return fetch(path, opts).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (data) {
         if (!r.ok) throw new Error(data.error || ("Error " + r.status));
         return data;
       });
     });
+  }
+  // Pages you go back to load instantly (kept for a minute).
+  function get(path) {
+    var hit = cache[path];
+    if (hit && Date.now() - hit.at < 60000) return Promise.resolve(hit.data);
+    return api(path).then(function (data) { cache[path] = { at: Date.now(), data: data }; return data; });
   }
   function compact(n) {
     if (n == null) return "";
@@ -174,46 +246,97 @@
   function spinner(label) {
     return '<div class="center" style="flex-direction:column"><div class="spinner"></div>' + (label ? '<p class="muted" style="font-size:1.2rem;margin-top:1rem">' + esc(label) + "</p>" : "") + "</div>";
   }
+  function failed(msg) { return '<p class="muted" style="font-size:1.25rem;margin-left:0.3rem">' + esc(msg) + "</p>"; }
   function closest(el, sel) {
-    while (el && el.nodeType === 1) { if (el.matches ? el.matches(sel) : el.webkitMatchesSelector(sel)) return el; el = el.parentNode; }
+    while (el && el.nodeType === 1) { if ((el.matches || el.webkitMatchesSelector).call(el, sel)) return el; el = el.parentNode; }
     return null;
   }
+  function each(list, fn) { Array.prototype.forEach.call(list, fn); }
+  function byId(id) { return document.getElementById(id); }
+  function toast(text) {
+    var t = byId("toast");
+    t.textContent = text;
+    t.classList.remove("hidden");
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(function () { t.classList.add("hidden"); }, 1600);
+  }
+  function signedIn() { return !!(state.me && state.me.account); }
 
-  // ---------- Remote: arrow keys move focus between [data-tv] things ----------
+  // ---------- Screens and the Back button ----------
+  // Every screen is a step in the page's history: the TV's Back button (LG, Android TV) goes back a step.
+  var stack = [];
+  function open(screen) {
+    // screen: { render: fn, leave?: fn, overlay?: bool }
+    stack.push(screen);
+    history.pushState({ d: stack.length }, "");
+    screen.render();
+  }
+  function root(screen) {
+    for (var i = stack.length - 1; i >= 0; i--) if (stack[i].leave) stack[i].leave();
+    stack = [screen];
+    screen.render();
+  }
+  var backTimer = null;
+  window.addEventListener("popstate", function () {
+    // LG's own Back already went back a step: don't do it twice.
+    if (backTimer) { clearTimeout(backTimer); backTimer = null; }
+    if (stack.length <= 1) return;
+    var top = stack.pop();
+    if (top.leave) top.leave();
+    if (!top.overlay) stack[stack.length - 1].render();
+    else if (!document.activeElement || document.activeElement === document.body) focusDefault();
+  });
+  function back() {
+    if (stack.length > 1) { history.back(); return; }
+    if (state.tab !== "home" && signedIn()) { goTab("home"); return; }
+    // On the first screen, Back leaves the app.
+    try { if (window.webOS && window.webOS.platformBack) window.webOS.platformBack(); else window.close(); } catch (err) {}
+  }
+
+  // ---------- Remote: arrow keys move between [data-tv] things ----------
   function visible(el) {
     var r = el.getBoundingClientRect();
-    return r.width > 0 && r.height > 0;
+    return r.width > 0 && r.height > 0 && r.bottom > -2 && r.top < window.innerHeight * 2.5;
   }
-  function focusables(scope) {
-    return Array.prototype.filter.call((scope || document).querySelectorAll("[data-tv]"), visible);
+  function layer() {
+    // Only the top layer takes focus: the menu, then a sheet, then the player, then the page.
+    return byId("menu") || document.querySelector(".sheet") || byId("player") || app;
+  }
+  function focusables() {
+    return Array.prototype.filter.call(layer().querySelectorAll("[data-tv]"), visible);
   }
   function focusEl(el) {
     if (!el) return;
     el.focus();
     reveal(el);
-    if (closest(el, "#nav")) document.getElementById("nav") && document.getElementById("nav").classList.add("open");
   }
-  // Scrolls rows and the page so the focused thing is in view.
+  // The side menu is open only while something in it has focus.
+  document.addEventListener("focusin", function () {
+    var nav = byId("nav");
+    if (nav) nav.className = nav.contains(document.activeElement) ? "open" : "";
+  });
+  // Scrolls rows, lists, and the page so the focused thing is in view.
   function reveal(el) {
     var track = closest(el, ".track");
-    if (track) {
-      var left = el.offsetLeft - track.clientWidth / 2 + el.offsetWidth / 2;
-      track.scrollLeft = Math.max(0, left);
+    if (track) track.scrollLeft = Math.max(0, el.offsetLeft - track.clientWidth / 2 + el.offsetWidth / 2);
+    var box = closest(el, "#scroll") || closest(el, ".body");
+    if (!box) return;
+    var row = closest(el, ".row") || el, top = 0, n = row;
+    while (n && n !== box && box.contains(n)) { top += n.offsetTop; n = n.offsetParent; }
+    if (closest(el, ".grid") || closest(el, ".list") || box.className === "body") {
+      n = el; top = 0;
+      while (n && n !== box && box.contains(n)) { top += n.offsetTop; n = n.offsetParent; }
     }
-    var scroller = closest(el, "#scroll");
-    if (scroller) {
-      var row = closest(el, ".row") || el;
-      var top = 0, n = row;
-      while (n && n !== scroller) { top += n.offsetTop; n = n.offsetParent; }
-      if (top - scroller.scrollTop > scroller.clientHeight * 0.55 || top < scroller.scrollTop + 40) scroller.scrollTop = Math.max(0, top - scroller.clientHeight * 0.22);
-      if (row.className.indexOf("hero") >= 0 || row === el && top < scroller.clientHeight * 0.4) scroller.scrollTop = 0;
-    }
+    var bottom = top + (closest(el, ".grid") || box.className === "body" ? el.offsetHeight : row.offsetHeight);
+    if (top < box.scrollTop + 20) box.scrollTop = Math.max(0, top - box.clientHeight * 0.15);
+    else if (bottom > box.scrollTop + box.clientHeight - 20) box.scrollTop = bottom - box.clientHeight * 0.75;
+    if (row.className.indexOf("hero") >= 0) box.scrollTop = 0;
   }
-  function move(dir, scope) {
-    var all = focusables(scope);
+  function move(dir) {
+    var all = focusables();
     if (!all.length) return;
     var cur = document.activeElement;
-    if (!cur || all.indexOf(cur) < 0) { focusEl(document.querySelector("[data-tv-default]") || all[0]); return; }
+    if (!cur || all.indexOf(cur) < 0) { focusEl(layer().querySelector("[data-tv-default]") || all[0]); return; }
     var a = cur.getBoundingClientRect(), ax = a.left + a.width / 2, ay = a.top + a.height / 2;
     var fromMenu = !!closest(cur, "#nav");
     var best = null, bestScore = Infinity;
@@ -221,7 +344,7 @@
       var el = all[i];
       if (el === cur) continue;
       var inMenu = !!closest(el, "#nav");
-      // Up/down stay on their side; the menu opens with Left and closes with Right.
+      // Up/down stay on their side; Left opens the side menu, Right leaves it.
       if ((dir === "up" || dir === "down") && inMenu !== fromMenu) continue;
       var b = el.getBoundingClientRect(), bx = b.left + b.width / 2, by = b.top + b.height / 2;
       var dx = bx - ax, dy = by - ay, main, side;
@@ -231,193 +354,377 @@
       if (score < bestScore) { bestScore = score; best = el; }
     }
     if (best && closest(best, "#nav") && !fromMenu) best = document.querySelector("#nav .nav-item.on") || best;
-    if (best) {
-      if (fromMenu && !closest(best, "#nav")) document.getElementById("nav").classList.remove("open");
-      focusEl(best);
-    }
+    if (best) focusEl(best);
   }
   function focusDefault() {
     setTimeout(function () {
-      var scope = document.getElementById("scroll") || app;
-      focusEl(scope.querySelector("[data-tv-default]") || scope.querySelector("[data-tv]") || app.querySelector("[data-tv]"));
-    }, 50);
+      var scope = layer() === app ? (byId("scroll") || byId("shorts") || app) : layer();
+      var el = scope.querySelector("[data-tv-default]") || scope.querySelector("[data-tv]") || app.querySelector("[data-tv]");
+      if (el && visible(el)) focusEl(el);
+    }, 60);
   }
 
-  // Keys: numbers (PIN), media keys, Back.
-  var KEY = { LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, ENTER: 13, BACK: 461, BACK2: 10009, ESC: 27, BKSP: 8, PLAY: 415, PAUSE: 19, PLAYPAUSE: 179, REW: 412, FF: 417, RED: 403 };
-  var keyHandler = null; // the player or PIN pad takes keys first
+  // ---------- Keys ----------
+  var KEY = { LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, ENTER: 13, BACK: 461, BACK2: 10009, ESC: 27, BKSP: 8,
+    PLAY: 415, PAUSE: 19, PLAYPAUSE: 179, REW: 412, FF: 417, RED: 403, GREEN: 404, YELLOW: 405, BLUE: 406 };
+  var keyHandler = null; // the player, Shorts, or the PIN pad take keys first
+  var okTimer = null, okHeld = false;
   document.addEventListener("keydown", function (e) {
     var k = e.keyCode;
+    // Hold OK, or press a colored button, for the menu of the selected thing.
+    if (k === KEY.ENTER && !menuOpen) {
+      if (e.repeat) { e.preventDefault(); return; }
+      if (!okTimer && hasMenu(document.activeElement)) {
+        okHeld = false;
+        okTimer = setTimeout(function () { okHeld = true; okTimer = null; showMenuFor(document.activeElement); }, 600);
+        e.preventDefault();
+        return;
+      }
+    }
+    if ((k === KEY.RED || k === KEY.GREEN || k === KEY.YELLOW || k === KEY.BLUE) && !menuOpen && !pinActive && hasMenu(document.activeElement)) {
+      e.preventDefault();
+      showMenuFor(document.activeElement);
+      return;
+    }
     if (keyHandler && keyHandler(e) === true) { e.preventDefault(); return; }
     var typing = document.activeElement && document.activeElement.tagName === "INPUT";
-    if (k === KEY.BACK || k === KEY.BACK2 || k === KEY.ESC || (k === KEY.BKSP && !typing)) { e.preventDefault(); back(); return; }
+    if (k === KEY.BACK || k === KEY.BACK2) {
+      // Some TVs go back a step on their own when Back is pressed; wait a moment to see.
+      e.preventDefault();
+      clearTimeout(backTimer);
+      backTimer = setTimeout(function () { backTimer = null; back(); }, 250);
+      return;
+    }
+    if (k === KEY.ESC || (k === KEY.BKSP && !typing)) { e.preventDefault(); back(); return; }
     if (typing && (k === KEY.LEFT || k === KEY.RIGHT)) return;
     var dir = { 37: "left", 38: "up", 39: "right", 40: "down" }[k];
     if (dir) { e.preventDefault(); move(dir); }
   });
-
-  // ---------- Screens and Back ----------
-  function back() {
-    if (state.stack.length) { var prev = state.stack.pop(); prev(); return; }
-    if (state.screen !== "home" && state.me && state.me.account) { go("home"); return; }
-    try { if (window.webOS && window.webOS.platformBack) window.webOS.platformBack(); else window.close(); } catch (err) {}
-  }
-  function shell(content) {
-    var a = state.me && state.me.account;
-    var items = [["search", "Search", "&#9906;"], ["home", "Home", "&#8962;"], ["shorts", "Shorts", "&#9647;"], ["subs", "Subscriptions", "&#9776;"], ["live", "Live", "&#9673;"], ["you", "You", ""]];
-    var nav = '<div id="nav"><div class="brand"><img src="/icon.svg" alt=""><span>Jace Media</span></div>';
-    for (var i = 0; i < items.length; i++) {
-      var it = items[i];
-      var icon = it[0] === "you" && a ? face(a.name, a.picture, 1.8) : it[2];
-      nav += '<button class="nav-item' + (state.screen === it[0] ? " on" : "") + '" data-tv data-go="' + it[0] + '"><span class="ic">' + icon + '</span><span class="lb">' + it[1] + "</span></button>";
+  document.addEventListener("keyup", function (e) {
+    if (e.keyCode !== KEY.ENTER) return;
+    if (okTimer) {
+      // A short press: OK as usual.
+      clearTimeout(okTimer);
+      okTimer = null;
+      var el = document.activeElement;
+      if (el && el.click) el.click();
     }
-    nav += "</div>";
-    app.innerHTML = nav + '<div id="main"><div id="scroll">' + content + "</div></div>";
-    Array.prototype.forEach.call(app.querySelectorAll("[data-go]"), function (b) {
-      b.addEventListener("click", function () { go(b.getAttribute("data-go")); });
+    okHeld = false;
+  });
+
+  // ---------- The menu (hold OK or a colored button), like right-click on the website ----------
+  var menuOpen = false, menuReturn = null;
+  function hasMenu(el) { return !!(el && el.getAttribute && el.getAttribute("data-menu")); }
+  function showMenuFor(el) {
+    var v = menuVideos[el.getAttribute("data-menu")];
+    if (!v) return;
+    var items = [{ label: "▶  Play", run: function () { play(v); } }];
+    if (signedIn()) items.push({ label: "🕒  Save to Watch Later", run: function () { saveLater(v); } });
+    if (v.channelId && v.source === "youtube") items.push({ label: "👤  Go to " + v.channelName, run: function () { channel(v.channelId, v.channelName); } });
+    if (signedIn()) {
+      items.push({ label: "🚫  Not interested", run: function () { hide("video", v.source + ":" + v.id, el, "Got it. You'll see fewer like this."); } });
+      items.push({ label: "⊘  Don't recommend channel", run: function () { hide("channel", v.source + ":" + v.channelId, el, "You won't be recommended " + v.channelName + " anymore."); } });
+      items.push({ label: "👍  Rate appropriate", run: function () { rate(v, 1); } });
+      items.push({ label: "🚩  Rate inappropriate", danger: true, run: function () { rate(v, -1, el); } });
+    }
+    showMenu(v.title, items, el);
+  }
+  var afterMenu = null;
+  function showMenu(title, items, returnTo) {
+    if (menuOpen) return;
+    open({
+      overlay: true,
+      render: function () {
+        menuOpen = true;
+        menuReturn = returnTo || document.activeElement;
+        var html = '<div id="menu"><div class="box"><div class="ttl">' + esc(title) + "</div>";
+        for (var i = 0; i < items.length; i++) html += '<button data-tv data-i="' + i + '"' + (i === 0 ? " data-tv-default" : "") + (items[i].danger ? ' class="danger"' : "") + ">" + esc(items[i].label) + "</button>";
+        var wrap = document.createElement("div");
+        wrap.innerHTML = html + "</div></div>";
+        document.body.appendChild(wrap.firstChild);
+        each(byId("menu").querySelectorAll("[data-i]"), function (b) {
+          // The choice runs once the menu has closed (its step in the history is gone).
+          b.addEventListener("click", function () { afterMenu = items[+b.getAttribute("data-i")].run; history.back(); });
+        });
+        focusEl(byId("menu").querySelector("[data-tv]"));
+      },
+      leave: function () {
+        var m = byId("menu");
+        if (m) m.parentNode.removeChild(m);
+        menuOpen = false;
+        if (menuReturn && document.body.contains(menuReturn)) menuReturn.focus();
+        var run = afterMenu;
+        afterMenu = null;
+        if (run) setTimeout(run, 30);
+      },
     });
   }
-  function go(name) {
-    state.screen = name;
-    state.stack = [];
-    keyHandler = null;
-    ({ home: home, shorts: shorts, subs: subs, live: live, search: search, you: you })[name]();
+  function closeMenu() { if (menuOpen) history.back(); }
+  function saveLater(v) {
+    api("/api/playlists/watch-later/items", "POST", { video: { source: v.source, id: v.id, title: v.title, thumbnail: v.thumbnail, channelId: v.channelId, channelName: v.channelName, short: !!v.short } })
+      .then(function () { toast("Saved to Watch Later"); }).catch(function () { toast("Couldn't save that"); });
   }
-  function onCards(root, list) {
-    Array.prototype.forEach.call(root.querySelectorAll("[data-v]"), function (el) {
+  function hide(kind, ref, el, msg) {
+    api("/api/hidden", "POST", { kind: kind, ref: ref }).then(function () {
+      toast(msg);
+      if (el && el.parentNode) { var next = el.nextElementSibling || el.previousElementSibling; el.parentNode.removeChild(el); if (next) focusEl(next); }
+    }).catch(function () { toast("Couldn't do that"); });
+  }
+  function rate(v, r, el) {
+    api("/api/ratings", "POST", { target: v.source + ":" + v.id, rating: r }).then(function () {
+      toast(r > 0 ? "Thanks for rating" : "Thanks. It's hidden for you");
+      if (r < 0 && el && el.parentNode) el.parentNode.removeChild(el);
+    }).catch(function () { toast("Couldn't rate that"); });
+  }
+
+  // ---------- Building blocks ----------
+  var menuVideos = {}, menuSeq = 0;
+  function remember(v) { var key = "m" + (++menuSeq); menuVideos[key] = v; return key; }
+  function card(v, tall, first, progress) {
+    var key = remember(v);
+    return '<button class="card' + (tall ? " tall" : "") + '" data-tv data-menu="' + key + '"' + (first ? " data-tv-default" : "") + '><div class="pic">' +
+      (v.thumbnail ? '<img src="' + esc(v.thumbnail) + '" alt="">' : "") +
+      (tall ? "" : '<span class="src ' + (v.source === "jace" ? 'src-jace">JACE' : 'src-yt">YOUTUBE') + "</span>") +
+      (progress ? '<span class="prog" style="width:' + Math.round(progress * 100) + '%"></span>' : "") +
+      '</div><div class="t">' + esc(v.title) + "</div>" + (tall ? "" : '<div class="s">' + esc(v.channelName) + (v.views ? " · " + compact(v.views) + " views" : "") + "</div>") + "</button>";
+  }
+  function cards(list, tall, firstDefault, progressKey) {
+    var html = "";
+    for (var i = 0; i < list.length; i++) html += card(list[i], tall, firstDefault && i === 0, progressKey ? list[i][progressKey] : 0);
+    return html;
+  }
+  function row(title, inner) { return inner ? '<div class="row"><h2>' + esc(title) + '</h2><div class="track">' + inner + "</div></div>" : ""; }
+  function grid(inner) { return '<div class="grid">' + inner + "</div>"; }
+  // OK on a card plays it (Shorts open in the Shorts player).
+  function wire(root) {
+    each(root.querySelectorAll("[data-menu]"), function (el) {
+      if (el.getAttribute("data-wired")) return;
+      el.setAttribute("data-wired", "1");
       el.addEventListener("click", function () {
-        var v = list[+el.getAttribute("data-v")];
-        if (v) play(v);
+        var v = menuVideos[el.getAttribute("data-menu")];
+        if (!v) return;
+        if (v.short) {
+          var list = [], all = el.parentNode.querySelectorAll("[data-menu]"), start = 0;
+          each(all, function (c, i) { var x = menuVideos[c.getAttribute("data-menu")]; if (x && x.short) { if (c === el) start = list.length; list.push(x); } });
+          shortsPlayer(list, start);
+        } else play(v);
       });
     });
   }
-  function card(v, i, tall, first) {
-    return '<button class="card' + (tall ? " tall" : "") + '" data-tv data-v="' + i + '"' + (first ? " data-tv-default" : "") + '><div class="pic">' +
-      (v.thumbnail ? '<img src="' + esc(v.thumbnail) + '" alt="">' : "") + "</div>" +
-      '<div class="t">' + esc(v.title) + "</div>" + (tall ? "" : '<div class="s">' + esc(v.channelName) + "</div>") + "</button>";
+
+  // ---------- Page frame: side menu + page ----------
+  var TABS = [
+    ["search", "Search", "&#9906;"], ["home", "Home", "&#8962;"], ["shorts", "Shorts", "&#9655;"], ["videos", "Videos", "&#9635;"],
+    ["subs", "Subscriptions", "&#9776;"], ["live", "Live", "&#9673;"], ["posts", "Posts", "&#9998;"], ["library", "Library", "&#9776;"], ["you", "You", ""],
+  ];
+  function frame(content, noScroll) {
+    var a = state.me && state.me.account;
+    var nav = '<div id="nav"><div class="brand"><img src="/icon.svg" alt=""><span>Jace Media</span></div>';
+    for (var i = 0; i < TABS.length; i++) {
+      var t = TABS[i];
+      if ((t[0] === "library" || t[0] === "subs") && !a) continue;
+      var icon = t[0] === "you" && a ? face(a.name, a.picture, 1.8) : t[2];
+      nav += '<button class="nav-item' + (state.tab === t[0] ? " on" : "") + '" data-tv data-go="' + t[0] + '"><span class="ic">' + icon + '</span><span class="lb">' + t[1] + "</span></button>";
+    }
+    app.innerHTML = nav + '</div><div id="main">' + (noScroll ? content : '<div id="scroll">' + content + "</div>") + "</div>";
+    each(app.querySelectorAll("[data-go]"), function (b) { b.addEventListener("click", function () { goTab(b.getAttribute("data-go")); }); });
   }
-  function row(title, cards) {
-    return cards ? '<div class="row"><h2>' + esc(title) + '</h2><div class="track">' + cards + "</div></div>" : "";
+  function page() { return byId("scroll"); }
+  function fill(html) { var p = page(); if (p) { p.innerHTML = html; wire(p); } }
+  function goTab(name) {
+    state.tab = name;
+    keyHandler = null;
+    var screens = { home: home, shorts: shortsTab, videos: videos, subs: subs, live: live, posts: posts, library: library, search: search, you: you };
+    root({ render: screens[name] });
+    focusDefault();
   }
-  function cardsFor(list, offset, tall, firstDefault) {
-    var html = "";
-    for (var i = 0; i < list.length; i++) html += card(list[i], offset + i, tall, firstDefault && i === 0);
-    return html;
-  }
-  function failed(msg) { return '<p class="muted" style="font-size:1.3rem">' + esc(msg) + "</p>"; }
+  function loading(name, label) { frame(spinner(label)); return function (ok) { return state.tab === name && ok !== false; }; }
 
   // ---------- Home ----------
   function home() {
-    shell(spinner());
-    api("/api/app/home").then(function (d) {
-      if (state.screen !== "home") return;
-      var hero = d.videos[0], rest = d.videos.slice(1), all = d.videos.concat(d.shorts);
-      var html = "";
+    var still = loading("home");
+    get("/api/app/home").then(function (d) {
+      if (!still()) return;
+      var hero = d.videos[0], rest = d.videos.slice(1), html = "";
       if (hero) {
+        var key = remember(hero);
         html += '<div class="hero row">' + (hero.thumbnail ? '<img src="' + esc(hero.thumbnail) + '" alt="">' : "") + '<div class="shade"></div><div class="txt">' +
           '<div class="k">Recommended for you</div><div class="h">' + esc(hero.title) + '</div><div class="m">' + esc(hero.channelName) +
-          (hero.views ? " &middot; " + compact(hero.views) + " views" : "") + '</div><button class="btn white" data-tv data-tv-default data-v="0">&#9654; Play</button></div></div>';
+          (hero.views ? " · " + compact(hero.views) + " views" : "") + '</div><button class="btn white" data-tv data-tv-default data-menu="' + key + '">&#9654;&nbsp; Play</button></div></div>';
       }
-      html += row("Recommended", cardsFor(rest.slice(0, 12), 1, false));
-      html += row("Shorts", cardsFor(d.shorts, d.videos.length, true));
-      if (rest.length > 12) html += row("More for you", cardsFor(rest.slice(12), 13, false));
-      document.getElementById("scroll").innerHTML = html;
-      onCards(app, all);
+      html += row("Recommended", cards(rest.slice(0, 12)));
+      html += row("Shorts", cards(d.shorts.map(function (s) { s.short = true; return s; }), true));
+      if (rest.length > 12) html += row("More for you", cards(rest.slice(12)));
+      fill(html);
       focusDefault();
-    }).catch(function (e) { document.getElementById("scroll").innerHTML = failed(e.message); focusDefault(); });
-    focusDefault();
+    }).catch(function (e) { fill(failed(e.message)); });
+  }
+
+  // ---------- Videos ----------
+  function videos() {
+    var still = loading("videos");
+    get("/api/app/videos").then(function (d) {
+      if (!still()) return;
+      fill("<h1>Videos</h1>" + grid(cards(d.videos.filter(function (v) { return !v.short; }), false, true)));
+      focusDefault();
+    }).catch(function (e) { fill(failed(e.message)); });
   }
 
   // ---------- Subscriptions ----------
   function subs() {
-    shell(spinner());
-    api("/api/app/subscriptions").then(function (d) {
-      if (state.screen !== "subs") return;
-      var videos = d.videos.filter(function (v) { return !v.short; });
-      var shortsList = d.videos.filter(function (v) { return v.short; });
-      var html = "<h1>Subscriptions</h1>";
+    var still = loading("subs");
+    get("/api/app/subscriptions").then(function (d) {
+      if (!still()) return;
+      var list = d.videos.filter(function (v) { return !v.short; });
+      var shortList = d.videos.filter(function (v) { return v.short; });
       var chans = d.channels.filter(function (c) { return c.kind === "youtube"; });
-      if (chans.length) {
-        var c = "";
-        for (var i = 0; i < chans.length; i++) {
-          c += '<button class="card" style="width:8rem;text-align:center" data-tv data-ch="' + i + '">' + face(chans[i].name, chans[i].picture, 5.5) +
-            '<div class="s" style="margin-top:0.5rem">' + esc(chans[i].name) + "</div></button>";
-        }
-        html += row("Your channels", c);
+      var c = "";
+      for (var i = 0; i < chans.length; i++) {
+        c += '<button class="card round" data-tv data-ch="' + i + '">' + face(chans[i].name, chans[i].picture, 6.5) + '<div class="s" style="margin-top:0.6rem">' + esc(chans[i].name) + "</div></button>";
       }
-      html += row("Latest", cardsFor(videos.slice(0, 30), 0, false, true));
-      html += row("Shorts", cardsFor(shortsList, videos.length, true));
-      if (!d.videos.length) html += failed("Nothing new from the channels you follow.");
-      document.getElementById("scroll").innerHTML = html;
-      onCards(app, videos.concat(shortsList));
-      Array.prototype.forEach.call(app.querySelectorAll("[data-ch]"), function (el) {
+      fill("<h1>Subscriptions</h1>" + row("Your channels", c) + row("Latest", cards(list.slice(0, 30), false, true)) + row("Shorts", cards(shortList, true)) +
+        (list.length > 30 ? row("Earlier", cards(list.slice(30))) : "") + (d.videos.length ? "" : failed("Nothing new from the channels you follow.")));
+      each(page().querySelectorAll("[data-ch]"), function (el) {
         el.addEventListener("click", function () { var ch = chans[+el.getAttribute("data-ch")]; channel(ch.ref, ch.name); });
       });
       focusDefault();
-    }).catch(function (e) {
-      document.getElementById("scroll").innerHTML = failed(e.message === "Sign in with Jace first." ? "Sign in to see your subscriptions." : e.message);
-      focusDefault();
-    });
-    focusDefault();
+    }).catch(function (e) { fill(failed(e.message === "Sign in with Jace first." ? "Sign in to see your subscriptions." : e.message)); });
   }
 
   // ---------- Channel ----------
   function channel(id, name) {
-    var screen = state.screen;
-    state.stack.push(function () { go(screen); });
-    shell(spinner("Loading " + name + "…"));
-    api("/api/app/channel/youtube/" + encodeURIComponent(id)).then(function (d) {
-      var html = '<div class="row" style="display:flex;align-items:center">' + face(d.channel.name, d.channel.picture, 6) +
-        '<div style="margin-left:1.4rem"><h1 style="margin:0">' + esc(d.channel.name) + "</h1>" +
-        (d.channel.subscribers ? '<p class="muted" style="margin:0.3rem 0 0;font-size:1.1rem">' + compact(d.channel.subscribers) + " subscribers</p>" : "") + "</div></div>";
-      html += row("Videos", cardsFor(d.videos, 0, false, true));
-      html += row("Shorts", cardsFor(d.shorts, d.videos.length, true));
-      document.getElementById("scroll").innerHTML = html;
-      onCards(app, d.videos.concat(d.shorts));
-      focusDefault();
-    }).catch(function (e) { document.getElementById("scroll").innerHTML = failed(e.message); focusDefault(); });
+    open({
+      render: function () {
+        frame(spinner("Loading " + name + "…"));
+        get("/api/app/channel/youtube/" + encodeURIComponent(id)).then(function (d) {
+          var subscribed = isFollowing("youtube", id);
+          var head = '<div class="row" style="display:flex;align-items:center">' + face(d.channel.name, d.channel.picture, 6.5) +
+            '<div style="margin-left:1.6rem"><h1 style="margin:0">' + esc(d.channel.name) + "</h1>" +
+            (d.channel.subscribers ? '<p class="muted" style="margin:0.35rem 0 0;font-size:1.1rem">' + compact(d.channel.subscribers) + " subscribers</p>" : "") +
+            (signedIn() ? '<button class="btn ' + (subscribed ? "" : "green") + '" data-tv data-tv-default id="subbtn">' + (subscribed ? "✓ Subscribed" : "Subscribe") + "</button>" : "") + "</div></div>";
+          fill(head + row("Videos", cards(d.videos, false, !signedIn())) + row("Shorts", cards(d.shorts.map(function (s) { s.short = true; return s; }), true)));
+          var sb = byId("subbtn");
+          if (sb) sb.addEventListener("click", function () {
+            subscribed = !subscribed;
+            setFollowing("youtube", id, d.channel.name, d.channel.picture, subscribed);
+            sb.className = "btn" + (subscribed ? "" : " green");
+            sb.textContent = subscribed ? "✓ Subscribed" : "Subscribe";
+          });
+          focusDefault();
+        }).catch(function (e) { fill(failed(e.message)); });
+      },
+    });
+  }
+  var following = {};
+  function isFollowing(kind, ref) { return !!following[kind + ":" + String(ref).toLowerCase()]; }
+  function setFollowing(kind, ref, name, picture, on) {
+    following[kind + ":" + String(ref).toLowerCase()] = on;
+    api("/api/subscriptions", on ? "POST" : "DELETE", { kind: kind, ref: ref, name: name, picture: picture }).then(function () {
+      toast(on ? "Subscribed to " + name : "Unsubscribed");
+    }).catch(function () { toast("Couldn't do that"); });
   }
 
   // ---------- Live ----------
   function live() {
-    shell(spinner());
-    api("/api/app/live").then(function (d) {
-      if (state.screen !== "live") return;
-      var html = "<h1>Live</h1>";
-      if (d.jace.length) {
-        var c = "";
-        for (var i = 0; i < d.jace.length; i++) {
-          var s = d.jace[i];
-          c += '<button class="card" data-tv data-live="' + esc(s.id) + '"><div class="pic">' + (s.thumbnail ? '<img src="' + esc(s.thumbnail) + '" alt="">' : "") +
-            '<span class="badge">&#9679; LIVE</span></div><div class="t">' + esc(s.title) + '</div><div class="s">' + esc(s.host.name) + "</div></button>";
-        }
-        html += row("On Jace Media", c);
+    var still = loading("live");
+    get("/api/app/live").then(function (d) {
+      if (!still()) return;
+      var c = "";
+      for (var i = 0; i < d.jace.length; i++) {
+        var s = d.jace[i];
+        c += '<button class="card" data-tv data-live="' + esc(s.id) + '"><div class="pic">' + (s.thumbnail ? '<img src="' + esc(s.thumbnail) + '" alt="">' : "") +
+          '<span class="badge">&#9679; LIVE</span></div><div class="t">' + esc(s.title) + '</div><div class="s">' + esc(s.host.name) + " · " + s.viewers + " watching</div></button>";
       }
-      html += row("Live on YouTube", cardsFor(d.youtube, 0, false, !d.jace.length));
-      if (!d.jace.length && !d.youtube.length) html += failed("Nobody's live right now.");
-      document.getElementById("scroll").innerHTML = html;
-      onCards(app, d.youtube);
-      Array.prototype.forEach.call(app.querySelectorAll("[data-live]"), function (el) {
+      fill("<h1>Live</h1>" + row("On Jace Media", c) + row("Live on YouTube", cards(d.youtube, false, !d.jace.length)) + (!d.jace.length && !d.youtube.length ? failed("Nobody's live right now.") : ""));
+      each(page().querySelectorAll("[data-live]"), function (el) {
         el.addEventListener("click", function () { location.href = "/live/watch/" + el.getAttribute("data-live"); });
       });
       focusDefault();
-    }).catch(function (e) { document.getElementById("scroll").innerHTML = failed(e.message); focusDefault(); });
-    focusDefault();
+    }).catch(function (e) { fill(failed(e.message)); });
+  }
+
+  // ---------- Posts ----------
+  function postCard(p, i, first) {
+    var img = null;
+    for (var j = 0; j < (p.media || []).length; j++) if (p.media[j].kind === "image") { img = p.media[j].thumb || p.media[j].url; break; }
+    return '<button class="post" data-tv data-post="' + i + '"' + (first ? " data-tv-default" : "") + '><div class="who">' + face(p.author.name, p.author.picture, 2.4) +
+      "<b>" + esc(p.author.name) + '</b><span class="muted" style="margin-left:0.5rem">' + esc(p.network === "jace" ? "@" + p.author.handle : p.network) + "</span></div>" +
+      (p.title ? '<div class="txt" style="font-weight:700">' + esc(p.title) + "</div>" : "") + '<div class="txt">' + esc(p.text) + "</div>" +
+      (img ? '<img class="pp" src="' + esc(img) + '" alt="">' : "") + "</button>";
+  }
+  function posts() {
+    var still = loading("posts");
+    get("/api/app/posts").then(function (d) {
+      if (!still()) return;
+      var html = "";
+      for (var i = 0; i < d.posts.length; i++) html += postCard(d.posts[i], i, i === 0);
+      fill("<h1>Posts</h1>" + (html ? grid(html) : failed("No posts right now.")));
+      each(page().querySelectorAll("[data-post]"), function (el) {
+        el.addEventListener("click", function () { readPost(d.posts[+el.getAttribute("data-post")]); });
+      });
+      focusDefault();
+    }).catch(function (e) { fill(failed(e.message)); });
+  }
+  function readPost(p) {
+    sheet(p.author.name, '<div class="item" data-tv data-tv-default><b>' + esc(p.network === "jace" ? "@" + p.author.handle : p.network) + "</b>" +
+      (p.title ? "<strong>" + esc(p.title) + "</strong><br>" : "") + esc(p.text).replace(/\n/g, "<br>") + "</div>");
+  }
+
+  // ---------- Library ----------
+  function library() {
+    var still = loading("library");
+    Promise.all([get("/api/app/library"), get("/api/app/history")]).then(function (r) {
+      if (!still()) return;
+      var d = r[0], h = r[1].items || [];
+      var pl = "";
+      for (var i = 0; i < d.playlists.length; i++) {
+        var p = d.playlists[i];
+        pl += '<button class="card" data-tv data-pl="' + esc(p.id) + '" data-name="' + esc(p.name) + '"><div class="pic">' + (p.thumbnail ? '<img src="' + esc(p.thumbnail) + '" alt="">' : "") +
+          '</div><div class="t">' + esc(p.name) + '</div><div class="s">' + p.count + " videos</div></button>";
+      }
+      var hist = h.slice(0, 20).map(function (x) {
+        return { source: x.source, id: x.id, title: x.title, channelName: x.channelName || "", channelId: x.channelId || "", thumbnail: x.source === "youtube" ? "/api/yt-thumb/" + x.id : null };
+      });
+      fill("<h1>Library</h1>" + row("Continue watching", cards(d.continueWatching, false, true, "progress")) + row("Watch Later", cards(d.watchLater, false, !d.continueWatching.length)) +
+        row("Your playlists", pl) + row("History", cards(hist)) + (!d.continueWatching.length && !d.watchLater.length && !hist.length ? failed("Things you watch and save show up here.") : ""));
+      each(page().querySelectorAll("[data-pl]"), function (el) {
+        el.addEventListener("click", function () { playlist(el.getAttribute("data-pl"), el.getAttribute("data-name")); });
+      });
+      focusDefault();
+    }).catch(function (e) { fill(failed(e.message)); });
+  }
+  function playlist(id, name) {
+    open({
+      render: function () {
+        frame(spinner());
+        get("/api/app/playlist/" + encodeURIComponent(id)).then(function (d) {
+          fill("<h1>" + esc(d.name) + "</h1>" + (d.videos.length ? grid(cards(d.videos, false, true)) : failed("Nothing here yet.")));
+          focusDefault();
+        }).catch(function (e) { fill(failed(e.message)); });
+      },
+    });
   }
 
   // ---------- Search ----------
   function search() {
-    shell('<form id="sf"><input class="search" data-tv data-tv-default placeholder="Search videos and channels"><button class="btn green" data-tv type="submit">Search</button></form><div id="sr" style="margin-top:2rem"></div>');
-    var form = document.getElementById("sf");
+    frame('<form id="sf" style="white-space:nowrap"><input class="search" data-tv data-tv-default placeholder="Search videos, Shorts, and channels"><button class="btn green" data-tv type="submit" style="margin:0 0 0 1rem;height:4rem">Search</button></form><div id="sr" style="margin-top:2.4rem"></div>');
+    var form = byId("sf");
     form.addEventListener("submit", function (e) {
       e.preventDefault();
       var q = form.querySelector("input").value.trim();
       if (!q) return;
-      var out = document.getElementById("sr");
+      var out = byId("sr");
       out.innerHTML = '<div style="position:relative;height:10rem">' + spinner("Searching…") + "</div>";
       api("/api/app/search?q=" + encodeURIComponent(q)).then(function (d) {
-        out.innerHTML = row("Videos", cardsFor(d.videos, 0, false)) + row("Shorts", cardsFor(d.shorts, d.videos.length, true)) + (d.videos.length ? "" : failed("Nothing found."));
-        onCards(out, d.videos.concat(d.shorts));
+        var ch = "";
+        for (var i = 0; i < d.channels.length; i++) ch += '<button class="card round" data-tv data-ch="' + i + '">' + face(d.channels[i].name, d.channels[i].picture, 6.5) + '<div class="s" style="margin-top:0.6rem">' + esc(d.channels[i].name) + "</div></button>";
+        var ps = "";
+        for (var j = 0; j < d.posts.length; j++) ps += postCard(d.posts[j], j, false);
+        out.innerHTML = row("Channels", ch) + row("Videos", cards(d.videos)) + row("Shorts", cards(d.shorts.map(function (s) { s.short = true; return s; }), true)) + row("Posts", ps) +
+          (d.videos.length || d.channels.length || d.posts.length ? "" : failed("Nothing found for “" + q + "”."));
+        wire(out);
+        each(out.querySelectorAll("[data-ch]"), function (el) { el.addEventListener("click", function () { var c = d.channels[+el.getAttribute("data-ch")]; channel(c.id, c.name); }); });
+        each(out.querySelectorAll("[data-post]"), function (el) { el.addEventListener("click", function () { readPost(d.posts[+el.getAttribute("data-post")]); }); });
         var first = out.querySelector("[data-tv]");
         if (first) focusEl(first);
       }).catch(function (err) { out.innerHTML = failed(err.message); });
@@ -425,37 +732,36 @@
     focusDefault();
   }
 
-  // ---------- Shorts ----------
-  function shorts() {
-    shell(spinner());
-    api("/api/app/shorts").then(function (d) {
-      if (state.screen !== "shorts") return;
-      var list = d.videos, i = 0;
-      if (!list.length) { document.getElementById("scroll").innerHTML = failed("No Shorts right now."); return; }
-      function show() {
-        var v = list[i];
-        document.getElementById("scroll").innerHTML =
-          '<div style="display:flex;align-items:center;justify-content:center;height:100%">' +
-          '<div id="shortbox" style="position:relative;height:62rem;max-height:92vh;width:34.9rem;border-radius:1.4rem;overflow:hidden;background:#000"></div>' +
-          '<div style="width:26rem;margin-left:3rem"><div style="font-size:1.6rem;font-weight:700">' + esc(v.title) + '</div><p class="muted" style="font-size:1.15rem">' + esc(v.channelName) +
-          '</p><p class="muted" style="margin-top:2rem;font-size:1.05rem;line-height:1.8">&#9650; &#9660; Previous / next<br>OK Pause<br>&#9664; Menu</p><p class="muted">' + (i + 1) + " / " + list.length + "</p></div></div>";
-        surface(document.getElementById("shortbox"), v.source === "jace" ? { type: "file", url: v.src } : { type: "youtube", id: v.id }, true, function () { if (i < list.length - 1) { i++; show(); } });
-      }
-      show();
-      keyHandler = function (e) {
-        if (closest(document.activeElement, "#nav")) return false;
-        if (e.keyCode === KEY.DOWN) { if (i < list.length - 1) { i++; show(); } return true; }
-        if (e.keyCode === KEY.UP) { if (i > 0) { i--; show(); } return true; }
-        if (e.keyCode === KEY.ENTER) { if (current) current.toggle(); return true; }
-        if (e.keyCode === KEY.LEFT) { focusEl(document.querySelector("#nav .nav-item.on")); return true; }
-        return false;
-      };
-    }).catch(function (e) { document.getElementById("scroll").innerHTML = failed(e.message); });
+  // ---------- Side sheet (description, comments, posts) ----------
+  function sheet(title, inner) {
+    open({
+      overlay: true,
+      render: function () {
+        var el = document.createElement("div");
+        el.className = "sheet";
+        el.innerHTML = "<h2>" + esc(title) + '</h2><div class="body">' + inner + "</div>";
+        document.body.appendChild(el);
+        focusDefault();
+      },
+      leave: function () { var s = document.querySelector(".sheet"); if (s) s.parentNode.removeChild(s); },
+    });
+  }
+  function commentsSheet(source, id) {
+    sheet("Comments", spinner());
+    api("/api/comments?source=" + source + "&id=" + encodeURIComponent(id)).then(function (d) {
+      var body = document.querySelector(".sheet .body");
+      if (!body) return;
+      var html = "", i;
+      for (i = 0; i < d.mine.length; i++) html += '<div class="item" data-tv><b>' + esc(d.mine[i].author.name) + " · on Jace Media</b>" + esc(d.mine[i].text) + "</div>";
+      for (i = 0; i < d.others.length; i++) html += '<div class="item" data-tv><b>' + esc(d.others[i].name) + (d.others[i].likes ? " · ♡ " + compact(d.others[i].likes) : "") + "</b>" + esc(d.others[i].text) + "</div>";
+      body.innerHTML = html || '<div class="item" data-tv>No comments yet.</div>';
+      each(body.querySelectorAll("[data-tv]"), function (x) { x.setAttribute("tabindex", "0"); });
+      focusDefault();
+    }).catch(function () { var b = document.querySelector(".sheet .body"); if (b) b.innerHTML = '<div class="item" data-tv tabindex="0">Couldn’t load comments.</div>'; });
   }
 
-  // ---------- Video surface: a Jace video file or YouTube (privacy-enhanced, YouTube's buttons cropped out) ----------
-  var current = null;
-  var ytReady = null;
+  // ---------- Video: a Jace video file or YouTube (privacy-enhanced, YouTube's own buttons cropped out) ----------
+  var current = null, ytReady = null;
   function loadYT() {
     if (window.YT && window.YT.Player) return Promise.resolve(window.YT);
     if (!ytReady) {
@@ -468,34 +774,34 @@
     }
     return ytReady;
   }
-  function surface(box, stream, cover, onEnded, onState) {
+  function surface(box, stream, opts) {
     if (current) current.destroy();
     box.innerHTML = "";
-    var api2;
+    var s;
     if (stream.type === "file") {
       var v = document.createElement("video");
       v.src = stream.url;
       v.autoplay = true;
+      v.loop = !!opts.loop;
       v.setAttribute("playsinline", "");
-      if (cover) v.style.objectFit = "cover";
-      v.style.width = "100%";
-      v.style.height = "100%";
-      v.addEventListener("ended", function () { if (onEnded) onEnded(); });
-      v.addEventListener("play", function () { if (onState) onState(true); });
-      v.addEventListener("pause", function () { if (onState) onState(false); });
+      if (opts.cover) v.style.objectFit = "cover";
+      v.addEventListener("ended", function () { if (opts.onEnded) opts.onEnded(); });
+      v.addEventListener("play", function () { if (opts.onState) opts.onState(true); });
+      v.addEventListener("pause", function () { if (opts.onState) opts.onState(false); });
       box.appendChild(v);
-      api2 = {
+      s = {
         toggle: function () { if (v.paused) v.play(); else v.pause(); },
         play: function () { v.play(); }, pause: function () { v.pause(); },
-        seek: function (s) { v.currentTime = Math.max(0, v.currentTime + s); },
+        seek: function (x) { v.currentTime = Math.max(0, v.currentTime + x); },
         time: function () { return v.currentTime; }, duration: function () { return v.duration || 0; },
         paused: function () { return v.paused; },
-        captions: function () {},
-        destroy: function () { v.pause(); v.removeAttribute("src"); v.load(); },
+        rate: function (r) { v.playbackRate = r; },
+        captions: function () { return false; },
+        destroy: function () { v.pause(); v.removeAttribute("src"); try { v.load(); } catch (err) {} },
       };
     } else {
       var holder = document.createElement("div");
-      holder.id = "yt";
+      holder.className = "yt";
       var el = document.createElement("div");
       holder.appendChild(el);
       box.appendChild(holder);
@@ -503,151 +809,271 @@
       loadYT().then(function (YT) {
         if (gone) return;
         p = new YT.Player(el, {
-          videoId: stream.id,
-          host: "https://www.youtube-nocookie.com",
-          width: "100%", height: "100%",
-          playerVars: { autoplay: 1, controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, origin: location.origin },
+          videoId: stream.id, host: "https://www.youtube-nocookie.com", width: "100%", height: "100%",
+          playerVars: { autoplay: 1, controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, playsinline: 1, loop: opts.loop ? 1 : 0, playlist: opts.loop ? stream.id : undefined, origin: location.origin },
           events: {
             onReady: function (e) { e.target.playVideo(); },
             onStateChange: function (e) {
-              if (onState) onState(e.data === 1 || e.data === 3);
-              if (e.data === 0 && onEnded) onEnded();
+              if (opts.onState) opts.onState(e.data === 1 || e.data === 3);
+              if (e.data === 0 && opts.onEnded) opts.onEnded();
             },
           },
         });
       });
-      api2 = {
+      s = {
         toggle: function () { if (!p) return; if (p.getPlayerState() === 1) p.pauseVideo(); else p.playVideo(); },
         play: function () { if (p) p.playVideo(); }, pause: function () { if (p) p.pauseVideo(); },
-        seek: function (s) { if (p) p.seekTo(Math.max(0, p.getCurrentTime() + s), true); },
+        seek: function (x) { if (p) p.seekTo(Math.max(0, p.getCurrentTime() + x), true); },
         time: function () { return p && p.getCurrentTime ? p.getCurrentTime() : 0; },
         duration: function () { return p && p.getDuration ? p.getDuration() : 0; },
         paused: function () { return !p || p.getPlayerState() !== 1; },
+        rate: function (r) { if (p) p.setPlaybackRate(r); },
         captions: function (on) {
-          if (!p) return;
+          if (!p) return false;
           try {
-            if (!on) { p.setOption("captions", "track", {}); p.unloadModule("captions"); return; }
+            if (!on) { p.setOption("captions", "track", {}); p.unloadModule("captions"); return true; }
             p.loadModule("captions");
             var pick = function () {
-              var list = p.getOption("captions", "tracklist") || [];
-              var t = null;
+              var list = p.getOption("captions", "tracklist") || [], t = null;
               for (var i = 0; i < list.length; i++) if (list[i].languageCode.indexOf("en") === 0) { t = list[i]; break; }
               t = t || list[0];
               if (t) p.setOption("captions", "track", { languageCode: t.languageCode });
             };
             setTimeout(pick, 800);
             setTimeout(pick, 2200);
-          } catch (err) {}
+            return true;
+          } catch (err) { return false; }
         },
         destroy: function () { gone = true; try { if (p) p.destroy(); } catch (err) {} },
       };
     }
-    current = api2;
-    return api2;
+    current = s;
+    return s;
   }
 
   // ---------- Player ----------
+  var SPEEDS = [1, 1.25, 1.5, 2, 0.75];
   function play(v) {
-    var screenBefore = state.screen;
-    var restore = state.stack.slice();
-    var layer = document.createElement("div");
-    layer.id = "player";
-    layer.innerHTML = '<div id="pbox" style="position:absolute;top:0;left:0;right:0;bottom:0"></div>' +
-      '<div id="ui"><div class="top"><div class="h">' + esc(v.title) + '</div><div class="muted" style="font-size:1.15rem">' + esc(v.channelName) + "</div></div>" +
-      '<div class="bottom"><div class="bar"><span id="t0">0:00</span><div class="line"><div class="fill" id="fill"></div></div><span id="t1">0:00</span></div>' +
-      '<div><button class="ctl" data-tv data-a="rew">&#9194; 10</button><button class="ctl" data-tv data-tv-default data-a="pp">&#10074;&#10074; Pause</button>' +
-      '<button class="ctl" data-tv data-a="ff">10 &#9193;</button>' + (v.source === "youtube" ? '<button class="ctl" data-tv data-a="cc">CC</button>' : "") +
-      '<button class="ctl" data-tv data-a="close" style="float:right">&#10005; Close</button></div><div class="next" id="next"></div></div></div><div id="toast" class="hidden"></div>';
-    document.body.appendChild(layer);
-    var ui = layer.querySelector("#ui"), pp = layer.querySelector('[data-a="pp"]'), cc = false, upNext = [], hideTimer = null, timer = null;
-    var s = null;
-
+    var layerEl = null, s = null, info = null, hideTimer = null, timer = null, upNext = [];
+    var cc = false, speed = 0, vote = 0, subscribed = false;
     function showUi() {
-      ui.classList.remove("off");
+      if (!layerEl) return;
+      layerEl.querySelector("#ui").className = "";
       clearTimeout(hideTimer);
-      hideTimer = setTimeout(function () { if (s && !s.paused()) ui.classList.add("off"); }, 4500);
+      hideTimer = setTimeout(function () {
+        if (s && !s.paused() && !document.querySelector(".sheet") && !menuOpen && layerEl) layerEl.querySelector("#ui").className = "off";
+      }, 5000);
     }
-    function close() {
-      clearInterval(timer);
-      clearTimeout(hideTimer);
-      if (current) current.destroy();
-      current = null;
-      keyHandler = null;
-      layer.parentNode.removeChild(layer);
-      state.stack = restore;
-      focusDefault();
+    function uiHidden() { return layerEl && layerEl.querySelector("#ui").className === "off"; }
+    function btn(a, label, extra) { return '<button class="ctl' + (extra || "") + '" data-tv data-a="' + a + '">' + label + "</button>"; }
+    function renderButtons() {
+      var w = layerEl.querySelector("#ctls");
+      var signed = signedIn();
+      w.innerHTML = btn("rew", "⏪ 10") + btn("pp", s && s.paused() ? "▶ Play" : "❚❚ Pause") + btn("ff", "10 ⏩") +
+        (v.source === "youtube" ? btn("cc", "CC", cc ? " on" : "") : "") + btn("speed", SPEEDS[speed] + "×") +
+        (signed ? btn("like", "👍" + (info && info.video.likes ? " " + compact(info.video.likes + (vote === 1 ? 1 : 0) - (info.video.myVote === 1 ? 1 : 0)) : ""), vote === 1 ? " on" : "") +
+          btn("dislike", "👎", vote === -1 ? " on" : "") : "") +
+        (signed && info && info.video.channelId ? btn("sub", subscribed ? "✓ Subscribed" : "Subscribe", subscribed ? "" : " on") : "") +
+        (signed ? btn("save", "🕒 Save") : "") + btn("info", "ℹ Info") + btn("comments", "💬") +
+        (info && info.video.channelId && v.source === "youtube" ? btn("channel", "👤") : "");
+      var pp = w.querySelector('[data-a="pp"]');
+      pp.setAttribute("data-tv-default", "");
+      each(w.querySelectorAll("[data-a]"), function (b) { b.addEventListener("click", function () { act(b.getAttribute("data-a"), b); }); });
     }
-    state.stack = restore.concat([close]);
-    state.screen = screenBefore;
-
-    function start(stream) {
-      s = surface(layer.querySelector("#pbox"), stream, false,
-        function () { if (upNext[0]) { close(); play(upNext[0]); } },
-        function (playing) { pp.innerHTML = playing ? "&#10074;&#10074; Pause" : "&#9654; Play"; if (!playing) showUi(); });
-      timer = setInterval(function () {
-        var t = s.time(), d = s.duration();
-        layer.querySelector("#t0").textContent = clock(t);
-        layer.querySelector("#t1").textContent = clock(d);
-        layer.querySelector("#fill").style.width = (d ? (t / d) * 100 : 0) + "%";
-      }, 500);
-    }
-    if (v.source === "jace" && v.src) start({ type: "file", url: v.src });
-    api("/api/app/watch/" + v.source + "/" + encodeURIComponent(v.id)).then(function (d) {
-      if (!layer.parentNode) return;
-      if (!s) start(d.video.stream.type === "file" ? { type: "file", url: d.video.stream.url } : { type: "youtube", id: d.video.stream.id || d.video.id });
-      upNext = d.upNext.slice(0, 12);
-      var html = '<p class="muted" style="margin:1rem 0 0;font-size:1.05rem">Up next</p><div class="track">';
-      for (var i = 0; i < upNext.length; i++) html += card(upNext[i], i, false);
-      layer.querySelector("#next").innerHTML = html + "</div>";
-      Array.prototype.forEach.call(layer.querySelectorAll("#next [data-v]"), function (el) {
-        el.addEventListener("click", function () { var n = upNext[+el.getAttribute("data-v")]; close(); play(n); });
-      });
-      // Counts in your history.
-      api("/api/history", "POST", { source: v.source, id: v.id, title: d.video.title, channelId: d.video.channelId, channelName: d.video.channelName, thumbnail: d.video.thumbnail }).catch(function () {});
-    }).catch(function () { if (!s) start({ type: "youtube", id: v.id }); });
-
-    layer.querySelector('[data-a="rew"]').addEventListener("click", function () { if (s) s.seek(-10); });
-    layer.querySelector('[data-a="ff"]').addEventListener("click", function () { if (s) s.seek(10); });
-    pp.addEventListener("click", function () { if (s) s.toggle(); });
-    layer.querySelector('[data-a="close"]').addEventListener("click", function () { back(); });
-    var ccBtn = layer.querySelector('[data-a="cc"]');
-    if (ccBtn) ccBtn.addEventListener("click", function () { cc = !cc; if (s) s.captions(cc); ccBtn.className = "ctl" + (cc ? " on" : ""); });
-
-    function toast(text) {
-      var t = layer.querySelector("#toast");
-      t.textContent = text;
-      t.classList.remove("hidden");
-      setTimeout(function () { t.classList.add("hidden"); }, 700);
-    }
-    keyHandler = function (e) {
-      var k = e.keyCode;
-      if (k === KEY.PLAY) { if (s) s.play(); showUi(); return true; }
-      if (k === KEY.PAUSE) { if (s) s.pause(); showUi(); return true; }
-      if (k === KEY.PLAYPAUSE) { if (s) s.toggle(); showUi(); return true; }
-      if (k === KEY.REW) { if (s) s.seek(-10); toast("⏪ 10s"); return true; }
-      if (k === KEY.FF) { if (s) s.seek(10); toast("10s ⏩"); return true; }
-      if (ui.classList.contains("off")) {
-        // Controls hidden: OK pauses, left/right skip 10 seconds, up/down bring the controls back.
-        if (k === KEY.ENTER) { if (s) s.toggle(); showUi(); return true; }
-        if (k === KEY.LEFT || k === KEY.RIGHT) { if (s) s.seek(k === KEY.LEFT ? -10 : 10); toast(k === KEY.LEFT ? "⏪ 10s" : "10s ⏩"); return true; }
-        if (k === KEY.UP || k === KEY.DOWN) { showUi(); focusEl(pp); return true; }
+    function act(a, b) {
+      if (a === "rew") s.seek(-10);
+      else if (a === "ff") s.seek(10);
+      else if (a === "pp") s.toggle();
+      else if (a === "cc") { cc = !cc; s.captions(cc); toast(cc ? "Captions on" : "Captions off"); }
+      else if (a === "speed") { speed = (speed + 1) % SPEEDS.length; s.rate(SPEEDS[speed]); toast("Speed " + SPEEDS[speed] + "×"); }
+      else if (a === "like" || a === "dislike") {
+        var want = a === "like" ? 1 : -1;
+        vote = vote === want ? 0 : want;
+        api("/api/video-likes", "POST", { source: v.source, id: v.id, channelId: info && info.video.channelId, value: vote }).catch(function () {});
+      } else if (a === "sub") {
+        subscribed = !subscribed;
+        setFollowing(v.source, info.video.channelId, info.video.channelName, info.video.channelPicture, subscribed);
+      } else if (a === "save") saveLater(v);
+      else if (a === "info") sheet(info ? info.video.title : v.title, '<div class="item" data-tv data-tv-default tabindex="0"><b>' + esc((info && info.video.channelName) || v.channelName) +
+        (info && info.video.views ? " · " + compact(info.video.views) + " views" : "") + "</b>" + esc((info && info.video.description) || "No description.").replace(/\n/g, "<br>") + "</div>");
+      else if (a === "comments") commentsSheet(v.source, v.id);
+      else if (a === "channel") { var ch = info.video; back(); setTimeout(function () { channel(ch.channelId, ch.channelName); }, 50); return; }
+      if (a !== "info" && a !== "comments") {
+        renderButtons();
+        var again = layerEl.querySelector('[data-a="' + a + '"]');
+        if (again) again.focus();
       }
       showUi();
-      var dir = { 37: "left", 38: "up", 39: "right", 40: "down" }[k];
-      if (dir) { move(dir, layer); return true; }
+    }
+    function start(stream) {
+      s = surface(layerEl.querySelector("#pbox"), stream, {
+        onEnded: function () { if (upNext[0]) { var n = upNext[0]; back(); setTimeout(function () { play(n); }, 80); } },
+        onState: function (on) {
+          var pp = layerEl && layerEl.querySelector('[data-a="pp"]');
+          if (pp) pp.textContent = on ? "❚❚ Pause" : "▶ Play";
+          if (!on) showUi();
+        },
+      });
+      timer = setInterval(function () {
+        if (!layerEl) return;
+        var t = s.time(), d = s.duration();
+        layerEl.querySelector("#t0").textContent = clock(t);
+        layerEl.querySelector("#t1").textContent = clock(d);
+        layerEl.querySelector("#fill").style.width = (d ? (t / d) * 100 : 0) + "%";
+      }, 500);
+    }
+    open({
+      overlay: true,
+      render: function () {
+        layerEl = document.createElement("div");
+        layerEl.id = "player";
+        layerEl.innerHTML = '<div id="pbox"></div><div id="ui"><div class="top"><div class="h">' + esc(v.title) + '</div><div class="muted" style="font-size:1.15rem;margin-top:0.3rem">' + esc(v.channelName) + "</div></div>" +
+          '<div class="bottom"><div class="bar"><span id="t0">0:00</span><div class="line"><div class="fill" id="fill"></div></div><span id="t1">0:00</span></div>' +
+          '<div class="ctls" id="ctls"></div><div class="next" id="next"></div></div></div>';
+        document.body.appendChild(layerEl);
+        renderButtons();
+        if (v.source === "jace" && v.src) start({ type: "file", url: v.src });
+        api("/api/app/watch/" + v.source + "/" + encodeURIComponent(v.id)).then(function (d) {
+          if (!layerEl) return;
+          info = d;
+          vote = d.video.myVote || 0;
+          subscribed = !!d.video.subscribed;
+          if (d.video.channelId) following[v.source + ":" + String(d.video.channelId).toLowerCase()] = subscribed;
+          if (!s) start(d.video.stream.type === "file" ? { type: "file", url: d.video.stream.url } : { type: "youtube", id: d.video.stream.id || d.video.id });
+          upNext = d.upNext.slice(0, 12);
+          var focused = document.activeElement && document.activeElement.getAttribute("data-a");
+          renderButtons();
+          if (focused) { var f = layerEl.querySelector('[data-a="' + focused + '"]'); if (f) f.focus(); }
+          layerEl.querySelector("#next").innerHTML = '<p class="muted" style="margin:1.2rem 0 0;font-size:1rem">Up next</p><div class="track">' + cards(upNext) + "</div>";
+          each(layerEl.querySelectorAll("#next [data-menu]"), function (el) {
+            // Up next replaces this video (so Back goes to where you were, not through every video).
+            el.addEventListener("click", function () {
+              var n = menuVideos[el.getAttribute("data-menu")];
+              back();
+              setTimeout(function () { play(n); }, 80);
+            });
+          });
+          if (signedIn()) api("/api/history", "POST", { source: v.source, id: v.id, title: d.video.title, channelId: d.video.channelId, channelName: d.video.channelName, thumbnail: d.video.thumbnail }).catch(function () {});
+        }).catch(function () { if (!s) start({ type: "youtube", id: v.id }); });
+
+        keyHandler = function (e) {
+          var k = e.keyCode;
+          if (document.querySelector(".sheet") || menuOpen) return false;
+          if (k === KEY.PLAY) { s && s.play(); showUi(); return true; }
+          if (k === KEY.PAUSE) { s && s.pause(); showUi(); return true; }
+          if (k === KEY.PLAYPAUSE) { s && s.toggle(); showUi(); return true; }
+          if (k === KEY.REW) { s && s.seek(-10); toast("⏪ 10 seconds"); return true; }
+          if (k === KEY.FF) { s && s.seek(10); toast("10 seconds ⏩"); return true; }
+          if (uiHidden()) {
+            // Controls hidden: OK pauses, left/right skip 10 seconds, up/down bring the controls back.
+            if (k === KEY.ENTER) { s && s.toggle(); showUi(); return true; }
+            if (k === KEY.LEFT || k === KEY.RIGHT) { s && s.seek(k === KEY.LEFT ? -10 : 10); toast(k === KEY.LEFT ? "⏪ 10 seconds" : "10 seconds ⏩"); return true; }
+            if (k === KEY.UP || k === KEY.DOWN) { showUi(); focusEl(layerEl.querySelector('[data-a="pp"]')); return true; }
+          }
+          showUi();
+          return false;
+        };
+        showUi();
+        setTimeout(function () { focusEl(layerEl && layerEl.querySelector('[data-a="pp"]')); }, 80);
+      },
+      leave: function () {
+        clearInterval(timer);
+        clearTimeout(hideTimer);
+        if (current) current.destroy();
+        current = null;
+        keyHandler = shortsKeys;
+        if (layerEl && layerEl.parentNode) layerEl.parentNode.removeChild(layerEl);
+        layerEl = null;
+      },
+    });
+  }
+
+  // ---------- Shorts: one at a time, full height, with a rail like on phones ----------
+  var shortsKeys = null, shortsAt = 0;
+  function shortsTab() {
+    frame(spinner());
+    get("/api/app/shorts").then(function (d) {
+      if (state.tab !== "shorts") return;
+      shortsView(d.videos, Math.min(shortsAt, d.videos.length - 1), true);
+    }).catch(function (e) { fill(failed(e.message)); });
+  }
+  function shortsPlayer(list, start) {
+    open({
+      render: function () { shortsView(list, start, false); },
+      leave: function () { if (current) current.destroy(); current = null; shortsKeys = null; keyHandler = null; },
+    });
+  }
+  function shortsView(list, start, asTab) {
+    var i = start, liked = {}, disliked = {};
+    if (!list.length) { fill(failed("No Shorts right now.")); return; }
+    frame('<div id="shorts"><div id="shortstage" data-tv data-tv-default tabindex="0"><div class="vbox" id="shortbox"></div><div id="shortinfo"></div></div><div id="rail"></div>' +
+      '<div id="shortcount"></div><div id="shorthint">▲ ▼ Previous / next<br>OK Pause · ▶ Buttons<br>Hold OK for more</div></div>', true);
+    var stage = byId("shortstage");
+    function rb(a, icon, label, on) { return '<button class="rb' + (on ? " on" : "") + '" data-tv data-r="' + a + '"><span class="o">' + icon + "</span>" + label + "</button>"; }
+    function rail() {
+      var v = list[i], key = v.source + ":" + v.id, signed = signedIn();
+      byId("rail").innerHTML = (signed ? rb("like", "👍", "Like", liked[key]) + rb("dislike", "👎", "Dislike", disliked[key]) : "") +
+        rb("comments", "💬", "Comments") + (v.channelId && v.source === "youtube" ? rb("channel", face(v.channelName, v.channelPicture, 4), "Channel") : "") +
+        (signed && v.channelId ? rb("sub", isFollowing(v.source, v.channelId) ? "✓" : "+", isFollowing(v.source, v.channelId) ? "Subscribed" : "Subscribe", !isFollowing(v.source, v.channelId)) : "") +
+        (signed ? rb("save", "🕒", "Save") : "") + rb("full", "▭", "Full video");
+      each(byId("rail").querySelectorAll("[data-r]"), function (b) {
+        b.addEventListener("click", function () {
+          var a = b.getAttribute("data-r");
+          if (a === "like" || a === "dislike") {
+            var want = a === "like" ? 1 : -1, now = liked[key] ? 1 : disliked[key] ? -1 : 0, next = now === want ? 0 : want;
+            liked[key] = next === 1;
+            disliked[key] = next === -1;
+            api("/api/video-likes", "POST", { source: v.source, id: v.id, channelId: v.channelId, value: next }).catch(function () {});
+          } else if (a === "comments") { commentsSheet(v.source, v.id); return; }
+          else if (a === "channel") { channel(v.channelId, v.channelName); return; }
+          else if (a === "sub") setFollowing(v.source, v.channelId, v.channelName, v.channelPicture, !isFollowing(v.source, v.channelId));
+          else if (a === "save") saveLater(v);
+          else if (a === "full") { play(v); return; }
+          rail();
+          var again = byId("rail").querySelector('[data-r="' + a + '"]');
+          if (again) again.focus();
+        });
+      });
+    }
+    function show() {
+      var v = list[i];
+      if (asTab) shortsAt = i;
+      menuVideos.short = v;
+      stage.setAttribute("data-menu", "short");
+      byId("shortinfo").innerHTML = '<div class="who">' + face(v.channelName, v.channelPicture, 2.4) + esc(v.channelName) + '</div><div class="tt">' + esc(v.title) + "</div>";
+      byId("shortcount").textContent = (i + 1) + " / " + list.length;
+      surface(byId("shortbox"), v.source === "jace" && v.src ? { type: "file", url: v.src } : { type: "youtube", id: v.id }, { cover: true, loop: true });
+      rail();
+      if (signedIn()) api("/api/history", "POST", { source: v.source, id: v.id, title: v.title, channelId: v.channelId, channelName: v.channelName, thumbnail: v.thumbnail }).catch(function () {});
+    }
+    stage.addEventListener("click", function () { if (current) current.toggle(); });
+    show();
+    shortsKeys = function (e) {
+      var k = e.keyCode, onStage = document.activeElement === stage;
+      if (document.querySelector(".sheet") || menuOpen || byId("player")) return false;
+      if (onStage && (k === KEY.DOWN || k === KEY.UP)) {
+        var n = k === KEY.DOWN ? i + 1 : i - 1;
+        if (n >= 0 && n < list.length) { i = n; show(); } else toast(n < 0 ? "This is the first Short" : "That's all for now");
+        return true;
+      }
+      if (onStage && k === KEY.RIGHT) { focusEl(byId("rail").querySelector("[data-tv]")); return true; }
+      if (k === KEY.PLAYPAUSE || k === KEY.PLAY || k === KEY.PAUSE) { if (current) current.toggle(); return true; }
+      if (closest(document.activeElement, "#rail") && k === KEY.LEFT) { stage.focus(); return true; }
       return false;
     };
-    showUi();
-    setTimeout(function () { focusEl(pp); }, 50);
+    keyHandler = shortsKeys;
+    setTimeout(function () { stage.focus(); }, 60);
+    if (asTab) stack[0].leave = function () { if (current) current.destroy(); current = null; shortsKeys = null; };
   }
-  // ---------- QR codes: sign in, or approve a PIN-locked profile, from your phone ----------
+
+  // ---------- QR codes: sign in, or unlock a PIN-locked profile, from your phone ----------
   function tvCode(body, box, onDone) {
     var poll = null, stopped = false;
     function startCode() {
       api("/api/tv", "POST", body).then(function (c) {
         if (stopped) return;
-        box.innerHTML = '<div class="qr">' + c.qr + '</div><p class="muted" style="font-size:1rem;text-align:center;margin-top:1rem">or go to <b style="color:#fff">' +
-          esc(c.url.replace(/^https?:\/\//, "").replace(/\?.*$/, "")) + '</b> and enter <span class="code">' + esc(c.code) + "</span></p>";
+        box.innerHTML = '<div class="qr">' + c.qr + '</div><p class="muted" style="font-size:1rem;text-align:center;margin:1rem 0 0">or go to <b style="color:#fff">' +
+          esc(c.url.replace(/^https?:\/\//, "").replace(/\?.*$/, "")) + "</b> and enter<br>" + '<span class="code">' + esc(c.code) + "</span></p>";
         poll = setInterval(function () {
           api("/api/tv?code=" + c.code).then(function (r) {
             if (stopped) return;
@@ -661,35 +1087,39 @@
     return stop;
   }
 
-  var stopCode = null;
-  function clearGate() { if (stopCode) { stopCode(); stopCode = null; } keyHandler = null; }
+  var stopCode = null, pinActive = false;
+  function clearGate() { if (stopCode) { stopCode(); stopCode = null; } keyHandler = null; pinActive = false; }
 
   function signIn() {
     clearGate();
-    app.innerHTML = '<div class="center"><div style="width:34rem;margin-right:6rem"><img src="/icon.svg" style="width:5rem;height:5rem;border-radius:1.2rem" alt="">' +
-      '<h1 style="font-size:3rem;margin:1.2rem 0">Sign in to Jace Media</h1><p class="muted" style="font-size:1.4rem;line-height:1.5">Scan the code with your phone&#39;s camera and tap <b style="color:#fff">Sign in the TV</b>. No typing with the remote.</p></div>' +
-      '<div id="qrbox" style="width:24rem"></div></div>';
-    stopCode = tvCode({ purpose: "signin" }, document.getElementById("qrbox"), function () {
+    stack = [];
+    app.innerHTML = '<div class="center"><div style="width:36rem;margin-right:6rem"><img src="/icon.svg" style="width:5rem;height:5rem;border-radius:1.2rem" alt="">' +
+      '<h1 style="font-size:3rem;margin:1.4rem 0 1rem">Sign in to Jace Media</h1><p class="muted" style="font-size:1.35rem;line-height:1.55;margin:0">Scan the code with your phone’s camera and tap <b style="color:#fff">Sign in the TV</b>. No typing with the remote.</p>' +
+      '<button class="btn" data-tv data-tv-default id="skip" style="margin-top:2rem">Continue without signing in</button></div><div class="panel" id="qrbox" style="width:22rem;text-align:center"></div></div>';
+    byId("skip").addEventListener("click", function () { clearGate(); goTab("home"); });
+    stopCode = tvCode({ purpose: "signin" }, byId("qrbox"), function () {
       loadMe().then(function (me) { if (me.account) sessionStorage.setItem(UNLOCK, me.account.sub); enter(); });
     });
+    focusDefault();
   }
 
   function profiles() {
     clearGate();
+    stack = [];
     var list = [state.me.account].concat(state.me.others).filter(Boolean);
-    var html = '<div class="center" style="flex-direction:column"><h1 style="font-size:2.8rem;margin-bottom:3rem">Who&#39;s watching?</h1><div class="profiles">';
+    var html = '<div class="center" style="flex-direction:column"><img src="/icon.svg" style="width:3.6rem;height:3.6rem;border-radius:0.9rem;margin-bottom:1.4rem" alt=""><h1 style="font-size:2.8rem;margin:0 0 3rem">Who’s watching?</h1><div class="profiles">';
     for (var i = 0; i < list.length; i++) {
       html += '<button class="p" data-tv data-p="' + i + '"' + (i === 0 ? " data-tv-default" : "") + ">" + face(list[i].name, list[i].picture, 8) +
-        '<div class="n">' + esc(list[i].name) + "</div>" + (list[i].hasPin ? '<div class="muted">&#128274; PIN</div>' : "") + "</button>";
+        '<div class="n">' + esc(list[i].name) + "</div>" + (list[i].hasPin ? '<div class="muted" style="font-size:0.95rem;margin-top:0.3rem">🔒 PIN</div>' : '<div style="height:1.5rem"></div>') + "</button>";
     }
-    html += '<button class="p" data-tv data-add><span class="face" style="width:8rem;height:8rem;line-height:7.6rem;font-size:3rem;border:0.2rem dashed rgba(255,255,255,0.3);background:none;color:rgba(255,255,255,0.6)">+</span><div class="n muted">Add profile</div></button></div></div>';
+    html += '<button class="p" data-tv data-add><span class="face" style="width:8rem;height:8rem;line-height:7.6rem;font-size:3rem;border:0.2rem dashed rgba(255,255,255,0.3);background:none;color:rgba(255,255,255,0.6)">+</span><div class="n muted">Add profile</div><div style="height:1.5rem"></div></button></div></div>';
     app.innerHTML = html;
-    Array.prototype.forEach.call(app.querySelectorAll("[data-p]"), function (el) {
+    each(app.querySelectorAll("[data-p]"), function (el) {
       el.addEventListener("click", function () {
         var a = list[+el.getAttribute("data-p")];
         var switching = state.me.account && state.me.account.sub !== a.sub;
         (switching ? api("/api/accounts/switch", "POST", { sub: a.sub }).catch(function () {}) : Promise.resolve()).then(function () {
-          if (switching) sessionStorage.removeItem(UNLOCK);
+          if (switching) { sessionStorage.removeItem(UNLOCK); cache = {}; }
           return loadMe();
         }).then(enter);
       });
@@ -698,152 +1128,263 @@
     focusDefault();
   }
 
+  // A neat number pad: 1 2 3 / 4 5 6 / 7 8 9 / ⌫ 0 ✓
+  function padHtml() {
+    var rows = [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"], ["⌫", "0", "✕"]], html = '<div class="pad">';
+    for (var r = 0; r < rows.length; r++) {
+      html += '<div class="pad-row">';
+      for (var c = 0; c < 3; c++) {
+        var k = rows[r][c];
+        html += '<button class="key' + (k.length > 1 || /[^\d]/.test(k) ? " small" : "") + '" data-tv data-k="' + k + '"' + (k === "5" ? " data-tv-default" : "") + ">" + k + "</button>";
+      }
+      html += "</div>";
+    }
+    return html + "</div>";
+  }
+  function dotsHtml(n) {
+    var d = '<div class="dots">';
+    for (var i = 0; i < 4; i++) d += '<span class="' + (i < n ? "f" : "") + '"></span>';
+    return d + "</div>";
+  }
+  function numberFrom(e) {
+    var k = e.keyCode;
+    return k >= 48 && k <= 57 ? k - 48 : k >= 96 && k <= 105 ? k - 96 : -1;
+  }
+
   function pinPad(who) {
     clearGate();
-    var digits = "", busy = false, privateEntry = localStorage.getItem("jm_tv_private_pin") === "1";
-    function render() {
-      var dots = "";
-      for (var i = 0; i < 4; i++) dots += '<span class="' + (i < digits.length ? "f" : "") + '"></span>';
-      var pad = "";
-      if (privateEntry) {
-        pad = '<div style="width:22rem;margin:0 auto;padding:1.6rem;border-radius:1.2rem;background:rgba(255,255,255,0.05);text-align:center"><div style="font-size:2.4rem">&#128274;</div>' +
-          '<p class="muted" style="font-size:1.15rem">Private entry: type your PIN with the number buttons on your remote. Nothing shows on screen.</p></div>';
-      } else {
-        var keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫"];
-        pad = '<div class="pad">';
-        for (var j = 0; j < keys.length; j++) {
-          pad += keys[j] ? '<button class="key" data-tv data-k="' + keys[j] + '"' + (keys[j] === "1" ? " data-tv-default" : "") + ">" + keys[j] + "</button>" : '<span class="key blank"></span>';
-        }
-        pad += "</div>";
-      }
-      var left = document.getElementById("pinleft");
-      left.innerHTML = face(who.name, who.picture, 7) + '<h1 style="margin:1.4rem 0">Enter ' + esc(who.name) + '&#39;s PIN</h1><div class="dots">' + dots +
-        '</div><div class="err" id="pinerr"></div>' + pad +
-        '<div style="margin-top:1rem"><button class="btn" data-tv id="privbtn">' + (privateEntry ? "Show number pad" : "&#128274; Private entry") + '</button><button class="btn" data-tv id="otherbtn">Other profiles</button></div>';
-      Array.prototype.forEach.call(left.querySelectorAll("[data-k]"), function (b) {
-        b.addEventListener("click", function () { var k = b.getAttribute("data-k"); if (k === "⌫") { digits = digits.slice(0, -1); render(); refocus(b); } else press(k, b); });
+    stack = [];
+    pinActive = true;
+    var digits = "", busy = false, privateEntry = localStorage.getItem("jm_tv_private_pin") === "1", err = "";
+    function render(focusKey) {
+      var left = byId("pinleft");
+      left.innerHTML = face(who.name, who.picture, 6.5) + '<h1 style="margin:1.2rem 0 0;font-size:2rem">Enter ' + esc(who.name) + "’s PIN</h1>" + dotsHtml(digits.length) +
+        '<div class="err">' + esc(err) + "</div>" +
+        (privateEntry
+          ? '<div class="panel" style="width:20rem;margin:0.4rem auto 0;padding:1.6rem"><div style="font-size:2.2rem">🔒</div><p class="muted" style="font-size:1.1rem;line-height:1.5;margin:0.6rem 0 0">Private entry: type your PIN with the number buttons on your remote. Nothing shows on screen.</p></div>'
+          : padHtml()) +
+        '<div style="margin-top:1.2rem"><button class="btn" data-tv id="privbtn"' + (privateEntry ? " data-tv-default" : "") + ">" + (privateEntry ? "Show number pad" : "🔒 Private entry") +
+        '</button><button class="btn" data-tv id="otherbtn">Other profiles</button></div>';
+      each(left.querySelectorAll("[data-k]"), function (b) {
+        b.addEventListener("click", function () {
+          var k = b.getAttribute("data-k");
+          if (k === "⌫") { digits = digits.slice(0, -1); err = ""; render(k); }
+          else if (k === "✕") { digits = ""; err = ""; render(k); }
+          else press(k);
+        });
       });
-      document.getElementById("privbtn").addEventListener("click", function () {
+      byId("privbtn").addEventListener("click", function () {
         privateEntry = !privateEntry;
         localStorage.setItem("jm_tv_private_pin", privateEntry ? "1" : "0");
         render();
-        focusEl(document.getElementById("privbtn"));
+        focusEl(byId("privbtn"));
       });
-      document.getElementById("otherbtn").addEventListener("click", profiles);
-    }
-    function refocus(b) {
-      var k = b && b.getAttribute("data-k");
-      var again = k ? document.querySelector('[data-k="' + k + '"]') : null;
+      byId("otherbtn").addEventListener("click", profiles);
+      var again = focusKey ? left.querySelector('[data-k="' + focusKey + '"]') : null;
       if (again) again.focus();
+      else if (focusKey === undefined) focusDefault();
     }
-    function press(d, b) {
+    function press(d) {
       if (busy) return;
+      err = "";
       digits = (digits + d).slice(0, 4);
-      render();
-      refocus(b);
+      render(privateEntry ? null : d);
       if (digits.length === 4) {
         busy = true;
         api("/api/tv/pin", "POST", { sub: who.sub, pin: digits }).then(function () {
           sessionStorage.setItem(UNLOCK, who.sub);
           clearGate();
-          go("home");
+          goTab("home");
         }).catch(function (e) {
           busy = false;
           digits = "";
-          render();
-          document.getElementById("pinerr").textContent = e.message;
-          refocus(b);
+          err = e.message;
+          render(privateEntry ? null : d);
         });
       }
     }
-    app.innerHTML = '<div class="center"><div id="pinleft" style="text-align:center;width:30rem"></div>' +
-      '<div style="margin-left:5rem;padding-left:5rem;border-left:1px solid rgba(255,255,255,0.1);text-align:center;width:30rem"><p style="font-size:1.4rem;font-weight:600">Or approve on your phone</p>' +
-      '<div id="phoneqr"></div><p class="muted" style="font-size:1rem">Open it with the Jace Media app and tap Unlock</p></div></div>';
+    app.innerHTML = '<div class="center"><div id="pinleft" style="text-align:center;width:32rem"></div>' +
+      '<div class="panel" style="margin-left:5rem;text-align:center;width:24rem"><p style="font-size:1.3rem;font-weight:600;margin:0 0 1.2rem">Or approve on your phone</p>' +
+      '<div id="phoneqr"></div><p class="muted" style="font-size:0.95rem;margin:1rem 0 0">Open it with the Jace Media app and tap Unlock</p></div></div>';
     render();
-    stopCode = tvCode({ purpose: "unlock", sub: who.sub }, document.getElementById("phoneqr"), function (r) {
-      if (r.unlocked === who.sub) { sessionStorage.setItem(UNLOCK, who.sub); clearGate(); go("home"); }
+    stopCode = tvCode({ purpose: "unlock", sub: who.sub }, byId("phoneqr"), function (r) {
+      if (r.unlocked === who.sub) { sessionStorage.setItem(UNLOCK, who.sub); clearGate(); goTab("home"); }
     });
-    // The remote's number buttons type the PIN; red or ⌫ removes one.
+    // The remote's number buttons type the PIN; the red button or ⌫ removes one.
     keyHandler = function (e) {
-      var k = e.keyCode, n = k >= 48 && k <= 57 ? k - 48 : k >= 96 && k <= 105 ? k - 96 : -1;
-      if (n >= 0) { press(String(n), document.activeElement); return true; }
-      if (k === KEY.RED || (k === KEY.BKSP && digits.length)) { digits = digits.slice(0, -1); render(); return true; }
-      if (k === KEY.BACK || k === KEY.BACK2 || k === KEY.ESC) { profiles(); return true; }
+      var n = numberFrom(e), k = e.keyCode;
+      if (n >= 0) { press(String(n)); return true; }
+      if (k === KEY.RED || (k === KEY.BKSP && digits.length)) { digits = digits.slice(0, -1); err = ""; render(privateEntry ? null : "⌫"); return true; }
+      if (k === KEY.BACK || k === KEY.BACK2 || k === KEY.ESC) { if (state.me.others.length) profiles(); return true; }
       return false;
     };
-    focusDefault();
   }
 
-  // ---------- You ----------
+  // ---------- You (profile, PIN, services, content filter) ----------
+  var SERVICES = [["youtube", "YouTube"], ["jacevideos", "Jace videos"], ["jace", "Jace posts"], ["bluesky", "Bluesky"], ["mastodon", "Mastodon"], ["lemmy", "Lemmy"], ["hackernews", "Hacker News"], ["rss", "News & blogs"], ["jacelive", "Jace Live"]];
+  var LEVELS = [["kids", "Kids"], ["teen", "Teen"], ["all", "Everything"]];
   function you() {
     var a = state.me.account;
-    shell('<div class="row" style="display:flex;align-items:center">' + face(a.name, a.picture, 6) + '<div style="margin-left:1.4rem"><h1 style="margin:0">' + esc(a.name) +
-      '</h1><p class="muted" style="margin:0.3rem 0 0;font-size:1.1rem">@' + esc(a.handle) + '</p></div></div><p id="youmsg" style="color:#3ddc84;font-size:1.15rem;min-height:1.5rem"></p>' +
-      '<button class="list-btn" data-tv data-tv-default id="b-prof">&#128101; Switch profile</button>' +
-      (a.hasPin ? '<button class="list-btn" data-tv id="b-lock">&#128274; Lock now</button><button class="list-btn" data-tv id="b-rm">Remove PIN</button>' : '<button class="list-btn" data-tv id="b-set">&#128274; Lock this profile with a PIN</button>') +
-      '<button class="list-btn" data-tv id="b-out">Sign out</button>');
-    document.getElementById("b-prof").addEventListener("click", profiles);
-    function on(id, fn) { var el = document.getElementById(id); if (el) el.addEventListener("click", fn); }
+    if (!a) { signIn(); return; }
+    var services = state.me.services || [], ext = state.me.extensions || {};
+    var html = '<div class="row" style="display:flex;align-items:center">' + face(a.name, a.picture, 6) + '<div style="margin-left:1.5rem"><h1 style="margin:0">' + esc(a.name) +
+      '</h1><p class="muted" style="margin:0.35rem 0 0;font-size:1.1rem">@' + esc(a.handle) + '</p></div></div><p id="youmsg" style="color:#3ddc84;font-size:1.15rem;min-height:1.5rem;margin:0 0 0.6rem 0.3rem"></p><div class="list">' +
+      '<button class="list-btn" data-tv data-tv-default id="b-prof">👥&nbsp; Switch profile</button>' +
+      (a.hasPin ? '<button class="list-btn" data-tv id="b-lock">🔒&nbsp; Lock now</button><button class="list-btn" data-tv id="b-change">Change PIN</button><button class="list-btn" data-tv id="b-rm">Remove PIN</button>'
+        : '<button class="list-btn" data-tv id="b-set">🔒&nbsp; Lock this profile with a PIN</button>') +
+      '<div class="section-title">Show content from</div>';
+    for (var i = 0; i < SERVICES.length; i++) {
+      var on = services.indexOf(SERVICES[i][0]) >= 0;
+      html += '<button class="list-btn' + (on ? " on" : "") + '" data-tv data-svc="' + SERVICES[i][0] + '">' + SERVICES[i][1] + '<span class="v">' + (on ? "On" : "Off") + "</span></button>";
+    }
+    html += '<div class="section-title">Content filter</div>';
+    for (var j = 0; j < LEVELS.length; j++) {
+      var sel = ext.rating === LEVELS[j][0];
+      html += '<button class="list-btn' + (sel ? " on" : "") + '" data-tv data-level="' + LEVELS[j][0] + '">' + LEVELS[j][1] + '<span class="v">' + (sel ? "✓" : "") + "</span></button>";
+    }
+    html += '<div class="section-title">Account</div><button class="list-btn" data-tv id="b-out">Sign out</button></div>';
+    frame(html);
+    function msg(t) { var m = byId("youmsg"); if (m) m.textContent = t; }
+    function on(id, fn) { var el = byId(id); if (el) el.addEventListener("click", fn); }
+    on("b-prof", profiles);
     on("b-lock", function () { sessionStorage.removeItem(UNLOCK); enter(); });
     on("b-out", function () {
-      api("/api/auth/signout", "POST").catch(function () {}).then(function () { sessionStorage.removeItem(UNLOCK); return loadMe(); }).then(enter);
+      api("/api/auth/signout", "POST").catch(function () {}).then(function () { sessionStorage.removeItem(UNLOCK); cache = {}; return loadMe(); }).then(enter);
     });
-    on("b-set", function () {
+    function setNew() {
       newPin("Choose a 4-number PIN", function (first) {
         newPin("Enter it again", function (second) {
-          if (first !== second) { you(); document.getElementById("youmsg").textContent = "Those didn't match. Try again."; return; }
-          api("/api/tv/pin", "PUT", { pin: first }).then(loadMe).then(function () { you(); document.getElementById("youmsg").textContent = "PIN set. This profile now asks for it on TVs."; })
-            .catch(function (e) { you(); document.getElementById("youmsg").textContent = e.message; });
+          if (first !== second) { goTab("you"); msg("Those didn’t match. Try again."); return; }
+          api("/api/tv/pin", "PUT", { pin: first }).then(loadMe).then(function () { goTab("you"); msg("PIN set. This profile now asks for it on TVs."); })
+            .catch(function (e) { goTab("you"); msg(e.message); });
+        });
+      });
+    }
+    on("b-set", setNew);
+    on("b-change", function () {
+      newPin("Enter your current PIN", function (cur) {
+        newPin("Choose a new PIN", function (pin) {
+          api("/api/tv/pin", "PUT", { pin: pin, currentPin: cur }).then(loadMe).then(function () { goTab("you"); msg("PIN changed."); })
+            .catch(function (e) { goTab("you"); msg(e.message); });
         });
       });
     });
     on("b-rm", function () {
       newPin("Enter your PIN to remove it", function (pin) {
-        api("/api/tv/pin", "PUT", { pin: null, currentPin: pin }).then(loadMe).then(function () { you(); document.getElementById("youmsg").textContent = "PIN removed."; })
-          .catch(function (e) { you(); document.getElementById("youmsg").textContent = e.message; });
+        api("/api/tv/pin", "PUT", { pin: null, currentPin: pin }).then(loadMe).then(function () { goTab("you"); msg("PIN removed."); })
+          .catch(function (e) { goTab("you"); msg(e.message); });
+      });
+    });
+    each(page().querySelectorAll("[data-svc]"), function (b) {
+      b.addEventListener("click", function () {
+        var id = b.getAttribute("data-svc"), list = (state.me.services || []).slice(), at = list.indexOf(id);
+        if (at >= 0) list.splice(at, 1); else list.push(id);
+        if (!list.length) { msg("Keep at least one service on."); return; }
+        api("/api/preferences", "PUT", { services: list }).then(function () {
+          state.me.services = list;
+          cache = {};
+          var nowOn = list.indexOf(id) >= 0;
+          b.className = "list-btn" + (nowOn ? " on" : "");
+          b.querySelector(".v").textContent = nowOn ? "On" : "Off";
+        }).catch(function (e) { msg(e.message); });
+      });
+    });
+    each(page().querySelectorAll("[data-level]"), function (b) {
+      b.addEventListener("click", function () {
+        var lv = b.getAttribute("data-level"), next = {};
+        for (var key in ext) if (Object.prototype.hasOwnProperty.call(ext, key)) next[key] = ext[key];
+        next.rating = lv;
+        api("/api/extensions", "PUT", next).then(function () {
+          ext.rating = lv;
+          cache = {};
+          each(page().querySelectorAll("[data-level]"), function (x) {
+            var sel = x.getAttribute("data-level") === lv;
+            x.className = "list-btn" + (sel ? " on" : "");
+            x.querySelector(".v").textContent = sel ? "✓" : "";
+          });
+        }).catch(function (e) { msg(e.message); });
       });
     });
     focusDefault();
   }
   function newPin(title, done) {
     var digits = "";
-    state.stack.push(function () { keyHandler = null; you(); });
-    function render() {
-      var dots = "";
-      for (var i = 0; i < 4; i++) dots += '<span class="' + (i < digits.length ? "f" : "") + '"></span>';
-      var keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫"], pad = '<div class="pad">';
-      for (var j = 0; j < keys.length; j++) pad += keys[j] ? '<button class="key" data-tv data-k="' + keys[j] + '"' + (keys[j] === "1" ? " data-tv-default" : "") + ">" + keys[j] + "</button>" : '<span class="key blank"></span>';
-      document.getElementById("scroll").innerHTML = '<div style="text-align:center;padding-top:3rem"><h1>' + esc(title) + '</h1><div class="dots" style="margin-bottom:1.6rem">' + dots + "</div>" + pad + "</div></div>";
-      Array.prototype.forEach.call(document.querySelectorAll("[data-k]"), function (b) {
-        b.addEventListener("click", function () { add(b.getAttribute("data-k")); var again = document.querySelector('[data-k="' + b.getAttribute("data-k") + '"]'); if (again) again.focus(); });
-      });
-    }
-    function add(d) {
-      if (d === "⌫") { digits = digits.slice(0, -1); render(); return; }
-      digits = (digits + d).slice(0, 4);
-      render();
-      if (digits.length === 4) { var pin = digits; keyHandler = null; state.stack.pop(); setTimeout(function () { done(pin); }, 150); }
-    }
-    keyHandler = function (e) {
-      var k = e.keyCode, n = k >= 48 && k <= 57 ? k - 48 : k >= 96 && k <= 105 ? k - 96 : -1;
-      if (n >= 0) { add(String(n)); return true; }
-      return false;
-    };
-    render();
-    focusDefault();
+    pinActive = true;
+    open({
+      render: function () {
+        frame('<div style="text-align:center;padding-top:2.4rem"><h1 style="margin:0">' + esc(title) + "</h1>" + dotsHtml(0) + "<div style=\"height:1rem\"></div>" + padHtml() + "</div>");
+        function redraw(k) {
+          var d = page().querySelector(".dots");
+          if (d) d.outerHTML = dotsHtml(digits.length);
+          var again = k ? page().querySelector('[data-k="' + k + '"]') : null;
+          if (again) again.focus();
+        }
+        function add(k) {
+          if (k === "⌫") { digits = digits.slice(0, -1); redraw(k); return; }
+          if (k === "✕") { digits = ""; redraw(k); return; }
+          digits = (digits + k).slice(0, 4);
+          redraw(k);
+          if (digits.length === 4) {
+            var pin = digits;
+            digits = "";
+            pinActive = false;
+            keyHandler = null;
+            setTimeout(function () { done(pin); }, 150);
+          }
+        }
+        each(page().querySelectorAll("[data-k]"), function (b) { b.addEventListener("click", function () { add(b.getAttribute("data-k")); }); });
+        keyHandler = function (e) {
+          var n = numberFrom(e);
+          if (n >= 0) { add(String(n)); return true; }
+          return false;
+        };
+        focusDefault();
+      },
+      leave: function () { keyHandler = null; pinActive = false; },
+    });
   }
+
+  // ---------- Locking: Home button, another app, or the TV turning off locks a PIN profile again ----------
+  var lockedWhileAway = false;
+  function lockIfPinned() {
+    var a = state.me && state.me.account;
+    if (a && a.hasPin) { sessionStorage.removeItem(UNLOCK); lockedWhileAway = true; if (current) current.pause(); }
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) lockIfPinned();
+    else if (lockedWhileAway) {
+      lockedWhileAway = false;
+      var p = byId("player");
+      if (p) p.parentNode.removeChild(p);
+      if (current) { current.destroy(); current = null; }
+      var s = document.querySelector(".sheet");
+      if (s) s.parentNode.removeChild(s);
+      var m = byId("menu");
+      if (m) m.parentNode.removeChild(m);
+      menuOpen = false;
+      enter();
+    }
+  });
+  window.addEventListener("pagehide", lockIfPinned);
+  document.addEventListener("webOSRelaunch", function () { if (lockedWhileAway) { lockedWhileAway = false; enter(); } });
 
   // ---------- Start ----------
   function loadMe() {
-    return api("/api/app/me").then(function (me) { state.me = me; return me; }).catch(function () { state.me = { account: null, others: [] }; return state.me; });
+    return api("/api/app/me").then(function (me) {
+      state.me = me;
+      following = {};
+      return me;
+    }).catch(function () { state.me = { account: null, others: [] }; return state.me; });
   }
   function enter() {
     var me = state.me;
     if (!me || !me.account) return signIn();
     if (me.account.hasPin && sessionStorage.getItem(UNLOCK) !== me.account.sub) return pinPad(me.account);
     clearGate();
-    go("home");
+    goTab("home");
   }
+  // One base step in the history, so Back always reaches the app first.
+  history.replaceState({ d: 0 }, "");
   loadMe().then(function (me) {
     if (me.account && me.others.length && !sessionStorage.getItem(UNLOCK)) profiles();
     else enter();

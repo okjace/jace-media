@@ -16,6 +16,7 @@ import { dislikes, withDeArrow } from "@/lib/ytextras";
 import { sponsorSegments } from "@/lib/sponsorblock";
 import { liveNow } from "@/lib/golive";
 import { pinnedAmong } from "@/lib/tvpin";
+import { continueWatching, getPlaylist, listPlaylists, watchLaterId } from "@/lib/playlists";
 import { youtubeLive } from "@/lib/live";
 import type { FeedItem, VideoCard } from "@/lib/types";
 
@@ -145,6 +146,28 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
           jace: own.map((s) => ({ ...s, thumbnail: abs(s.thumbnail), host: { ...s.host, picture: abs(s.host.picture) } })),
           youtube: (await filterVideos(yt)).map(video),
         });
+      }
+      case "library": {
+        const viewer = await getViewer();
+        if (!viewer) return json({ error: "Sign in with Jace first." }, 401);
+        const wl = await watchLaterId(viewer.sub);
+        const [cont, later, lists] = await Promise.all([continueWatching(viewer.sub, 20), getPlaylist(viewer.sub, wl), listPlaylists(viewer.sub)]);
+        return json({
+          continueWatching: cont.map((v) => ({ ...video(v), progress: v.progress })),
+          watchLater: (later?.videos ?? []).map(video),
+          playlists: lists.filter((pl) => pl.kind !== "watch_later").map((pl) => ({ ...pl, thumbnail: abs(pl.thumbnail) })),
+        });
+      }
+      case "playlist": {
+        const viewer = await getViewer();
+        if (!viewer) return json({ error: "Sign in with Jace first." }, 401);
+        const pl = await getPlaylist(viewer.sub, path[1] ?? "");
+        if (!pl) return json({ error: "That playlist doesn't exist." }, 404);
+        return json({ name: pl.playlist.name, videos: pl.videos.map(video) });
+      }
+      case "posts": {
+        const h = await home();
+        return json({ posts: h.posts.map(post) });
       }
       case "history": {
         const viewer = await getViewer();

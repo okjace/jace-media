@@ -12,7 +12,7 @@
   "iconColor": "#3ddc84",
   "resolution": "1920x1080",
   "requiredPermissions": [],
-  "disableBackHistoryAPI": false,
+  "disableBackHistoryAPI": true,
   "transparent": false,
   "handlesRelaunch": false
 }
