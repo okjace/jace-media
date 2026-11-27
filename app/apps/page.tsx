@@ -133,9 +133,10 @@ export default async function AppsPage() {
           )}
         </div>
         <ol className={steps}>
-          <li>Windows: open the setup file. If SmartScreen appears, choose More info → Run anyway.</li>
-          <li>Mac: open the .dmg and drag Jace Media to Applications. The first time, right-click it → Open.</li>
+          <li>Open the download: a setup window installs Jace Media where you choose, adds shortcuts, opens it, and removes the download.</li>
+          <li>Windows: if SmartScreen appears, choose More info → Run anyway. Mac: unzip it, then right-click Jace Media → Open the first time.</li>
           <li>Linux: make the AppImage runnable (right-click → Properties → Allow executing) and open it.</li>
+          <li>To delete it: your account menu → Delete Jace Media app (also in the Start menu&apos;s Installed apps on Windows, or right-click the app in the Linux menu).</li>
         </ol>
         <p className="text-xs text-muted">
           Or install it from your browser: in Chrome or Edge, choose <b>Install app</b> in Jace Media&apos;s sidebar; on a Mac with Safari, File → Add to Dock.

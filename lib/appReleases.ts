@@ -15,7 +15,10 @@ const FILES: Record<string, Kind> = {
   "android.apk": "android",
   "ios.ipa": "ios",
   "webos.ipk": "webos",
+  // Since 2.1.0 the downloads set themselves up (like Jace Launcher); older releases had installers.
+  "windows.exe": "windows",
   "windows-setup.exe": "windows",
+  "mac.app.zip": "mac",
   "mac.dmg": "mac",
   "linux.AppImage": "linux",
   "linux.deb": "linuxDeb",

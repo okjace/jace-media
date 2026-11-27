@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { DesktopDelete } from "@/components/site/DesktopDelete";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/Avatar";
@@ -176,6 +177,7 @@ export function AccountMenu() {
                 {label}
               </Link>
             ))}
+            <DesktopDelete onClick={() => setOpen(false)} className="rounded-xl px-3 py-2 text-danger hover:bg-foreground/[.05]" />
           </div>
           <div className="flex flex-col p-1.5 text-sm">
             <a href={signInHref(pathname, "add")} role="menuitem" className="rounded-xl px-3 py-2 hover:bg-foreground/[.05]">

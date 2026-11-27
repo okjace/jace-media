@@ -1,7 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The main window. The site itself doesn't call into the app.",
-  "windows": ["main"],
-  "permissions": ["core:default"]
+  "description": "The app's windows. The setup window (a page inside the app) calls the setup commands; the site itself doesn't call into the app.",
+  "windows": [
+    "main",
+    "setup"
+  ],
+  "permissions": [
+    "core:default"
+  ]
 }

@@ -181,10 +181,11 @@ jobs:
               cp $T/release/bundle/deb/*.deb "dist/JaceMedia-$V-linux.deb"
               cp $T/release/bundle/rpm/*.rpm "dist/JaceMedia-$V-linux.rpm" || true ;;
             windows)
-              cp $T/release/bundle/nsis/*-setup.exe "dist/JaceMedia-$V-windows-setup.exe"
-              cp $T/release/bundle/msi/*.msi "dist/JaceMedia-$V-windows.msi" ;;
+              # The .exe runs setup when opened (like Jace Launcher): no separate installer.
+              cp $T/release/jace-media.exe "dist/JaceMedia-$V-windows.exe" ;;
             mac)
-              cp $T/universal-apple-darwin/release/bundle/dmg/*.dmg "dist/JaceMedia-$V-mac.dmg" ;;
+              # The .app runs setup when opened from Downloads.
+              (cd "$T/universal-apple-darwin/release/bundle/macos" && ditto -c -k --keepParent "Jace Media.app" "$GITHUB_WORKSPACE/dist/JaceMedia-$V-mac.app.zip") ;;
           esac
           ls -la dist
       - uses: actions/upload-artifact@v7
@@ -211,7 +212,7 @@ jobs:
         run: |
           V="${{ needs.version.outputs.version }}"
           awk -v v="$V" '$0 == "## "v {f=1; next} /^## / {f=0} f' src/apps/CHANGELOG.md > notes.md
-          printf '\n---\nAndroid and Android TV: the .apk. iPhone: add the source https://jace-media.vercel.app/api/altstore to AltStore or SideStore. LG TV: the .ipk. Windows: the -setup.exe. Mac: the .dmg (right-click → Open the first time). Linux: the .AppImage or .deb. Instructions: https://jace-media.vercel.app/apps\n' >> notes.md
+          printf '\n---\nAndroid and Android TV: the .apk. iPhone: add the source https://jace-media.vercel.app/api/altstore to AltStore or SideStore. LG TV: the .ipk. Windows: the .exe. Mac: the .app.zip (right-click → Open the first time). Linux: the .AppImage (or the .deb). Opening the download runs setup, which installs it and removes the download; delete it from the app's menu. Instructions: https://jace-media.vercel.app/apps\n' >> notes.md
           ls -la artifacts
       - uses: softprops/action-gh-release@v3
         with:
