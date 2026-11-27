@@ -18,10 +18,10 @@
 <style>
   html { font-size: 20px; }
   html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0b0d10; color: #f2f4f7;
-    font-family: "LG Smart UI", Roboto, "Segoe UI", Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; cursor: none; }
+    font-family: "LG Smart UI", Roboto, "Segoe UI", Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
   * { box-sizing: border-box; }
   button, input { font-family: inherit; color: inherit; font-size: inherit; }
-  button { background: none; border: 0; padding: 0; margin: 0; text-align: left; cursor: none; }
+  button { background: none; border: 0; padding: 0; margin: 0; text-align: left; cursor: pointer; }
   :focus { outline: none; }
   .hidden { display: none !important; }
   #app { position: fixed; top: 0; left: 0; right: 0; bottom: 0; }
@@ -33,7 +33,7 @@
 
   /* Side menu */
   #nav { position: absolute; top: 0; left: 0; bottom: 0; width: 6.4rem; z-index: 5; padding: 2.2rem 0.9rem;
-    background: linear-gradient(to right, rgba(0,0,0,0.8), rgba(0,0,0,0)); transition: width 0.2s ease, background-color 0.2s ease; overflow: hidden; }
+    background: linear-gradient(to right, rgba(0,0,0,0.8), rgba(0,0,0,0)); overflow: hidden; }
   #nav.open { width: 18rem; background-color: rgba(10,12,15,0.97); box-shadow: 1rem 0 3rem rgba(0,0,0,0.5); }
   .brand { display: flex; align-items: center; height: 3rem; margin: 0 0 2rem 0.35rem; white-space: nowrap; }
   .brand img { width: 2.9rem; height: 2.9rem; border-radius: 0.75rem; }
@@ -50,7 +50,7 @@
 
   /* Pages */
   #main { position: absolute; top: 0; left: 6.4rem; right: 0; bottom: 0; overflow: hidden; }
-  #scroll { position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; padding: 2.4rem 3rem 5rem 3rem; animation: rise 0.25s ease; }
+  #scroll { position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; padding: 2.4rem 3rem 5rem 3rem; }
   h1 { margin: 0 0 1.8rem 0.3rem; font-size: 2.3rem; font-weight: 700; letter-spacing: -0.01em; }
   .row { margin-bottom: 2.4rem; }
   .row h2 { margin: 0 0 0.7rem 0.3rem; font-size: 1.35rem; font-weight: 600; color: rgba(255,255,255,0.88); }
@@ -58,7 +58,7 @@
   .grid { white-space: normal; padding: 0.6rem; margin: -0.6rem; }
   .grid .card { margin-bottom: 2rem; }
 
-  .card { display: inline-block; vertical-align: top; width: 19rem; margin-right: 1.3rem; border-radius: 1rem; white-space: normal; transition: transform 0.15s ease; }
+  .card { display: inline-block; vertical-align: top; width: 19rem; margin-right: 1.3rem; border-radius: 1rem; white-space: normal; transition: transform 0.12s ease-out; }
   .card.tall { width: 11.5rem; }
   .card.round { width: 9rem; text-align: center; }
   .card .pic { position: relative; width: 100%; padding-top: 56.25%; border-radius: 1rem; overflow: hidden; background: rgba(255,255,255,0.06); }
@@ -67,7 +67,7 @@
   .card .prog { position: absolute; left: 0; bottom: 0; height: 0.3rem; background: #3ddc84; }
   .card .t { margin-top: 0.65rem; font-size: 1.05rem; font-weight: 600; line-height: 1.3; max-height: 2.7rem; overflow: hidden; color: rgba(255,255,255,0.9); }
   .card .s { margin-top: 0.2rem; font-size: 0.9rem; color: rgba(255,255,255,0.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .card:focus { transform: scale(1.06); }
+  .card:focus { transform: scale(1.06); will-change: transform; }
   .card:focus .pic, .card.round:focus .face { box-shadow: 0 0 0 0.25rem #3ddc84, 0 0.8rem 2rem rgba(0,0,0,0.6); }
   .card:focus .t { color: #fff; }
   .badge { position: absolute; top: 0.6rem; left: 0.6rem; padding: 0.1rem 0.45rem; border-radius: 0.3rem; font-size: 0.75rem; font-weight: 700; background: #e5484d; color: #fff; }
@@ -97,6 +97,9 @@
   .list-btn.on .v { color: #3ddc84; }
   .section-title { margin: 2rem 0 0.8rem 0.3rem; font-size: 1.05rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.5); }
 
+  svg.icon { display: inline-block; vertical-align: middle; flex-shrink: 0; }
+  .ctl svg.icon, .btn svg.icon, .list-btn svg.icon { margin: -0.15rem 0.45rem 0 0; }
+  .ctl.only svg.icon { margin: -0.15rem 0 0; }
   .face { display: inline-block; border-radius: 50%; object-fit: cover; background: rgba(61,220,132,0.18); color: #3ddc84; font-weight: 700; text-align: center; vertical-align: middle; }
 
   .post { display: inline-block; vertical-align: top; width: 30rem; margin: 0 1.3rem 1.6rem 0; padding: 1.3rem; border-radius: 1.1rem; background: rgba(255,255,255,0.05); white-space: normal; transition: transform 0.15s; }
@@ -120,6 +123,7 @@
   .key { display: inline-block; width: 5.4rem; height: 4.2rem; margin: 0.35rem; border-radius: 1.1rem; background: rgba(255,255,255,0.08);
     font-size: 1.75rem; font-weight: 600; text-align: center; line-height: 4.2rem; vertical-align: top; transition: transform 0.12s, background-color 0.12s; }
   .key.small { font-size: 1.3rem; }
+  .key svg.icon { vertical-align: -0.25rem; }
   .key:focus { background: #fff; color: #0b0d10; transform: scale(1.07); }
   .panel { padding: 2.4rem; border-radius: 1.6rem; background: rgba(255,255,255,0.04); }
   .qr { width: 14rem; height: 14rem; padding: 0.6rem; border-radius: 1.1rem; background: #fff; margin: 0 auto; }
@@ -162,7 +166,8 @@
   #menu { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 80; background: rgba(0,0,0,0.55); }
   #menu .box { position: absolute; top: 50%; left: 50%; width: 30rem; margin-left: -15rem; transform: translateY(-50%); padding: 1rem; border-radius: 1.4rem; background: #15181d; box-shadow: 0 1.5rem 4rem rgba(0,0,0,0.6); animation: rise 0.18s ease; }
   #menu .ttl { padding: 0.6rem 1rem 1rem; font-size: 1.05rem; color: rgba(255,255,255,0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #menu button { display: block; width: 100%; padding: 0.9rem 1.1rem; border-radius: 0.8rem; font-size: 1.2rem; }
+  #menu button { display: block; width: 100%; padding: 0.85rem 1.1rem; border-radius: 0.8rem; font-size: 1.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #menu button svg.icon { margin: -0.15rem 0.7rem 0 0; opacity: 0.85; }
   #menu button:focus { background: #fff; color: #0b0d10; }
   #menu button.danger { color: #ff8a8a; }
   #menu button.danger:focus { background: #ff8a8a; color: #0b0d10; }
@@ -177,7 +182,8 @@
   #shortinfo .tt { margin-top: 0.6rem; font-size: 1.1rem; line-height: 1.35; max-height: 3rem; overflow: hidden; }
   #rail { position: absolute; top: 50%; left: 50%; margin-left: 14.2rem; transform: translateY(-50%); width: 6rem; text-align: center; }
   .rb { display: block; width: 6rem; margin-bottom: 1rem; font-size: 0.9rem; color: rgba(255,255,255,0.75); text-align: center; }
-  .rb .o { display: block; width: 4rem; height: 4rem; margin: 0 auto 0.35rem; border-radius: 50%; background: rgba(255,255,255,0.1); font-size: 1.6rem; line-height: 4rem; transition: transform 0.12s, background-color 0.12s; }
+  .rb .o { display: block; width: 4rem; height: 4rem; margin: 0 auto 0.35rem; border-radius: 50%; background: rgba(255,255,255,0.1); font-size: 1.6rem; line-height: 4rem; overflow: hidden; transition: transform 0.12s, background-color 0.12s; }
+  .rb .o svg.icon { vertical-align: -0.35rem; }
   .rb.on .o { background: #3ddc84; color: #0c1410; }
   .rb:focus .o { background: #fff; color: #0b0d10; transform: scale(1.12); box-shadow: 0 0 0 0.2rem #3ddc84; }
   .rb:focus { color: #fff; }
@@ -199,7 +205,48 @@
 
   var app = document.getElementById("app");
   var UNLOCK = "jm_tv_unlocked";
-  var state = { me: null, tab: "home" };
+  var state = { me: null, tab: "home", guest: sessionStorage.getItem("jm_tv_guest") === "1" };
+  var GUEST = "jm_tv_guest";
+
+  // ---------- Icons (24×24 line drawings, the same style as the website) ----------
+  var ICONS = {
+    search: "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4",
+    home: "M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z",
+    shorts: "M9 7.5v9l7-4.5zM7 3h10a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3z",
+    videos: "M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM10 9v6l5-3z",
+    subs: "M4 6h16M6 3h12M3 9h18v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1zM10 12.5v5l4.5-2.5z",
+    live: "M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8",
+    posts: "M4 5h16M4 10h16M4 15h10M4 20h7",
+    library: "M5 3v18M10 3v18M15 4l4.5 16",
+    play: "M7 4.5v15l12-7.5z",
+    pause: "M8 5v14M16 5v14",
+    rew: "M11 7l-5 5 5 5M18 7l-5 5 5 5",
+    ff: "M13 7l5 5-5 5M6 7l5 5-5 5",
+    cc: "M3 6h18v12H3zM10.5 10a2.2 2.2 0 1 0 0 4M17 10a2.2 2.2 0 1 0 0 4",
+    speed: "M12 14l4-4M4 18a9 9 0 1 1 16 0",
+    like: "M7 11v9H4v-9zM7 11l4-8a2.5 2.5 0 0 1 2.5 2.5V9h5.2a2 2 0 0 1 2 2.3l-1.2 7a2 2 0 0 1-2 1.7H7",
+    dislike: "M17 13V4h3v9zM17 13l-4 8a2.5 2.5 0 0 1-2.5-2.5V15H5.3a2 2 0 0 1-2-2.3l1.2-7a2 2 0 0 1 2-1.7H17",
+    clock: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2",
+    info: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v6M12 7.5v.5",
+    comment: "M4 5h16v11H9l-5 4z",
+    user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0",
+    users: "M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21a7 7 0 0 1 14 0M16 3.5a4 4 0 0 1 0 7M18 14a7 7 0 0 1 4 7",
+    lock: "M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4",
+    check: "M5 12l5 5 9-10",
+    plus: "M12 5v14M5 12h14",
+    expand: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5",
+    ban: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM5.6 5.6l12.8 12.8",
+    flag: "M5 21V4h12l-2 4 2 4H5",
+    out: "M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10",
+    close: "M6 6l12 12M18 6 6 18",
+    back: "M9 7l-5 5 5 5M4 12h11a5 5 0 0 1 0 10",
+    send: "M4 12l16-8-6 16-3-7z",
+  };
+  function icon(name, rem) {
+    var size = (rem || 1.4) + "rem", fill = name === "play";
+    return '<svg class="icon" width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="' + (fill ? "currentColor" : "none") +
+      '" stroke="currentColor" stroke-width="' + (name === "pause" ? 3 : 1.9) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + ICONS[name] + '"/></svg>';
+  }
 
   // ---------- Helpers ----------
   function esc(s) {
@@ -208,8 +255,11 @@
     });
   }
   var cache = {};
-  function api(path, method, body) {
+  // asSelf: ask as the TV's profile even in guest mode (choosing profiles, PINs).
+  function api(path, method, body, asSelf) {
     var opts = { method: method || "GET", credentials: "same-origin", headers: {} };
+    // Guest mode: the server treats every request as signed out.
+    if (state.guest && !asSelf) opts.headers["x-jace-media-guest"] = "1";
     if (body !== undefined) { opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
     if (opts.method !== "GET") cache = {};
     return fetch(path, opts).then(function (r) {
@@ -260,13 +310,26 @@
     clearTimeout(toast.timer);
     toast.timer = setTimeout(function () { t.classList.add("hidden"); }, 1600);
   }
-  function signedIn() { return !!(state.me && state.me.account); }
+  function signedIn() { return !state.guest && !!(state.me && state.me.account); }
+  // A PIN profile that hasn't been unlocked yet (guest mode never shows a profile's things).
+  function locked() {
+    var a = state.me && state.me.account;
+    return !state.guest && !!(a && a.hasPin && sessionStorage.getItem(UNLOCK) !== a.sub);
+  }
+  function setGuest(on) {
+    state.guest = on;
+    // Handing the TV to a guest locks the profile again.
+    if (on) sessionStorage.removeItem(UNLOCK);
+    cache = {};
+    if (on) sessionStorage.setItem(GUEST, "1"); else sessionStorage.removeItem(GUEST);
+  }
 
   // ---------- Screens and the Back button ----------
   // Every screen is a step in the page's history: the TV's Back button (LG, Android TV) goes back a step.
   var stack = [];
   function open(screen) {
     // screen: { render: fn, leave?: fn, overlay?: bool }
+    if (locked()) { pinPad(state.me.account); return; }
     stack.push(screen);
     history.pushState({ d: stack.length }, "");
     screen.render();
@@ -371,16 +434,23 @@
   var okTimer = null, okHeld = false;
   document.addEventListener("keydown", function (e) {
     var k = e.keyCode;
-    // Hold OK, or press a colored button, for the menu of the selected thing.
-    if (k === KEY.ENTER && !menuOpen) {
-      if (e.repeat) { e.preventDefault(); return; }
-      if (!okTimer && hasMenu(document.activeElement)) {
-        okHeld = false;
-        okTimer = setTimeout(function () { okHeld = true; okTimer = null; showMenuFor(document.activeElement); }, 600);
-        e.preventDefault();
-        return;
+    // OK: Jace Media presses the selected button itself (some TV browsers don't), and
+    // holding OK (or a colored button) opens the menu of the selected thing.
+    var focused = document.activeElement;
+    var isField = focused && (focused.tagName === "INPUT" || focused.tagName === "TEXTAREA");
+    if (k === KEY.ENTER && !isField && !(keyHandler && keyHandler(e) === true)) {
+      e.preventDefault();
+      if (e.repeat || okDown) return;
+      okDown = true;
+      if (!menuOpen && hasMenu(focused)) {
+        okTimer = setTimeout(function () { okTimer = null; okHeld = true; showMenuFor(focused); }, 600);
+      } else {
+        okHeld = true; // already handled
+        if (focused && focused !== document.body && focused.click) focused.click();
       }
+      return;
     }
+    if (k === KEY.ENTER && !isField) { e.preventDefault(); return; }
     if ((k === KEY.RED || k === KEY.GREEN || k === KEY.YELLOW || k === KEY.BLUE) && !menuOpen && !pinActive && hasMenu(document.activeElement)) {
       e.preventDefault();
       showMenuFor(document.activeElement);
@@ -398,12 +468,21 @@
     if (k === KEY.ESC || (k === KEY.BKSP && !typing)) { e.preventDefault(); back(); return; }
     if (typing && (k === KEY.LEFT || k === KEY.RIGHT)) return;
     var dir = { 37: "left", 38: "up", 39: "right", 40: "down" }[k];
-    if (dir) { e.preventDefault(); move(dir); }
+    if (dir) {
+      e.preventDefault();
+      var now = Date.now();
+      if (e.repeat && now - lastMove < 110) return;
+      lastMove = now;
+      move(dir);
+    }
   });
+  var lastMove = 0;
+  var okDown = false;
   document.addEventListener("keyup", function (e) {
     if (e.keyCode !== KEY.ENTER) return;
+    okDown = false;
     if (okTimer) {
-      // A short press: OK as usual.
+      // A short press on something with a menu: open or play it.
       clearTimeout(okTimer);
       okTimer = null;
       var el = document.activeElement;
@@ -411,21 +490,46 @@
     }
     okHeld = false;
   });
+  // Pointing with the Magic Remote (or a mouse) highlights what's under it; the wheel scrolls.
+  document.addEventListener("mouseover", function (e) {
+    var el = closest(e.target, "[data-tv]");
+    if (el && el !== document.activeElement && layer().contains(el)) el.focus();
+  });
+  document.addEventListener("wheel", function (e) {
+    var now = Date.now();
+    if (now - lastMove < 140) return;
+    lastMove = now;
+    move(e.deltaY > 0 ? "down" : "up");
+  });
 
   // ---------- The menu (hold OK or a colored button), like right-click on the website ----------
   var menuOpen = false, menuReturn = null;
-  function hasMenu(el) { return !!(el && el.getAttribute && el.getAttribute("data-menu")); }
+  function hasMenu(el) { return !!(el && el.getAttribute && (el.getAttribute("data-menu") || el.getAttribute("data-chan"))); }
+  // Hold OK on a channel: open it, or subscribe.
+  var chanMenus = {}, chanSeq = 0;
+  function rememberChannel(c) { var key = "c" + (++chanSeq); chanMenus[key] = c; return key; }
+  function channelItems(c) {
+    var items = [];
+    if (c.kind === "youtube") items.push({ icon: "user", label: "Go to " + c.name, run: function () { channel(c.id, c.name); } });
+    if (signedIn()) {
+      var on = isFollowing(c.kind, c.id);
+      items.push({ icon: on ? "check" : "plus", label: on ? "Unsubscribe from " + c.name : "Subscribe to " + c.name, run: function () { setFollowing(c.kind, c.id, c.name, c.picture, !on); } });
+    }
+    return items;
+  }
   function showMenuFor(el) {
+    var ck = el.getAttribute("data-chan");
+    if (ck && chanMenus[ck]) { var items0 = channelItems(chanMenus[ck]); if (items0.length) showMenu(chanMenus[ck].name, items0, el); return; }
     var v = menuVideos[el.getAttribute("data-menu")];
     if (!v) return;
-    var items = [{ label: "▶  Play", run: function () { play(v); } }];
-    if (signedIn()) items.push({ label: "🕒  Save to Watch Later", run: function () { saveLater(v); } });
-    if (v.channelId && v.source === "youtube") items.push({ label: "👤  Go to " + v.channelName, run: function () { channel(v.channelId, v.channelName); } });
+    var items = [{ icon: "play", label: "Play", run: function () { play(v); } }];
+    if (signedIn()) items.push({ icon: "clock", label: "Save to Watch Later", run: function () { saveLater(v); } });
+    if (v.channelId) items = items.concat(channelItems({ kind: v.source, id: v.channelId, name: v.channelName, picture: v.channelPicture }));
     if (signedIn()) {
-      items.push({ label: "🚫  Not interested", run: function () { hide("video", v.source + ":" + v.id, el, "Got it. You'll see fewer like this."); } });
-      items.push({ label: "⊘  Don't recommend channel", run: function () { hide("channel", v.source + ":" + v.channelId, el, "You won't be recommended " + v.channelName + " anymore."); } });
-      items.push({ label: "👍  Rate appropriate", run: function () { rate(v, 1); } });
-      items.push({ label: "🚩  Rate inappropriate", danger: true, run: function () { rate(v, -1, el); } });
+      items.push({ icon: "ban", label: "Not interested", run: function () { hide("video", v.source + ":" + v.id, el, "Got it. You'll see fewer like this."); } });
+      items.push({ icon: "close", label: "Don't recommend channel", run: function () { hide("channel", v.source + ":" + v.channelId, el, "You won't be recommended " + v.channelName + " anymore."); } });
+      items.push({ icon: "like", label: "Rate appropriate", run: function () { rate(v, 1); } });
+      items.push({ icon: "flag", label: "Rate inappropriate", danger: true, run: function () { rate(v, -1, el); } });
     }
     showMenu(v.title, items, el);
   }
@@ -438,7 +542,10 @@
         menuOpen = true;
         menuReturn = returnTo || document.activeElement;
         var html = '<div id="menu"><div class="box"><div class="ttl">' + esc(title) + "</div>";
-        for (var i = 0; i < items.length; i++) html += '<button data-tv data-i="' + i + '"' + (i === 0 ? " data-tv-default" : "") + (items[i].danger ? ' class="danger"' : "") + ">" + esc(items[i].label) + "</button>";
+        for (var i = 0; i < items.length; i++) {
+          html += '<button data-tv data-i="' + i + '"' + (i === 0 ? " data-tv-default" : "") + (items[i].danger ? ' class="danger"' : "") + ">" +
+            (items[i].icon ? icon(items[i].icon, 1.3) + " " : "") + esc(items[i].label) + "</button>";
+        }
         var wrap = document.createElement("div");
         wrap.innerHTML = html + "</div></div>";
         document.body.appendChild(wrap.firstChild);
@@ -483,10 +590,14 @@
   function card(v, tall, first, progress) {
     var key = remember(v);
     return '<button class="card' + (tall ? " tall" : "") + '" data-tv data-menu="' + key + '"' + (first ? " data-tv-default" : "") + '><div class="pic">' +
-      (v.thumbnail ? '<img src="' + esc(v.thumbnail) + '" alt="">' : "") +
+      (v.thumbnail ? '<img src="' + esc(small(v.thumbnail, tall)) + '" alt="">' : "") +
       (tall ? "" : '<span class="src ' + (v.source === "jace" ? 'src-jace">JACE' : 'src-yt">YOUTUBE') + "</span>") +
       (progress ? '<span class="prog" style="width:' + Math.round(progress * 100) + '%"></span>' : "") +
       '</div><div class="t">' + esc(v.title) + "</div>" + (tall ? "" : '<div class="s">' + esc(v.channelName) + (v.views ? " · " + compact(v.views) + " views" : "") + "</div>") + "</button>";
+  }
+  // YouTube thumbnails come through Jace Media; rows use the smaller size.
+  function small(url, tall) {
+    return !tall && /\/api\/yt-thumb\/[\w-]+$/.test(url) ? url + "?s=mqdefault" : url;
   }
   function cards(list, tall, firstDefault, progressKey) {
     var html = "";
@@ -514,17 +625,17 @@
 
   // ---------- Page frame: side menu + page ----------
   var TABS = [
-    ["search", "Search", "&#9906;"], ["home", "Home", "&#8962;"], ["shorts", "Shorts", "&#9655;"], ["videos", "Videos", "&#9635;"],
-    ["subs", "Subscriptions", "&#9776;"], ["live", "Live", "&#9673;"], ["posts", "Posts", "&#9998;"], ["library", "Library", "&#9776;"], ["you", "You", ""],
+    ["search", "Search", "search"], ["home", "Home", "home"], ["shorts", "Shorts", "shorts"], ["videos", "Videos", "videos"],
+    ["subs", "Subscriptions", "subs"], ["live", "Live", "live"], ["posts", "Posts", "posts"], ["library", "Library", "library"], ["you", "You", "user"],
   ];
   function frame(content, noScroll) {
-    var a = state.me && state.me.account;
+    var a = signedIn() ? state.me.account : null;
     var nav = '<div id="nav"><div class="brand"><img src="/icon.svg" alt=""><span>Jace Media</span></div>';
     for (var i = 0; i < TABS.length; i++) {
       var t = TABS[i];
       if ((t[0] === "library" || t[0] === "subs") && !a) continue;
-      var icon = t[0] === "you" && a ? face(a.name, a.picture, 1.8) : t[2];
-      nav += '<button class="nav-item' + (state.tab === t[0] ? " on" : "") + '" data-tv data-go="' + t[0] + '"><span class="ic">' + icon + '</span><span class="lb">' + t[1] + "</span></button>";
+      var ic = t[0] === "you" && a ? face(a.name, a.picture, 1.8) : icon(t[2], 1.6);
+      nav += '<button class="nav-item' + (state.tab === t[0] ? " on" : "") + '" data-tv data-go="' + t[0] + '"><span class="ic">' + ic + '</span><span class="lb">' + t[1] + "</span></button>";
     }
     app.innerHTML = nav + '</div><div id="main">' + (noScroll ? content : '<div id="scroll">' + content + "</div>") + "</div>";
     each(app.querySelectorAll("[data-go]"), function (b) { b.addEventListener("click", function () { goTab(b.getAttribute("data-go")); }); });
@@ -532,6 +643,7 @@
   function page() { return byId("scroll"); }
   function fill(html) { var p = page(); if (p) { p.innerHTML = html; wire(p); } }
   function goTab(name) {
+    if (locked()) { pinPad(state.me.account); return; }
     state.tab = name;
     keyHandler = null;
     var screens = { home: home, shorts: shortsTab, videos: videos, subs: subs, live: live, posts: posts, library: library, search: search, you: you };
@@ -550,7 +662,7 @@
         var key = remember(hero);
         html += '<div class="hero row">' + (hero.thumbnail ? '<img src="' + esc(hero.thumbnail) + '" alt="">' : "") + '<div class="shade"></div><div class="txt">' +
           '<div class="k">Recommended for you</div><div class="h">' + esc(hero.title) + '</div><div class="m">' + esc(hero.channelName) +
-          (hero.views ? " · " + compact(hero.views) + " views" : "") + '</div><button class="btn white" data-tv data-tv-default data-menu="' + key + '">&#9654;&nbsp; Play</button></div></div>';
+          (hero.views ? " · " + compact(hero.views) + " views" : "") + '</div><button class="btn white" data-tv data-tv-default data-menu="' + key + '">' + icon("play", 1.2) + 'Play</button></div></div>';
       }
       html += row("Recommended", cards(rest.slice(0, 12)));
       html += row("Shorts", cards(d.shorts.map(function (s) { s.short = true; return s; }), true));
@@ -601,14 +713,14 @@
           var head = '<div class="row" style="display:flex;align-items:center">' + face(d.channel.name, d.channel.picture, 6.5) +
             '<div style="margin-left:1.6rem"><h1 style="margin:0">' + esc(d.channel.name) + "</h1>" +
             (d.channel.subscribers ? '<p class="muted" style="margin:0.35rem 0 0;font-size:1.1rem">' + compact(d.channel.subscribers) + " subscribers</p>" : "") +
-            (signedIn() ? '<button class="btn ' + (subscribed ? "" : "green") + '" data-tv data-tv-default id="subbtn">' + (subscribed ? "✓ Subscribed" : "Subscribe") + "</button>" : "") + "</div></div>";
+            (signedIn() ? '<button class="btn ' + (subscribed ? "" : "green") + '" data-tv data-tv-default id="subbtn">' + (subscribed ? icon("check") + "Subscribed" : icon("plus") + "Subscribe") + "</button>" : "") + "</div></div>";
           fill(head + row("Videos", cards(d.videos, false, !signedIn())) + row("Shorts", cards(d.shorts.map(function (s) { s.short = true; return s; }), true)));
           var sb = byId("subbtn");
           if (sb) sb.addEventListener("click", function () {
             subscribed = !subscribed;
             setFollowing("youtube", id, d.channel.name, d.channel.picture, subscribed);
             sb.className = "btn" + (subscribed ? "" : " green");
-            sb.textContent = subscribed ? "✓ Subscribed" : "Subscribe";
+            sb.innerHTML = subscribed ? icon("check") + "Subscribed" : icon("plus") + "Subscribe";
           });
           focusDefault();
         }).catch(function (e) { fill(failed(e.message)); });
@@ -748,16 +860,58 @@
   }
   function commentsSheet(source, id) {
     sheet("Comments", spinner());
-    api("/api/comments?source=" + source + "&id=" + encodeURIComponent(id)).then(function (d) {
-      var body = document.querySelector(".sheet .body");
-      if (!body) return;
-      var html = "", i;
-      for (i = 0; i < d.mine.length; i++) html += '<div class="item" data-tv><b>' + esc(d.mine[i].author.name) + " · on Jace Media</b>" + esc(d.mine[i].text) + "</div>";
-      for (i = 0; i < d.others.length; i++) html += '<div class="item" data-tv><b>' + esc(d.others[i].name) + (d.others[i].likes ? " · ♡ " + compact(d.others[i].likes) : "") + "</b>" + esc(d.others[i].text) + "</div>";
-      body.innerHTML = html || '<div class="item" data-tv>No comments yet.</div>';
-      each(body.querySelectorAll("[data-tv]"), function (x) { x.setAttribute("tabindex", "0"); });
-      focusDefault();
-    }).catch(function () { var b = document.querySelector(".sheet .body"); if (b) b.innerHTML = '<div class="item" data-tv tabindex="0">Couldn’t load comments.</div>'; });
+    function item(name, text, likes, note) {
+      return '<div class="item" data-tv tabindex="0"><b>' + esc(name) + (note ? " \u00B7 " + esc(note) : "") + (likes ? " \u00B7 " + compact(likes) + " likes" : "") + "</b>" + esc(text).replace(/\n/g, "<br>") + "</div>";
+    }
+    function load(focusFirst) {
+      api("/api/comments?source=" + source + "&id=" + encodeURIComponent(id)).then(function (d) {
+        var body = document.querySelector(".sheet .body");
+        if (!body) return;
+        var html = "", i;
+        if (signedIn()) {
+          html += '<form id="cform" style="margin-bottom:1.2rem;white-space:nowrap"><input class="search" id="cinput" data-tv' + (focusFirst ? " data-tv-default" : "") +
+            ' maxlength="1000" placeholder="Add a comment" style="width:24rem;height:3.4rem;font-size:1.15rem;padding:0 1.3rem">' +
+            '<button class="btn green" data-tv type="submit" style="margin:0 0 0 0.7rem;padding:0.75rem 1.3rem;vertical-align:top">' + icon("send") + "Post</button></form>";
+        }
+        for (i = 0; i < d.mine.length; i++) html += item(d.mine[i].author.name, d.mine[i].text, 0, "on Jace Media");
+        for (i = 0; i < d.others.length; i++) {
+          var c = d.others[i];
+          html += item(c.name, c.text, c.likes, "");
+          if (c.replies) html += '<button class="item more" data-tv data-rep="' + esc(c.id) + '" style="color:#3ddc84;margin-top:-0.4rem">' + icon("comment", 1.1) + " View " + c.replies + (c.replies === 1 ? " reply" : " replies") + '</button><div data-reps="' + esc(c.id) + '"></div>';
+        }
+        if (!d.mine.length && !d.others.length) html += '<div class="item" data-tv tabindex="0">No comments yet.' + (signedIn() ? " Be the first!" : "") + "</div>";
+        body.innerHTML = html;
+        // Write a comment: the TV's on-screen keyboard opens on the box.
+        var form = byId("cform");
+        if (form) form.addEventListener("submit", function (e) {
+          e.preventDefault();
+          var text = byId("cinput").value.trim();
+          if (!text) return;
+          var endpoint = source === "jace" ? "/api/jace-comments" : "/api/ext-comments";
+          api(endpoint, "POST", { network: source, postId: id, body: text }).then(function () {
+            toast("Comment posted");
+            load(false);
+          }).catch(function (err) { toast(err.message); });
+        });
+        // Replies load under the comment.
+        each(body.querySelectorAll("[data-rep]"), function (btnEl) {
+          btnEl.addEventListener("click", function () {
+            var cid = btnEl.getAttribute("data-rep"), box = body.querySelector('[data-reps="' + cid + '"]');
+            btnEl.innerHTML = icon("comment", 1.1) + " Loading replies\u2026";
+            api("/api/comments?replies=" + encodeURIComponent(cid)).then(function (r) {
+              var out = "";
+              for (var j = 0; j < r.replies.length; j++) out += item(r.replies[j].name, r.replies[j].text, r.replies[j].likes, "reply");
+              box.innerHTML = '<div style="margin-left:2rem;border-left:0.15rem solid rgba(255,255,255,0.12);padding-left:0.8rem">' + (out || '<div class="item" data-tv tabindex="0">No replies.</div>') + "</div>";
+              btnEl.parentNode.removeChild(btnEl);
+              var first = box.querySelector("[data-tv]");
+              if (first) focusEl(first);
+            }).catch(function () { btnEl.innerHTML = "Couldn\u2019t load replies"; });
+          });
+        });
+        if (focusFirst !== false) focusDefault();
+      }).catch(function () { var b = document.querySelector(".sheet .body"); if (b) b.innerHTML = '<div class="item" data-tv tabindex="0">Couldn\u2019t load comments.</div>'; });
+    }
+    load(true);
   }
 
   // ---------- Video: a Jace video file or YouTube (privacy-enhanced, YouTube's own buttons cropped out) ----------
@@ -869,15 +1023,18 @@
     function renderButtons() {
       var w = layerEl.querySelector("#ctls");
       var signed = signedIn();
-      w.innerHTML = btn("rew", "⏪ 10") + btn("pp", s && s.paused() ? "▶ Play" : "❚❚ Pause") + btn("ff", "10 ⏩") +
-        (v.source === "youtube" ? btn("cc", "CC", cc ? " on" : "") : "") + btn("speed", SPEEDS[speed] + "×") +
-        (signed ? btn("like", "👍" + (info && info.video.likes ? " " + compact(info.video.likes + (vote === 1 ? 1 : 0) - (info.video.myVote === 1 ? 1 : 0)) : ""), vote === 1 ? " on" : "") +
-          btn("dislike", "👎", vote === -1 ? " on" : "") : "") +
-        (signed && info && info.video.channelId ? btn("sub", subscribed ? "✓ Subscribed" : "Subscribe", subscribed ? "" : " on") : "") +
-        (signed ? btn("save", "🕒 Save") : "") + btn("info", "ℹ Info") + btn("comments", "💬") +
-        (info && info.video.channelId && v.source === "youtube" ? btn("channel", "👤") : "");
+      var paused = s && s.paused();
+      w.innerHTML = btn("rew", icon("rew") + "10") + btn("pp", icon(paused ? "play" : "pause") + (paused ? "Play" : "Pause")) + btn("ff", "10&nbsp;" + icon("ff")) +
+        (v.source === "youtube" ? btn("cc", icon("cc") + "CC", cc ? " on" : "") : "") + btn("speed", icon("speed") + SPEEDS[speed] + "×") +
+        (signed ? btn("like", icon("like") + (info && info.video.likes ? compact(info.video.likes + (vote === 1 ? 1 : 0) - (info.video.myVote === 1 ? 1 : 0)) : "Like"), vote === 1 ? " on" : "") +
+          btn("dislike", icon("dislike"), (vote === -1 ? " on" : "") + " only") : "") +
+        (signed ? btn("save", icon("clock") + "Save") : "") + btn("info", icon("info") + "Info") + btn("comments", icon("comment") + "Comments") +
+        (info && info.video.channelId ? '<button class="ctl" data-tv data-a="channel" data-chan="' + rememberChannel({ kind: v.source, id: info.video.channelId, name: info.video.channelName, picture: info.video.channelPicture }) + '">' +
+          face(info.video.channelName, info.video.channelPicture, 1.5) + "&nbsp; " + esc(info.video.channelName) + "</button>" : "");
       var pp = w.querySelector('[data-a="pp"]');
       pp.setAttribute("data-tv-default", "");
+      var chBtn = w.querySelector('[data-a="channel"]');
+      if (chBtn && v.source !== "youtube") chBtn.setAttribute("data-a", "nochannel");
       each(w.querySelectorAll("[data-a]"), function (b) { b.addEventListener("click", function () { act(b.getAttribute("data-a"), b); }); });
     }
     function act(a, b) {
@@ -910,7 +1067,7 @@
         onEnded: function () { if (upNext[0]) { var n = upNext[0]; back(); setTimeout(function () { play(n); }, 80); } },
         onState: function (on) {
           var pp = layerEl && layerEl.querySelector('[data-a="pp"]');
-          if (pp) pp.textContent = on ? "❚❚ Pause" : "▶ Play";
+          if (pp) pp.innerHTML = icon(on ? "pause" : "play") + (on ? "Pause" : "Play");
           if (!on) showUi();
         },
       });
@@ -962,12 +1119,12 @@
           if (k === KEY.PLAY) { s && s.play(); showUi(); return true; }
           if (k === KEY.PAUSE) { s && s.pause(); showUi(); return true; }
           if (k === KEY.PLAYPAUSE) { s && s.toggle(); showUi(); return true; }
-          if (k === KEY.REW) { s && s.seek(-10); toast("⏪ 10 seconds"); return true; }
-          if (k === KEY.FF) { s && s.seek(10); toast("10 seconds ⏩"); return true; }
+          if (k === KEY.REW) { s && s.seek(-10); toast("Back 10 seconds"); return true; }
+          if (k === KEY.FF) { s && s.seek(10); toast("Forward 10 seconds"); return true; }
           if (uiHidden()) {
             // Controls hidden: OK pauses, left/right skip 10 seconds, up/down bring the controls back.
             if (k === KEY.ENTER) { s && s.toggle(); showUi(); return true; }
-            if (k === KEY.LEFT || k === KEY.RIGHT) { s && s.seek(k === KEY.LEFT ? -10 : 10); toast(k === KEY.LEFT ? "⏪ 10 seconds" : "10 seconds ⏩"); return true; }
+            if (k === KEY.LEFT || k === KEY.RIGHT) { s && s.seek(k === KEY.LEFT ? -10 : 10); toast(k === KEY.LEFT ? "Back 10 seconds" : "Forward 10 seconds"); return true; }
             if (k === KEY.UP || k === KEY.DOWN) { showUi(); focusEl(layerEl.querySelector('[data-a="pp"]')); return true; }
           }
           showUi();
@@ -1007,15 +1164,17 @@
     var i = start, liked = {}, disliked = {};
     if (!list.length) { fill(failed("No Shorts right now.")); return; }
     frame('<div id="shorts"><div id="shortstage" data-tv data-tv-default tabindex="0"><div class="vbox" id="shortbox"></div><div id="shortinfo"></div></div><div id="rail"></div>' +
-      '<div id="shortcount"></div><div id="shorthint">▲ ▼ Previous / next<br>OK Pause · ▶ Buttons<br>Hold OK for more</div></div>', true);
+      '<div id="shortcount"></div><div id="shorthint">Up / Down: previous, next<br>OK: pause · Right: buttons<br>Hold OK: more</div></div>', true);
     var stage = byId("shortstage");
     function rb(a, icon, label, on) { return '<button class="rb' + (on ? " on" : "") + '" data-tv data-r="' + a + '"><span class="o">' + icon + "</span>" + label + "</button>"; }
     function rail() {
       var v = list[i], key = v.source + ":" + v.id, signed = signedIn();
-      byId("rail").innerHTML = (signed ? rb("like", "👍", "Like", liked[key]) + rb("dislike", "👎", "Dislike", disliked[key]) : "") +
-        rb("comments", "💬", "Comments") + (v.channelId && v.source === "youtube" ? rb("channel", face(v.channelName, v.channelPicture, 4), "Channel") : "") +
-        (signed && v.channelId ? rb("sub", isFollowing(v.source, v.channelId) ? "✓" : "+", isFollowing(v.source, v.channelId) ? "Subscribed" : "Subscribe", !isFollowing(v.source, v.channelId)) : "") +
-        (signed ? rb("save", "🕒", "Save") : "") + rb("full", "▭", "Full video");
+      byId("rail").innerHTML = (signed ? rb("like", icon("like", 1.6), "Like", liked[key]) + rb("dislike", icon("dislike", 1.6), "Dislike", disliked[key]) : "") +
+        rb("comments", icon("comment", 1.6), "Comments") +
+        (v.channelId ? rb("channel", face(v.channelName, v.channelPicture, 4), "Channel") : "") +
+        (signed ? rb("save", icon("clock", 1.6), "Save") : "") + rb("full", icon("expand", 1.6), "Full video");
+      var chb = byId("rail").querySelector('[data-r="channel"]');
+      if (chb) chb.setAttribute("data-chan", rememberChannel({ kind: v.source, id: v.channelId, name: v.channelName, picture: v.channelPicture }));
       each(byId("rail").querySelectorAll("[data-r]"), function (b) {
         b.addEventListener("click", function () {
           var a = b.getAttribute("data-r");
@@ -1025,8 +1184,7 @@
             disliked[key] = next === -1;
             api("/api/video-likes", "POST", { source: v.source, id: v.id, channelId: v.channelId, value: next }).catch(function () {});
           } else if (a === "comments") { commentsSheet(v.source, v.id); return; }
-          else if (a === "channel") { channel(v.channelId, v.channelName); return; }
-          else if (a === "sub") setFollowing(v.source, v.channelId, v.channelName, v.channelPicture, !isFollowing(v.source, v.channelId));
+          else if (a === "channel") { if (v.source === "youtube") channel(v.channelId, v.channelName); else showMenuFor(b); return; }
           else if (a === "save") saveLater(v);
           else if (a === "full") { play(v); return; }
           rail();
@@ -1070,12 +1228,12 @@
   function tvCode(body, box, onDone) {
     var poll = null, stopped = false;
     function startCode() {
-      api("/api/tv", "POST", body).then(function (c) {
+      api("/api/tv", "POST", body, true).then(function (c) {
         if (stopped) return;
         box.innerHTML = '<div class="qr">' + c.qr + '</div><p class="muted" style="font-size:1rem;text-align:center;margin:1rem 0 0">or go to <b style="color:#fff">' +
           esc(c.url.replace(/^https?:\/\//, "").replace(/\?.*$/, "")) + "</b> and enter<br>" + '<span class="code">' + esc(c.code) + "</span></p>";
         poll = setInterval(function () {
-          api("/api/tv?code=" + c.code).then(function (r) {
+          api("/api/tv?code=" + c.code, "GET", undefined, true).then(function (r) {
             if (stopped) return;
             if (r.done) { stop(); onDone(r); } else if (r.expired) { clearInterval(poll); startCode(); }
           }).catch(function () {});
@@ -1095,8 +1253,8 @@
     stack = [];
     app.innerHTML = '<div class="center"><div style="width:36rem;margin-right:6rem"><img src="/icon.svg" style="width:5rem;height:5rem;border-radius:1.2rem" alt="">' +
       '<h1 style="font-size:3rem;margin:1.4rem 0 1rem">Sign in to Jace Media</h1><p class="muted" style="font-size:1.35rem;line-height:1.55;margin:0">Scan the code with your phone’s camera and tap <b style="color:#fff">Sign in the TV</b>. No typing with the remote.</p>' +
-      '<button class="btn" data-tv data-tv-default id="skip" style="margin-top:2rem">Continue without signing in</button></div><div class="panel" id="qrbox" style="width:22rem;text-align:center"></div></div>';
-    byId("skip").addEventListener("click", function () { clearGate(); goTab("home"); });
+      '<button class="btn" data-tv data-tv-default id="skip" style="margin-top:2rem">Continue as a guest</button></div><div class="panel" id="qrbox" style="width:22rem;text-align:center"></div></div>';
+    byId("skip").addEventListener("click", function () { clearGate(); setGuest(true); goTab("home"); });
     stopCode = tvCode({ purpose: "signin" }, byId("qrbox"), function () {
       loadMe().then(function (me) { if (me.account) sessionStorage.setItem(UNLOCK, me.account.sub); enter(); });
     });
@@ -1106,25 +1264,30 @@
   function profiles() {
     clearGate();
     stack = [];
+    // Choosing a profile always asks for its PIN again.
+    sessionStorage.removeItem(UNLOCK);
     var list = [state.me.account].concat(state.me.others).filter(Boolean);
     var html = '<div class="center" style="flex-direction:column"><img src="/icon.svg" style="width:3.6rem;height:3.6rem;border-radius:0.9rem;margin-bottom:1.4rem" alt=""><h1 style="font-size:2.8rem;margin:0 0 3rem">Who’s watching?</h1><div class="profiles">';
     for (var i = 0; i < list.length; i++) {
       html += '<button class="p" data-tv data-p="' + i + '"' + (i === 0 ? " data-tv-default" : "") + ">" + face(list[i].name, list[i].picture, 8) +
-        '<div class="n">' + esc(list[i].name) + "</div>" + (list[i].hasPin ? '<div class="muted" style="font-size:0.95rem;margin-top:0.3rem">🔒 PIN</div>' : '<div style="height:1.5rem"></div>') + "</button>";
+        '<div class="n">' + esc(list[i].name) + "</div>" + (list[i].hasPin ? '<div class="muted" style="font-size:0.95rem;margin-top:0.3rem">' + icon("lock", 1) + ' PIN</div>' : '<div style="height:1.5rem"></div>') + "</button>";
     }
+    html += '<button class="p" data-tv data-guest><span class="face" style="width:8rem;height:8rem;line-height:8rem;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.75)">' + icon("user", 3.2) + '</span><div class="n muted">Guest</div><div style="height:1.5rem"></div></button>';
     html += '<button class="p" data-tv data-add><span class="face" style="width:8rem;height:8rem;line-height:7.6rem;font-size:3rem;border:0.2rem dashed rgba(255,255,255,0.3);background:none;color:rgba(255,255,255,0.6)">+</span><div class="n muted">Add profile</div><div style="height:1.5rem"></div></button></div></div>';
     app.innerHTML = html;
     each(app.querySelectorAll("[data-p]"), function (el) {
       el.addEventListener("click", function () {
         var a = list[+el.getAttribute("data-p")];
         var switching = state.me.account && state.me.account.sub !== a.sub;
-        (switching ? api("/api/accounts/switch", "POST", { sub: a.sub }).catch(function () {}) : Promise.resolve()).then(function () {
+        setGuest(false);
+        (switching ? api("/api/accounts/switch", "POST", { sub: a.sub }, true).catch(function () {}) : Promise.resolve()).then(function () {
           if (switching) { sessionStorage.removeItem(UNLOCK); cache = {}; }
           return loadMe();
         }).then(enter);
       });
     });
     app.querySelector("[data-add]").addEventListener("click", signIn);
+    app.querySelector("[data-guest]").addEventListener("click", function () { clearGate(); setGuest(true); goTab("home"); });
     focusDefault();
   }
 
@@ -1135,7 +1298,8 @@
       html += '<div class="pad-row">';
       for (var c = 0; c < 3; c++) {
         var k = rows[r][c];
-        html += '<button class="key' + (k.length > 1 || /[^\d]/.test(k) ? " small" : "") + '" data-tv data-k="' + k + '"' + (k === "5" ? " data-tv-default" : "") + ">" + k + "</button>";
+        var label = k === "⌫" ? icon("back", 1.6) : k === "✕" ? icon("close", 1.5) : k;
+        html += '<button class="key' + (/[^\d]/.test(k) ? " small" : "") + '" data-tv data-k="' + k + '"' + (k === "5" ? " data-tv-default" : "") + ">" + label + "</button>";
       }
       html += "</div>";
     }
@@ -1161,9 +1325,9 @@
       left.innerHTML = face(who.name, who.picture, 6.5) + '<h1 style="margin:1.2rem 0 0;font-size:2rem">Enter ' + esc(who.name) + "’s PIN</h1>" + dotsHtml(digits.length) +
         '<div class="err">' + esc(err) + "</div>" +
         (privateEntry
-          ? '<div class="panel" style="width:20rem;margin:0.4rem auto 0;padding:1.6rem"><div style="font-size:2.2rem">🔒</div><p class="muted" style="font-size:1.1rem;line-height:1.5;margin:0.6rem 0 0">Private entry: type your PIN with the number buttons on your remote. Nothing shows on screen.</p></div>'
+          ? '<div class="panel" style="width:20rem;margin:0.4rem auto 0;padding:1.6rem"><div>' + icon("lock", 2.4) + '</div><p class="muted" style="font-size:1.1rem;line-height:1.5;margin:0.6rem 0 0">Private entry: type your PIN with the number buttons on your remote. Nothing shows on screen.</p></div>'
           : padHtml()) +
-        '<div style="margin-top:1.2rem"><button class="btn" data-tv id="privbtn"' + (privateEntry ? " data-tv-default" : "") + ">" + (privateEntry ? "Show number pad" : "🔒 Private entry") +
+        '<div style="margin-top:1.2rem"><button class="btn" data-tv id="privbtn"' + (privateEntry ? " data-tv-default" : "") + ">" + (privateEntry ? "Show number pad" : icon("lock") + "Private entry") +
         '</button><button class="btn" data-tv id="otherbtn">Other profiles</button></div>';
       each(left.querySelectorAll("[data-k]"), function (b) {
         b.addEventListener("click", function () {
@@ -1184,14 +1348,17 @@
       if (again) again.focus();
       else if (focusKey === undefined) focusDefault();
     }
-    function press(d) {
+    // fromRemote: typed with the remote's number buttons, so the pad doesn't show which.
+    function press(d, fromRemote) {
       if (busy) return;
       err = "";
       digits = (digits + d).slice(0, 4);
-      render(privateEntry ? null : d);
+      var keep = fromRemote ? (document.activeElement && document.activeElement.getAttribute("data-k")) || null : d;
+      render(privateEntry ? null : keep);
+      d = keep;
       if (digits.length === 4) {
         busy = true;
-        api("/api/tv/pin", "POST", { sub: who.sub, pin: digits }).then(function () {
+        api("/api/tv/pin", "POST", { sub: who.sub, pin: digits }, true).then(function () {
           sessionStorage.setItem(UNLOCK, who.sub);
           clearGate();
           goTab("home");
@@ -1213,8 +1380,13 @@
     // The remote's number buttons type the PIN; the red button or ⌫ removes one.
     keyHandler = function (e) {
       var n = numberFrom(e), k = e.keyCode;
-      if (n >= 0) { press(String(n)); return true; }
-      if (k === KEY.RED || (k === KEY.BKSP && digits.length)) { digits = digits.slice(0, -1); err = ""; render(privateEntry ? null : "⌫"); return true; }
+      if (n >= 0) { press(String(n), true); return true; }
+      if (k === KEY.RED || (k === KEY.BKSP && digits.length)) {
+        digits = digits.slice(0, -1);
+        err = "";
+        render(privateEntry ? null : (document.activeElement && document.activeElement.getAttribute("data-k")) || null);
+        return true;
+      }
       if (k === KEY.BACK || k === KEY.BACK2 || k === KEY.ESC) { if (state.me.others.length) profiles(); return true; }
       return false;
     };
@@ -1225,37 +1397,47 @@
   var LEVELS = [["kids", "Kids"], ["teen", "Teen"], ["all", "Everything"]];
   function you() {
     var a = state.me.account;
-    if (!a) { signIn(); return; }
+    if (state.guest || !a) {
+      frame('<div class="row" style="display:flex;align-items:center"><span class="face" style="width:6rem;height:6rem;line-height:6rem;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.75)">' + icon("user", 2.6) +
+        '</span><div style="margin-left:1.5rem"><h1 style="margin:0">Guest</h1><p class="muted" style="margin:0.35rem 0 0;font-size:1.1rem">Nothing you watch is saved</p></div></div><div class="list">' +
+        (a ? '<button class="list-btn" data-tv data-tv-default id="g-prof">' + icon("users") + "Who\u2019s watching?</button>" : "") +
+        '<button class="list-btn" data-tv' + (a ? "" : " data-tv-default") + ' id="g-in">' + icon("plus") + "Sign in with your phone</button></div>");
+      var gp = byId("g-prof"), gi = byId("g-in");
+      if (gp) gp.addEventListener("click", profiles);
+      gi.addEventListener("click", signIn);
+      focusDefault();
+      return;
+    }
     var services = state.me.services || [], ext = state.me.extensions || {};
     var html = '<div class="row" style="display:flex;align-items:center">' + face(a.name, a.picture, 6) + '<div style="margin-left:1.5rem"><h1 style="margin:0">' + esc(a.name) +
       '</h1><p class="muted" style="margin:0.35rem 0 0;font-size:1.1rem">@' + esc(a.handle) + '</p></div></div><p id="youmsg" style="color:#3ddc84;font-size:1.15rem;min-height:1.5rem;margin:0 0 0.6rem 0.3rem"></p><div class="list">' +
-      '<button class="list-btn" data-tv data-tv-default id="b-prof">👥&nbsp; Switch profile</button>' +
-      (a.hasPin ? '<button class="list-btn" data-tv id="b-lock">🔒&nbsp; Lock now</button><button class="list-btn" data-tv id="b-change">Change PIN</button><button class="list-btn" data-tv id="b-rm">Remove PIN</button>'
-        : '<button class="list-btn" data-tv id="b-set">🔒&nbsp; Lock this profile with a PIN</button>') +
+      '<button class="list-btn" data-tv data-tv-default id="b-prof">' + icon("users") + 'Switch profile</button>' +
+      (a.hasPin ? '<button class="list-btn" data-tv id="b-lock">' + icon("lock") + 'Lock now</button><button class="list-btn" data-tv id="b-change">Change PIN</button><button class="list-btn" data-tv id="b-rm">Remove PIN</button>'
+        : '<button class="list-btn" data-tv id="b-set">' + icon("lock") + 'Lock this profile with a PIN</button>') +
       '<div class="section-title">Show content from</div>';
     for (var i = 0; i < SERVICES.length; i++) {
-      var on = services.indexOf(SERVICES[i][0]) >= 0;
-      html += '<button class="list-btn' + (on ? " on" : "") + '" data-tv data-svc="' + SERVICES[i][0] + '">' + SERVICES[i][1] + '<span class="v">' + (on ? "On" : "Off") + "</span></button>";
+      var isOn = services.indexOf(SERVICES[i][0]) >= 0;
+      html += '<button class="list-btn' + (isOn ? " on" : "") + '" data-tv data-svc="' + SERVICES[i][0] + '">' + SERVICES[i][1] + '<span class="v">' + (isOn ? "On" : "Off") + "</span></button>";
     }
     html += '<div class="section-title">Content filter</div>';
     for (var j = 0; j < LEVELS.length; j++) {
       var sel = ext.rating === LEVELS[j][0];
-      html += '<button class="list-btn' + (sel ? " on" : "") + '" data-tv data-level="' + LEVELS[j][0] + '">' + LEVELS[j][1] + '<span class="v">' + (sel ? "✓" : "") + "</span></button>";
+      html += '<button class="list-btn' + (sel ? " on" : "") + '" data-tv data-level="' + LEVELS[j][0] + '">' + LEVELS[j][1] + '<span class="v">' + (sel ? icon("check", 1.2) : "") + "</span></button>";
     }
     html += '<div class="section-title">Account</div><button class="list-btn" data-tv id="b-out">Sign out</button></div>';
     frame(html);
     function msg(t) { var m = byId("youmsg"); if (m) m.textContent = t; }
     function on(id, fn) { var el = byId(id); if (el) el.addEventListener("click", fn); }
     on("b-prof", profiles);
-    on("b-lock", function () { sessionStorage.removeItem(UNLOCK); enter(); });
+    on("b-lock", function () { sessionStorage.removeItem(UNLOCK); pinPad(state.me.account); });
     on("b-out", function () {
-      api("/api/auth/signout", "POST").catch(function () {}).then(function () { sessionStorage.removeItem(UNLOCK); cache = {}; return loadMe(); }).then(enter);
+      api("/api/auth/signout", "POST", undefined, true).catch(function () {}).then(function () { sessionStorage.removeItem(UNLOCK); cache = {}; return loadMe(); }).then(enter);
     });
     function setNew() {
       newPin("Choose a 4-number PIN", function (first) {
         newPin("Enter it again", function (second) {
           if (first !== second) { goTab("you"); msg("Those didn’t match. Try again."); return; }
-          api("/api/tv/pin", "PUT", { pin: first }).then(loadMe).then(function () { goTab("you"); msg("PIN set. This profile now asks for it on TVs."); })
+          api("/api/tv/pin", "PUT", { pin: first }, true).then(loadMe).then(function () { goTab("you"); msg("PIN set. This profile now asks for it on TVs."); })
             .catch(function (e) { goTab("you"); msg(e.message); });
         });
       });
@@ -1264,14 +1446,14 @@
     on("b-change", function () {
       newPin("Enter your current PIN", function (cur) {
         newPin("Choose a new PIN", function (pin) {
-          api("/api/tv/pin", "PUT", { pin: pin, currentPin: cur }).then(loadMe).then(function () { goTab("you"); msg("PIN changed."); })
+          api("/api/tv/pin", "PUT", { pin: pin, currentPin: cur }, true).then(loadMe).then(function () { goTab("you"); msg("PIN changed."); })
             .catch(function (e) { goTab("you"); msg(e.message); });
         });
       });
     });
     on("b-rm", function () {
       newPin("Enter your PIN to remove it", function (pin) {
-        api("/api/tv/pin", "PUT", { pin: null, currentPin: pin }).then(loadMe).then(function () { goTab("you"); msg("PIN removed."); })
+        api("/api/tv/pin", "PUT", { pin: null, currentPin: pin }, true).then(loadMe).then(function () { goTab("you"); msg("PIN removed."); })
           .catch(function (e) { goTab("you"); msg(e.message); });
       });
     });
@@ -1300,7 +1482,7 @@
           each(page().querySelectorAll("[data-level]"), function (x) {
             var sel = x.getAttribute("data-level") === lv;
             x.className = "list-btn" + (sel ? " on" : "");
-            x.querySelector(".v").textContent = sel ? "✓" : "";
+            x.querySelector(".v").innerHTML = sel ? icon("check", 1.2) : "";
           });
         }).catch(function (e) { msg(e.message); });
       });
@@ -1319,11 +1501,12 @@
           var again = k ? page().querySelector('[data-k="' + k + '"]') : null;
           if (again) again.focus();
         }
-        function add(k) {
-          if (k === "⌫") { digits = digits.slice(0, -1); redraw(k); return; }
-          if (k === "✕") { digits = ""; redraw(k); return; }
+        function add(k, fromRemote) {
+          var keep = fromRemote ? null : k;
+          if (k === "⌫") { digits = digits.slice(0, -1); redraw(keep); return; }
+          if (k === "✕") { digits = ""; redraw(keep); return; }
           digits = (digits + k).slice(0, 4);
-          redraw(k);
+          redraw(keep);
           if (digits.length === 4) {
             var pin = digits;
             digits = "";
@@ -1335,7 +1518,7 @@
         each(page().querySelectorAll("[data-k]"), function (b) { b.addEventListener("click", function () { add(b.getAttribute("data-k")); }); });
         keyHandler = function (e) {
           var n = numberFrom(e);
-          if (n >= 0) { add(String(n)); return true; }
+          if (n >= 0) { add(String(n), true); return true; }
           return false;
         };
         focusDefault();
@@ -1370,7 +1553,7 @@
 
   // ---------- Start ----------
   function loadMe() {
-    return api("/api/app/me").then(function (me) {
+    return api("/api/app/me", "GET", undefined, true).then(function (me) {
       state.me = me;
       following = {};
       return me;
@@ -1378,6 +1561,7 @@
   }
   function enter() {
     var me = state.me;
+    if (state.guest) { clearGate(); goTab("home"); return; }
     if (!me || !me.account) return signIn();
     if (me.account.hasPin && sessionStorage.getItem(UNLOCK) !== me.account.sub) return pinPad(me.account);
     clearGate();
@@ -1386,7 +1570,7 @@
   // One base step in the history, so Back always reaches the app first.
   history.replaceState({ d: 0 }, "");
   loadMe().then(function (me) {
-    if (me.account && me.others.length && !sessionStorage.getItem(UNLOCK)) profiles();
+    if (me.account && me.others.length && !sessionStorage.getItem(UNLOCK) && !state.guest) profiles();
     else enter();
   });
 })();

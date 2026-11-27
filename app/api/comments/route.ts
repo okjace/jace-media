@@ -6,7 +6,7 @@ import { getExtensions } from "@/lib/prefs";
 import { getProfiles } from "@/lib/profiles";
 import { textBlocked } from "@/lib/rating";
 import { filterPosts } from "@/lib/ratingfilter";
-import { youtubeComments, ytImage } from "@/lib/youtube";
+import { youtubeComments, youtubeReplies, ytImage } from "@/lib/youtube";
 
 /**
  * A video's comments as data, for places that show them in a panel (Shorts).
@@ -17,8 +17,18 @@ import { youtubeComments, ytImage } from "@/lib/youtube";
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const source = req.nextUrl.searchParams.get("source");
   const id = req.nextUrl.searchParams.get("id") ?? "";
-  if ((source !== "jace" && source !== "youtube") || !/^[\w-]{1,64}$/.test(id)) return NextResponse.json({ error: "Bad video." }, { status: 400 });
   const [viewer, ext] = await Promise.all([getViewer(), getExtensions()]);
+  // ?replies=<comment id>: the replies to one YouTube comment.
+  const repliesTo = req.nextUrl.searchParams.get("replies");
+  if (repliesTo) {
+    const list = (await youtubeReplies(repliesTo).catch(() => null)) ?? [];
+    return NextResponse.json({
+      replies: list
+        .filter((c) => !textBlocked(c.text, ext.rating))
+        .map((c) => ({ id: c.id, name: c.author, picture: ytImage(c.authorPicture), text: c.text, when: c.publishedAt, likes: ext.hideCounts ? 0 : c.likes })),
+    });
+  }
+  if ((source !== "jace" && source !== "youtube") || !/^[\w-]{1,64}$/.test(id)) return NextResponse.json({ error: "Bad video." }, { status: 400 });
 
   if (source === "jace") {
     const video = await jaceVideo(id);
@@ -42,6 +52,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     mine,
     others: (theirs ?? [])
       .filter((c) => !textBlocked(c.text, ext.rating))
-      .map((c) => ({ id: c.id, name: c.author, picture: ytImage(c.authorPicture), text: c.text, when: c.publishedAt, likes: ext.hideCounts ? 0 : c.likes, pinned: false })),
+      .map((c) => ({ id: c.id, name: c.author, picture: ytImage(c.authorPicture), text: c.text, when: c.publishedAt, likes: ext.hideCounts ? 0 : c.likes, pinned: false, replies: c.replies })),
   });
 }

@@ -333,6 +333,26 @@ export async function youtubeComments(id: string, limit = 30): Promise<YouTubeCo
   });
 }
 
+/** Replies to a YouTube comment (needs YOUTUBE_API_KEY; otherwise null). */
+export async function youtubeReplies(commentId: string, limit = 50): Promise<YouTubeComment[] | null> {
+  if (!KEY || !/^[\w-]{10,100}$/.test(commentId)) return null;
+  const data = await api<{
+    items: { id: string; snippet: { authorDisplayName: string; authorProfileImageUrl?: string; textOriginal: string; likeCount: number; publishedAt: string } }[];
+  }>("comments", { part: "snippet", parentId: commentId, maxResults: String(Math.min(limit, 100)), textFormat: "plainText" });
+  if (!data) return null;
+  return data.items
+    .map((c) => ({
+      id: c.id,
+      author: c.snippet.authorDisplayName,
+      authorPicture: c.snippet.authorProfileImageUrl ?? null,
+      text: c.snippet.textOriginal,
+      likes: c.snippet.likeCount,
+      publishedAt: c.snippet.publishedAt,
+      replies: 0,
+    }))
+    .reverse();
+}
+
 // ---------- Channels (with a YouTube API key) ----------
 
 /** Channel pictures and banners load through Jace Media too (app/api/yt-image). */

@@ -79,7 +79,11 @@ export function parseAccounts(raw: string | undefined): Accounts {
 /** The native apps send their (encrypted) session in this header instead of a cookie. */
 export const APP_SESSION_HEADER = "x-jace-media-session";
 
+/** The TV app's guest mode: requests with this header are treated as signed out. */
+export const GUEST_HEADER = "x-jace-media-guest";
+
 async function getAccountsUncached(): Promise<Accounts> {
+  if ((await headers()).get(GUEST_HEADER) === "1") return { current: null, accounts: [] };
   const cookie = (await cookies()).get(ACCOUNTS_COOKIE)?.value;
   if (cookie) return parseAccounts(cookie);
   return parseAccounts((await headers()).get(APP_SESSION_HEADER) ?? undefined);
