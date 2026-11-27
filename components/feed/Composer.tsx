@@ -110,8 +110,13 @@ export function Composer({
     if (busy) return;
     setBusy(true);
     setError(null);
+    if (extTarget && image && !image.url) {
+      setBusy(false);
+      setError("That picture couldn't be uploaded. Try another one.");
+      return;
+    }
     const payload = extTarget
-      ? { network: extTarget.network, postId: extTarget.postId, body }
+      ? { network: extTarget.network, postId: extTarget.postId, body: image?.url ? `${body.trim()}\n\n${image.url}`.trim() : body }
       : {
           body,
           parentId,
@@ -161,11 +166,17 @@ export function Composer({
             rows={simple ? 2 : 3}
             placeholder={placeholder ?? "What's happening?"}
             aria-label={simple ? "Your comment" : "Your post"}
-            className="min-h-10 flex-1 resize-y bg-transparent text-[15px] outline-none placeholder:text-muted"
+            onInput={(e) => {
+              // Grows as you type, so nothing gets cut off.
+              const t = e.currentTarget;
+              t.style.height = "auto";
+              t.style.height = `${Math.min(t.scrollHeight, window.innerHeight * 0.5)}px`;
+            }}
+            className="min-h-10 min-w-0 flex-1 resize-none bg-transparent text-[15px] outline-none placeholder:text-muted"
           />
         )}
       </div>
-      <div className="mt-2 flex items-center gap-1 pl-[44px]">
+      <div className="mt-2 flex items-start gap-1 sm:pl-[44px]">
         <MarkdownToolbar target={textRef} onChange={(v) => setBody(v.slice(0, extTarget ? MAX_COMMENT : MAX))} />
         <button
           type="button"
@@ -177,12 +188,12 @@ export function Composer({
         </button>
       </div>
       {quote && (
-        <div className="ml-[52px] mt-3">
+        <div className="mt-3 sm:ml-[52px]">
           <QuotedPost item={quote} />
         </div>
       )}
       {image && (
-        <div className="relative ml-[52px] mt-3 inline-block">
+        <div className="relative mt-3 inline-block sm:ml-[52px]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={image.preview} alt="" className={`max-h-60 rounded-xl border border-line ${image.uploading ? "opacity-60" : ""}`} />
           {image.uploading && <span className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-0.5 text-xs text-white">Uploading…</span>}
@@ -197,7 +208,7 @@ export function Composer({
         </div>
       )}
       {video && (
-        <div className="ml-[52px] mt-3 flex items-center gap-3 rounded-xl border border-line p-2">
+        <div className="mt-3 sm:ml-[52px] flex items-center gap-3 rounded-xl border border-line p-2">
           <div className="relative aspect-video w-32 shrink-0 overflow-hidden rounded-lg bg-black/40">
             {video.thumb && (
               // eslint-disable-next-line @next/next/no-img-element
@@ -221,7 +232,7 @@ export function Composer({
         </div>
       )}
       {poll && (
-        <div className="ml-[52px] mt-3 flex flex-col gap-2 rounded-xl border border-line p-3">
+        <div className="mt-3 sm:ml-[52px] flex flex-col gap-2 rounded-xl border border-line p-3">
           {poll.map((o, i) => (
             <input
               key={i}
@@ -258,12 +269,22 @@ export function Composer({
         </div>
       )}
       {error && (
-        <p role="alert" className="ml-[52px] mt-2 text-sm text-danger">
+        <p role="alert" className="mt-2 text-sm text-danger sm:ml-[52px]">
           {error}
         </p>
       )}
-      <div className="mt-3 flex items-center gap-1 pl-[52px]">
+      <div className="mt-3 flex flex-wrap items-center gap-1 sm:pl-[52px]">
         <input ref={file} type="file" accept="image/*" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
+        {extTarget && (
+          <button
+            type="button"
+            onClick={() => file.current?.click()}
+            disabled={!!image}
+            className="rounded-full px-3 py-1.5 text-sm text-muted hover:bg-foreground/[.06] hover:text-foreground disabled:opacity-50"
+          >
+            🖼 Picture
+          </button>
+        )}
         {!extTarget && !quote && (
           <>
             <button

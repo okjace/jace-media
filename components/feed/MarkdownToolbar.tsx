@@ -39,7 +39,7 @@ const TOOLS: Tool[] = [
 /** Formatting buttons for a post box; they write Markdown into the text. */
 export function MarkdownToolbar({ target, onChange }: { target: RefObject<HTMLTextAreaElement | null>; onChange: (value: string) => void }) {
   return (
-    <div className="no-scrollbar flex gap-0.5 overflow-x-auto" role="toolbar" aria-label="Formatting">
+    <div className="flex min-w-0 flex-1 flex-wrap gap-0.5" role="toolbar" aria-label="Formatting">
       {TOOLS.map((tool) => (
         <button
           key={tool.title}
