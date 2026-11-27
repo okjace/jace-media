@@ -212,7 +212,7 @@ jobs:
         run: |
           V="${{ needs.version.outputs.version }}"
           awk -v v="$V" '$0 == "## "v {f=1; next} /^## / {f=0} f' src/apps/CHANGELOG.md > notes.md
-          printf '\n---\nAndroid and Android TV: the .apk. iPhone: add the source https://jace-media.vercel.app/api/altstore to AltStore or SideStore. LG TV: the .ipk. Windows: the .exe. Mac: the .app.zip (right-click → Open the first time). Linux: the .AppImage (or the .deb). Opening the download runs setup, which installs it and removes the download; delete it from the app's menu. Instructions: https://jace-media.vercel.app/apps\n' >> notes.md
+          printf '\n---\nAndroid and Android TV: the .apk. iPhone: add the source https://jace-media.vercel.app/api/altstore to AltStore or SideStore. LG TV: the .ipk. Windows: the .exe. Mac: the .app.zip (right-click → Open the first time). Linux: the .AppImage (or the .deb). Opening the download runs setup, which installs it and removes the download; delete it from your account menu in the app. Instructions: https://jace-media.vercel.app/apps\n' >> notes.md
           ls -la artifacts
       - uses: softprops/action-gh-release@v3
         with:
