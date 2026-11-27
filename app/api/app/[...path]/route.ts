@@ -8,7 +8,8 @@ import { dislikeCount, listSubscriptions, recentHistory, videoVote } from "@/lib
 import { getExtensions, getServices } from "@/lib/prefs";
 import { filterPosts, filterVideos } from "@/lib/ratingfilter";
 import { getTaste, rankPosts, rankVideos, recommendedVideos } from "@/lib/recommend";
-import { ACCOUNTS_COOKIE } from "@/lib/session";
+import { ACCOUNTS_COOKIE, getCurrent } from "@/lib/session";
+import { listMyVideos } from "@/lib/jace";
 import { NETWORKS } from "@/lib/social";
 import { followedRss } from "@/lib/rss";
 import { channelFeed, channelInfo, channelUploads, search, searchChannels, searchShorts, videoDetail } from "@/lib/youtube";
@@ -16,6 +17,7 @@ import { dislikes, withDeArrow } from "@/lib/ytextras";
 import { sponsorSegments } from "@/lib/sponsorblock";
 import { liveNow } from "@/lib/golive";
 import { pinnedAmong } from "@/lib/tvpin";
+import { listNotifications, markAllRead } from "@/lib/notifications";
 import { continueWatching, getPlaylist, listPlaylists, watchLaterId } from "@/lib/playlists";
 import { youtubeLive } from "@/lib/live";
 import type { FeedItem, VideoCard } from "@/lib/types";
@@ -164,6 +166,39 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<NextResponse> {
         const pl = await getPlaylist(viewer.sub, path[1] ?? "");
         if (!pl) return json({ error: "That playlist doesn't exist." }, 404);
         return json({ name: pl.playlist.name, videos: pl.videos.map(video) });
+      }
+      case "following": {
+        // Everyone you follow, as "kind:ref" (lowercase), so apps can show Subscribed correctly.
+        const taste = await getTaste();
+        return json({ following: [...taste.following] });
+      }
+      case "myvideos": {
+        const current = await getCurrent();
+        if (!current) return json({ error: "Sign in with Jace first." }, 401);
+        const page = await listMyVideos(current.token);
+        return json({
+          videos: page.videos.map((v) => ({
+            source: "jace",
+            id: v.id,
+            title: v.title,
+            thumbnail: abs(v.thumbnail_url),
+            channelId: v.owner_id,
+            channelName: v.owner_name,
+            channelPicture: abs(v.owner_picture),
+            publishedAt: v.created_at,
+            views: null,
+            short: /#shorts?\b/i.test(`${v.title} ${v.description}`),
+            src: v.url,
+            visibility: v.visibility,
+          })),
+        });
+      }
+      case "notifications": {
+        const viewer = await getViewer();
+        if (!viewer) return json({ error: "Sign in with Jace first." }, 401);
+        const items = await listNotifications(viewer.sub, 60);
+        await markAllRead(viewer.sub);
+        return json({ items: items.map((n) => ({ ...n, actor: { ...n.actor, picture: abs(n.actor.picture) } })) });
       }
       case "posts": {
         const h = await home();

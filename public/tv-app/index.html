@@ -728,6 +728,13 @@
     });
   }
   var following = {};
+  // Everyone this profile follows, so Subscribe / Subscribed is right everywhere.
+  function loadFollowing() {
+    if (!signedIn()) return;
+    api("/api/app/following").then(function (d) {
+      for (var i = 0; i < d.following.length; i++) following[d.following[i]] = true;
+    }).catch(function () {});
+  }
   function isFollowing(kind, ref) { return !!following[kind + ":" + String(ref).toLowerCase()]; }
   function setFollowing(kind, ref, name, picture, on) {
     following[kind + ":" + String(ref).toLowerCase()] = on;
@@ -1556,6 +1563,7 @@
     return api("/api/app/me", "GET", undefined, true).then(function (me) {
       state.me = me;
       following = {};
+      loadFollowing();
       return me;
     }).catch(function () { state.me = { account: null, others: [] }; return state.me; });
   }
