@@ -950,8 +950,25 @@
   }
   function commentsSheet(source, id) {
     sheet("Comments", spinner());
-    function item(name, text, likes, note) {
-      return '<div class="item" data-tv tabindex="0"><b>' + esc(name) + (note ? " \u00B7 " + esc(note) : "") + (likes ? " \u00B7 " + compact(likes) + " likes" : "") + "</b>" + esc(text).replace(/\n/g, "<br>") + "</div>";
+    // OK on a comment likes it (or unlikes it): a heart and the count show in its heading.
+    function item(name, text, likes, note, key, liked) {
+      return '<div class="item" data-tv tabindex="0"' + (key ? ' data-like="' + esc(key) + '" data-on="' + (liked ? 1 : 0) + '" data-n="' + (likes || 0) + '"' : "") + "><b>" + esc(name) + (note ? " \u00B7 " + esc(note) : "") +
+        ' <span class="likes" style="color:' + (liked ? "#ff5a5f" : "inherit") + '">' + (liked ? "\u2665" : "\u2661") + (likes ? " " + compact(likes) : "") + "</span></b>" + esc(text).replace(/\n/g, "<br>") + "</div>";
+    }
+    function wireLikes(root) {
+      each(root.querySelectorAll("[data-like]"), function (el) {
+        if (el.getAttribute("data-wired")) return;
+        el.setAttribute("data-wired", "1");
+        el.addEventListener("click", function () {
+          if (!signedIn()) { toast("Sign in to like comments"); return; }
+          var on = el.getAttribute("data-on") !== "1", n = Number(el.getAttribute("data-n")) + (on ? 1 : -1);
+          el.setAttribute("data-on", on ? "1" : "0");
+          el.setAttribute("data-n", String(n));
+          var sp = el.querySelector(".likes");
+          if (sp) { sp.style.color = on ? "#ff5a5f" : "inherit"; sp.innerHTML = (on ? "\u2665" : "\u2661") + (n > 0 ? " " + compact(n) : ""); }
+          api("/api/comment-likes", "POST", { key: el.getAttribute("data-like"), like: on }).catch(function () { toast("Couldn\u2019t like that"); });
+        });
+      });
     }
     function load(focusFirst) {
       api("/api/comments?source=" + source + "&id=" + encodeURIComponent(id)).then(function (d) {
@@ -963,11 +980,11 @@
             ' maxlength="1000" placeholder="Add a comment" style="width:24rem;height:3.4rem;font-size:1.15rem;padding:0 1.3rem">' +
             '<button class="btn green" data-tv type="submit" style="margin:0 0 0 0.7rem;padding:0.75rem 1.3rem;vertical-align:top">' + icon("send") + "Post</button></form>";
         }
-        for (i = 0; i < d.mine.length; i++) html += item(d.mine[i].author.name, d.mine[i].text, 0, "on Jace Media");
+        for (i = 0; i < d.mine.length; i++) html += item(d.mine[i].author.name, d.mine[i].text, d.mine[i].likes, "on Jace Media", d.mine[i].key, d.mine[i].liked);
         for (i = 0; i < d.others.length; i++) {
           var c = d.others[i];
-          html += item(c.name, c.text, c.likes, "");
-          if (c.replies) html += '<button class="item more" data-tv data-rep="' + esc(c.id) + '" style="color:#3ddc84;margin-top:-0.4rem">' + icon("comment", 1.1) + " View " + c.replies + (c.replies === 1 ? " reply" : " replies") + '</button><div data-reps="' + esc(c.id) + '"></div>';
+          html += item(c.name, c.text, c.likes, "", c.key, c.liked);
+          if (c.replies) html += '<button class="item more" data-tv data-rep="' + esc(c.id) + '" data-key="' + esc(c.key || "") + '" style="color:#3ddc84;margin-top:-0.4rem">' + icon("comment", 1.1) + " View " + c.replies + (c.replies === 1 ? " reply" : " replies") + '</button><div data-reps="' + esc(c.id) + '"></div>';
         }
         if (!d.mine.length && !d.others.length) html += '<div class="item" data-tv tabindex="0">No comments yet.' + (signedIn() ? " Be the first!" : "") + "</div>";
         body.innerHTML = html;
@@ -986,18 +1003,22 @@
         // Replies load under the comment.
         each(body.querySelectorAll("[data-rep]"), function (btnEl) {
           btnEl.addEventListener("click", function () {
-            var cid = btnEl.getAttribute("data-rep"), box = body.querySelector('[data-reps="' + cid + '"]');
+            var cid = btnEl.getAttribute("data-rep"), ckey = btnEl.getAttribute("data-key"), box = body.querySelector('[data-reps="' + cid + '"]');
             btnEl.innerHTML = icon("comment", 1.1) + " Loading replies\u2026";
-            api("/api/comments?replies=" + encodeURIComponent(cid)).then(function (r) {
-              var out = "";
-              for (var j = 0; j < r.replies.length; j++) out += item(r.replies[j].name, r.replies[j].text, r.replies[j].likes, "reply");
+            var q = ckey && ckey.indexOf("yt:") !== 0 ? "key=" + encodeURIComponent(ckey) : "replies=" + encodeURIComponent(cid);
+            api("/api/comments?" + q).then(function (r) {
+              var out = "", j;
+              for (j = 0; j < (r.mine || []).length; j++) out += item(r.mine[j].author.name, r.mine[j].text, r.mine[j].likes, "reply on Jace Media", r.mine[j].key, r.mine[j].liked);
+              for (j = 0; j < r.replies.length; j++) out += item(r.replies[j].name, r.replies[j].text, r.replies[j].likes, "reply", r.replies[j].key, r.replies[j].liked);
               box.innerHTML = '<div style="margin-left:2rem;border-left:0.15rem solid rgba(255,255,255,0.12);padding-left:0.8rem">' + (out || '<div class="item" data-tv tabindex="0">No replies.</div>') + "</div>";
               btnEl.parentNode.removeChild(btnEl);
+              wireLikes(box);
               var first = box.querySelector("[data-tv]");
               if (first) focusEl(first);
             }).catch(function () { btnEl.innerHTML = "Couldn\u2019t load replies"; });
           });
         });
+        wireLikes(body);
         if (focusFirst !== false) focusDefault();
       }).catch(function () { var b = document.querySelector(".sheet .body"); if (b) b.innerHTML = '<div class="item" data-tv tabindex="0">Couldn\u2019t load comments.</div>'; });
     }
