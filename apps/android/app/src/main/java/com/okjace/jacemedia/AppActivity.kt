@@ -70,6 +70,17 @@ class AppActivity : ComponentActivity() {
         setContent { JaceTheme { App() } }
     }
 
+    // Leaving the app while a video plays puts it in a floating window.
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (android.os.Build.VERSION.SDK_INT in 26..30 && Pip.player?.playing == true) Pip.enter(this)
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: android.content.res.Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        Pip.inPip = isInPictureInPictureMode
+    }
+
     override fun onResume() {
         super.onResume()
         // Coming back from signing in (or adding an account) in the web screen.
@@ -143,6 +154,7 @@ private data class TabItem(val route: String, val label: String, val icon: andro
 private val tabs = listOf(
     TabItem("home", "Home", Icons.Filled.Home),
     TabItem("shorts", "Shorts", Icons.Filled.Slideshow),
+    TabItem("new", "New", Icons.Filled.AddCircle),
     TabItem("subs", "Subscriptions", Icons.Filled.Subscriptions),
     TabItem("search", "Search", Icons.Filled.Search),
     TabItem("you", "You", Icons.Filled.AccountCircle),
@@ -154,15 +166,18 @@ fun App() {
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route ?: "home"
     LaunchedEffect(Unit) { Session.refresh() }
+    var showNew by remember { mutableStateOf(false) }
+    if (showNew) NewSheet(nav) { showNew = false }
     Scaffold(
         containerColor = Background,
         bottomBar = {
-            if (tabs.any { it.route == route }) {
+            if (tabs.any { it.route == route } && !Pip.inPip) {
                 NavigationBar(containerColor = Color(0xFF0E1013)) {
                     tabs.forEach { t ->
                         NavigationBarItem(
                             selected = route == t.route,
                             onClick = {
+                                if (t.route == "new") { showNew = true; return@NavigationBarItem }
                                 nav.navigate(t.route) {
                                     popUpTo("home") { saveState = true }
                                     launchSingleTop = true
@@ -720,21 +735,30 @@ fun WatchScreen(nav: NavHostController, source: String, id: String) {
         setFullscreen(context as? Activity, on)
     }
     BackHandler(fullscreen) { full(false) }
-    DisposableEffect(Unit) { onDispose { setFullscreen(context as? Activity, false) } }
+    DisposableEffect(Unit) {
+        onDispose {
+            setFullscreen(context as? Activity, false)
+            if (android.os.Build.VERSION.SDK_INT >= 31) (context as? Activity)?.setPictureInPictureParams(Pip.params(auto = false))
+        }
+    }
 
-    Column(Modifier.fillMaxSize().background(if (fullscreen) Color.Black else Background)) {
+    Column(Modifier.fillMaxSize().background(if (fullscreen || Pip.inPip) Color.Black else Background)) {
         val v = (state as? Load.Ready)?.value?.video
-        Box(if (fullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black)) {
+        Box(if (fullscreen || Pip.inPip) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black)) {
             if (v != null) {
                 val file = v.stream.type == "file" && v.stream.url != null
                 val player = rememberJacePlayer(if (file) null else (v.stream.id ?: v.id), if (file) v.stream.url else null)
+                LaunchedEffect(player, player.playing) {
+                    Pip.player = player
+                    if (android.os.Build.VERSION.SDK_INT >= 31) (context as? Activity)?.setPictureInPictureParams(Pip.params(auto = player.playing))
+                }
                 JacePlayerView(player, fullscreen, { full(it) }, Modifier.fillMaxSize(), v.title)
             } else if (state is Load.Loading) {
                 CircularProgressIndicator(color = Color.White, modifier = Modifier.align(Alignment.Center))
             }
-            if (!fullscreen) Box(Modifier.padding(8.dp)) { RoundIcon(Icons.AutoMirrored.Filled.ArrowBack, "Back") { nav.popBackStack() } }
+            if (!fullscreen && !Pip.inPip) Box(Modifier.padding(8.dp)) { RoundIcon(Icons.AutoMirrored.Filled.ArrowBack, "Back") { nav.popBackStack() } }
         }
-        if (fullscreen) return@Column
+        if (fullscreen || Pip.inPip) return@Column
         when (val s = state) {
             is Load.Loading -> Spinner()
             is Load.Failed -> Failed(s.message, reload)
@@ -887,6 +911,39 @@ fun YouScreen(nav: NavHostController) {
                     h.channelName?.let { Text(it, fontSize = 12.sp, color = Muted) }
                 }
             }
+        }
+    }
+}
+
+
+/** What you can make: a post, a video, or a live stream. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NewSheet(nav: NavHostController, onClose: () -> Unit) {
+    val context = LocalContext.current
+    ModalBottomSheet(onDismissRequest = onClose, containerColor = Background) {
+        Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
+            Text("New", fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
+            if (!Session.signedIn) {
+                SignInPrompt("Sign in with Jace to post, upload, and go live.")
+                return@Column
+            }
+            @Composable
+            fun NewRow(title: String, sub: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+                Row(
+                    Modifier.fillMaxWidth().padding(bottom = 10.dp).clip(RoundedCornerShape(20.dp)).background(Panel).clickable { onClose(); onClick() }.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(44.dp).clip(CircleShape).background(Green), contentAlignment = Alignment.Center) { Icon(icon, null, tint = Color.Black) }
+                    Column(Modifier.padding(start = 14.dp).weight(1f)) {
+                        Text(title, fontWeight = FontWeight.Bold)
+                        Text(sub, fontSize = 12.sp, color = Muted)
+                    }
+                }
+            }
+            NewRow("Write a post", "Text and a picture", Icons.Filled.Edit) { nav.navigate("compose") }
+            NewRow("Upload a video", "From your phone", Icons.Filled.Upload) { nav.navigate("upload") }
+            NewRow("Go live", "Stream your camera or screen", Icons.Filled.Videocam) { openWeb(context, "/live/go") }
         }
     }
 }

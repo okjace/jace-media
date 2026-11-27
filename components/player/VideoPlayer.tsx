@@ -915,7 +915,13 @@ export function VideoPlayer({
           // With captions on it fits the box exactly, because YouTube draws captions at its bottom edge.
           <div
             ref={ytHost}
-            className={`absolute ${cc && ccClear ? "inset-0" : "inset-x-0 -bottom-[120px] -top-[120px]"} [&_iframe]:h-full [&_iframe]:w-full ${ytClickThrough ? "" : "pointer-events-none"}`}
+            // YouTube picks the quality from the frame's size, so small players (phones, Shorts) got a
+            // blurry picture. The frame is drawn at twice the size and shrunk to fit: YouTube sends a sharper one.
+            className={`absolute ${cc && ccClear ? "inset-0" : "inset-x-0 -bottom-[120px] -top-[120px]"} [&_iframe]:h-full [&_iframe]:w-full ${
+              short
+                ? "[&_iframe]:!h-[200%] [&_iframe]:!w-[200%] [&_iframe]:origin-top-left [&_iframe]:scale-50"
+                : "max-lg:[&_iframe]:!h-[200%] max-lg:[&_iframe]:!w-[200%] max-lg:[&_iframe]:origin-top-left max-lg:[&_iframe]:scale-50"
+            } ${ytClickThrough ? "" : "pointer-events-none"}`}
           />
         )}
         {/* Captions Jace Media draws itself (Jace videos and private playback). */}
@@ -977,11 +983,15 @@ export function VideoPlayer({
             </span>
           </div>
         )}
-        {compact && (flash || (!playing && ready && !waiting)) && (
+        {compact && (flash || (!playing && ready && !waiting) || (bezel && mode === "youtube" && started)) && (
           // A tap flashes play/pause; while paused, a play button stays up.
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <span className={`flex h-[88px] w-[88px] items-center justify-center rounded-full bg-[#111317] text-white ${flash ? "animate-[fadeout_0.5s_ease-out_forwards]" : ""}`}>
-              <Icon d={flash === "pause" ? ICONS.pause : ICONS.play} size={30} />
+            <span
+              className={`flex h-[88px] w-[88px] items-center justify-center rounded-full bg-[#111317] text-white ${
+                flash ? "animate-[fadeout_0.5s_ease-out_forwards]" : playing ? "animate-[fadeout_0.9s_ease-in_forwards]" : ""
+              }`}
+            >
+              <Icon d={flash === "pause" || (!flash && playing) ? ICONS.pause : ICONS.play} size={30} />
             </span>
           </div>
         )}

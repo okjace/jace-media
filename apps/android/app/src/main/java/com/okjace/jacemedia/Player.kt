@@ -111,7 +111,7 @@ class JacePlayer(context: Context, val youtubeId: String?, val url: String?, val
         val html = """
             <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
             <style>html,body{margin:0;height:100%;background:#000;overflow:hidden}
-            #w{position:absolute;left:0;right:0;top:-12%;bottom:-12%}#w iframe,#p{width:100%;height:100%;border:0}</style></head>
+            #w{position:absolute;left:0;right:0;top:-12%;bottom:-12%}#w iframe,#p{width:200%;height:200%;border:0;transform:scale(.5);transform-origin:0 0}</style></head>
             <body><div id="w"><div id="p"></div></div>
             <script>
             var player=null,send=function(m){try{JaceBridge.post(JSON.stringify(m))}catch(e){}};
@@ -223,12 +223,43 @@ class JacePlayer(context: Context, val youtubeId: String?, val url: String?, val
     }
 }
 
+/** Picture in picture: which player the floating window shows, and whether it's up. */
+object Pip {
+    var inPip by mutableStateOf(false)
+    var player: JacePlayer? = null
+
+    fun enter(activity: android.app.Activity?): Boolean {
+        activity ?: return false
+        if (android.os.Build.VERSION.SDK_INT < 26) return false
+        if (player == null) return false
+        return runCatching { activity.enterPictureInPictureMode(params()) }.getOrDefault(false)
+    }
+
+    @androidx.annotation.RequiresApi(26)
+    fun params(auto: Boolean = false): android.app.PictureInPictureParams {
+        val b = android.app.PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(16, 9))
+        if (android.os.Build.VERSION.SDK_INT >= 31) b.setAutoEnterEnabled(auto).setSeamlessResizeEnabled(true)
+        return b.build()
+    }
+}
+
+fun Context.findActivity(): android.app.Activity? {
+    var c: Context? = this
+    while (c is android.content.ContextWrapper) {
+        if (c is android.app.Activity) return c
+        c = c.baseContext
+    }
+    return null
+}
+
 @Composable
 fun rememberJacePlayer(youtubeId: String?, url: String?, loop: Boolean = false, autoplay: Boolean = true): JacePlayer {
     val context = LocalContext.current
     val player = remember(youtubeId, url) { JacePlayer(context, youtubeId, url, loop, autoplay) }
-    DisposableEffect(player) { onDispose { player.release() } }
-    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { player.pause() }
+    DisposableEffect(player) { onDispose { if (Pip.player === player) Pip.player = null; player.release() } }
+    // Leaving the app pauses, unless the video went into picture in picture.
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { if (context.findActivity()?.isInPictureInPictureMode != true) player.pause() }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { player.pause() }
     return player
 }
 
@@ -270,6 +301,12 @@ fun clock(s: Double): String {
 /** The full player: the picture plus Jace Media's controls. */
 @Composable
 fun JacePlayerView(player: JacePlayer, fullscreen: Boolean, onFullscreen: (Boolean) -> Unit, modifier: Modifier = Modifier, title: String = "") {
+    val context = LocalContext.current
+    // In the floating window: just the picture.
+    if (Pip.inPip && Pip.player === player) {
+        PlayerSurface(player, modifier.fillMaxSize())
+        return
+    }
     var controls by remember { mutableStateOf(true) }
     var poke by remember { mutableIntStateOf(0) }
     var flash by remember { mutableStateOf<String?>(null) }
@@ -369,6 +406,9 @@ fun JacePlayerView(player: JacePlayer, fullscreen: Boolean, onFullscreen: (Boole
                         Spacer(Modifier.weight(1f))
                         IconButton(onClick = { player.skip(-10.0); poke++ }) { Icon(Icons.Filled.Replay10, "Back 10 seconds", tint = Color.White) }
                         IconButton(onClick = { player.skip(10.0); poke++ }) { Icon(Icons.Filled.Forward10, "Forward 10 seconds", tint = Color.White) }
+                        if (android.os.Build.VERSION.SDK_INT >= 26) IconButton(onClick = { Pip.player = player; Pip.enter(context.findActivity()) }) {
+                            Icon(Icons.Filled.PictureInPictureAlt, "Picture in picture", tint = Color.White)
+                        }
                         IconButton(onClick = { onFullscreen(!fullscreen) }) {
                             Icon(if (fullscreen) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen, "Full screen", tint = Color.White)
                         }

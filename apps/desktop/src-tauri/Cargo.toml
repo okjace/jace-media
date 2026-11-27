@@ -1,6 +1,6 @@
 [package]
 name = "jace-media"
-version = "2.1.0"
+version = "2.2.0"
 description = "Jace Media for Windows, Mac, and Linux"
 authors = ["okjace"]
 license = "MIT"

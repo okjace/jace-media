@@ -3,6 +3,15 @@
 Changes to the apps themselves. Pages that open the site inside the apps (and the TV app) update with the
 site, without an app update.
 
+## 2.2.0
+
+- New button in the middle of the tab bar on phones: write a post, upload a video, or go live.
+- Picture in picture on phones: tap the picture-in-picture button in the player, or leave the app while a
+  video plays. (On iPhone, Jace videos always can; YouTube videos go into it when iOS allows.)
+- Going live from the phone apps works with the camera and microphone (Android asks the first time).
+- Sharper Shorts and videos on phones: YouTube was sending a small, blurry picture to small players.
+- Recommendations change every time you open the app, and videos you were just shown step aside.
+
 ## 2.1.0
 
 - iPhone and iPad: every screen is native now, with Liquid Glass on iOS 26 (the tab bar shrinks while

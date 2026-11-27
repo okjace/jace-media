@@ -32,10 +32,38 @@ struct JaceMediaApp: App {
 struct RootView: View {
     @EnvironmentObject var session: SessionStore
     @State private var checkedUpdates = false
+    @State private var tab = "home"
+    @State private var showNew = false
+    @State private var newAction: NewAction?
+
+    enum NewAction: String, Identifiable {
+        case post, upload, live
+        var id: String { rawValue }
+    }
 
     var body: some View {
         tabs
             .background(jaceBackground)
+            // The New tab doesn't open a page: it shows what you can make.
+            .onChange(of: tab) { old, new in
+                if new == "new" {
+                    tab = old
+                    showNew = true
+                }
+            }
+            .sheet(isPresented: $showNew) {
+                NewSheet { action in
+                    showNew = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { newAction = action }
+                }
+                .presentationDetents([.height(320)])
+            }
+            .sheet(item: Binding(get: { newAction == .live ? nil : newAction }, set: { newAction = $0 })) { a in
+                if a == .post { ComposeView() } else { UploadView() }
+            }
+            .fullScreenCover(item: Binding(get: { newAction == .live ? newAction : nil }, set: { newAction = $0 })) { _ in
+                SiteScreen(path: "/live/go")
+            }
             .onAppear {
                 guard !checkedUpdates, Updates.automatic else { return }
                 checkedUpdates = true
@@ -51,23 +79,63 @@ struct RootView: View {
     private var tabs: some View {
         if #available(iOS 26.0, *) {
             // Liquid Glass tab bar: it shrinks while you scroll, and Search is its own glass button.
-            TabView {
-                Tab("Home", systemImage: "house.fill") { TabStack { HomeView() } }
-                Tab("Shorts", systemImage: "play.rectangle.on.rectangle.fill") { TabStack { ShortsView() } }
-                Tab("Subscriptions", systemImage: "rectangle.stack.fill") { TabStack { SubscriptionsView() } }
-                Tab("You", systemImage: "person.crop.circle.fill") { TabStack { YouView() } }
-                Tab("Search", systemImage: "magnifyingglass", role: .search) { TabStack { SearchView() } }
+            TabView(selection: $tab) {
+                Tab("Home", systemImage: "house.fill", value: "home") { TabStack { HomeView() } }
+                Tab("Shorts", systemImage: "play.rectangle.on.rectangle.fill", value: "shorts") { TabStack { ShortsView() } }
+                Tab("New", systemImage: "plus.circle.fill", value: "new") { Color.clear }
+                Tab("Subscriptions", systemImage: "rectangle.stack.fill", value: "subs") { TabStack { SubscriptionsView() } }
+                Tab("You", systemImage: "person.crop.circle.fill", value: "you") { TabStack { YouView() } }
+                Tab("Search", systemImage: "magnifyingglass", value: "search", role: .search) { TabStack { SearchView() } }
             }
             .tabBarMinimizeBehavior(.onScrollDown)
         } else {
-            TabView {
-                AppTab(title: "Home", icon: "house.fill") { HomeView() }
-                AppTab(title: "Shorts", icon: "play.rectangle.on.rectangle.fill") { ShortsView() }
-                AppTab(title: "Subscriptions", icon: "rectangle.stack.fill") { SubscriptionsView() }
-                AppTab(title: "Search", icon: "magnifyingglass") { SearchView() }
-                AppTab(title: "You", icon: "person.crop.circle.fill") { YouView() }
+            TabView(selection: $tab) {
+                AppTab(title: "Home", icon: "house.fill") { HomeView() }.tag("home")
+                AppTab(title: "Shorts", icon: "play.rectangle.on.rectangle.fill") { ShortsView() }.tag("shorts")
+                Color.clear.tabItem { Label("New", systemImage: "plus.circle.fill") }.tag("new")
+                AppTab(title: "Subscriptions", icon: "rectangle.stack.fill") { SubscriptionsView() }.tag("subs")
+                AppTab(title: "Search", icon: "magnifyingglass") { SearchView() }.tag("search")
+                AppTab(title: "You", icon: "person.crop.circle.fill") { YouView() }.tag("you")
             }
         }
+    }
+}
+
+/// What you can make: a post, a video, or a live stream.
+struct NewSheet: View {
+    @EnvironmentObject var session: SessionStore
+    let pick: (RootView.NewAction) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("New").font(.title2.bold()).padding(.bottom, 4)
+            if session.signedIn {
+                row("Write a post", "Text and a picture", "square.and.pencil") { pick(.post) }
+                row("Upload a video", "From Photos or Files", "arrow.up.circle.fill") { pick(.upload) }
+                row("Go live", "Stream your camera or screen", "dot.radiowaves.left.and.right") { pick(.live) }
+            } else {
+                SignInPrompt(text: "Sign in with Jace to post, upload, and go live.")
+            }
+        }
+        .padding(20)
+        .frame(maxHeight: .infinity, alignment: .top)
+    }
+
+    private func row(_ title: String, _ sub: String, _ icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: icon).font(.title3).foregroundStyle(.black).frame(width: 44, height: 44).glassCircle(tint: jaceGreen)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.headline)
+                    Text(sub).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").foregroundStyle(.secondary)
+            }
+            .padding(12)
+            .glass(in: RoundedRectangle(cornerRadius: 20))
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -178,6 +246,12 @@ struct WebView: UIViewRepresentable {
                 if let host = url.host, inside.contains(host) { webView.load(URLRequest(url: url)) } else { UIApplication.shared.open(url) }
             }
             return nil
+        }
+
+        /// Going live: Jace Media's page may use the camera and microphone (iOS asks you the first time).
+        @available(iOS 15.0, *)
+        func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+            decisionHandler(inside.contains(origin.host) ? .grant : .deny)
         }
 
         /// confirm() and alert() from the website (e.g. "Delete this post?").

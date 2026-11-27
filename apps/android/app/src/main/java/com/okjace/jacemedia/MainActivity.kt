@@ -60,6 +60,18 @@ open class MainActivity : AppCompatActivity() {
         fileCallback = null
     }
 
+    // Going live: the page asks for the camera and microphone; Android asks you once, then the page gets them.
+    private var pendingMedia: android.webkit.PermissionRequest? = null
+    private val askMedia = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        val req = pendingMedia ?: return@registerForActivityResult
+        pendingMedia = null
+        val ok = req.resources.filter {
+            (it == android.webkit.PermissionRequest.RESOURCE_VIDEO_CAPTURE && granted[android.Manifest.permission.CAMERA] != false) ||
+                (it == android.webkit.PermissionRequest.RESOURCE_AUDIO_CAPTURE && granted[android.Manifest.permission.RECORD_AUDIO] != false)
+        }
+        if (ok.isEmpty()) req.deny() else req.grant(ok.toTypedArray())
+    }
+
     protected val isTv: Boolean
         get() = (getSystemService(Context.UI_MODE_SERVICE) as UiModeManager).currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
 
@@ -147,6 +159,21 @@ open class MainActivity : AppCompatActivity() {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                 fullscreenCallback?.onCustomViewHidden()
                 fullscreenCallback = null
+            }
+
+            override fun onPermissionRequest(request: android.webkit.PermissionRequest) {
+                val host = request.origin?.host
+                if (host == null || host !in inside) return request.deny()
+                val wanted = buildList {
+                    if (android.webkit.PermissionRequest.RESOURCE_VIDEO_CAPTURE in request.resources) add(android.Manifest.permission.CAMERA)
+                    if (android.webkit.PermissionRequest.RESOURCE_AUDIO_CAPTURE in request.resources) add(android.Manifest.permission.RECORD_AUDIO)
+                }
+                if (wanted.isEmpty()) return request.deny()
+                runOnUiThread {
+                    pendingMedia?.deny()
+                    pendingMedia = request
+                    askMedia.launch(wanted.toTypedArray())
+                }
             }
 
             override fun onShowFileChooser(view: WebView, callback: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {

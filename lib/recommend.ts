@@ -60,7 +60,6 @@ function keywordsFrom(titles: string[]): string[] {
 /** Everything known about what this person likes. Cached for one request. */
 export const getTaste = cache(async (): Promise<Taste> => {
   const [viewer, services, ext] = await Promise.all([getViewer(), getServices(), getExtensions()]);
-  const day = new Date().toISOString().slice(0, 10);
   const taste: Taste = {
     signedIn: !!viewer,
     services,
@@ -72,7 +71,8 @@ export const getTaste = cache(async (): Promise<Taste> => {
     hiddenChannels: new Set(),
     likedAuthors: new Map(),
     keywords: [],
-    seed: `${viewer?.sub ?? "guest"}:${day}`,
+    // A new mix every time you open Home, Shorts, or Videos.
+    seed: `${viewer?.sub ?? "guest"}:${Date.now()}:${Math.random()}`,
   };
   if (!viewer) return taste;
 
@@ -119,7 +119,7 @@ export const getTaste = cache(async (): Promise<Taste> => {
   return taste;
 });
 
-/** A stable 0..1 number per (seed, id): the same order all day, a fresh mix tomorrow. */
+/** A 0..1 number per (seed, id): the same within one page, a fresh mix on every visit. */
 function jitter(seed: string, id: string): number {
   let h = 2166136261;
   for (const c of `${seed}|${id}`) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
@@ -139,7 +139,9 @@ function videoScore(v: VideoCard, taste: Taste): number {
   const popular = v.views ? Math.min(1, Math.log10(v.views + 1) / 7) : 0.35;
   const title = v.title.toLowerCase();
   const topical = taste.keywords.some((k) => title.includes(k)) ? 0.5 : 0;
-  let score = 3 * affinity + (subscribed ? 1.4 : 0) + 2 * fresh + popular + topical + 0.8 * jitter(taste.seed, v.id);
+  let score = 3 * affinity + (subscribed ? 1.4 : 0) + 2 * fresh + popular + topical + 1.6 * jitter(taste.seed, v.id);
+  // Shown to you in the last few hours: step aside for something you haven't seen.
+  score -= recentlyShownPenalty(taste.seed, `${v.source}:${v.id}`);
   const watched = taste.watched.get(`${v.source}:${v.id}`);
   if (watched) score *= watched > 2 ? 0.5 : 0.15; // something you rewatch a lot can come back
   return score;
@@ -185,11 +187,42 @@ function allowed(v: VideoCard, taste: Taste): boolean {
 
 export function rankVideos(videos: VideoCard[], taste: Taste, limit = 48): VideoCard[] {
   const visible = dedupe(videos).filter((v) => allowed(v, taste));
-  return diverse(
+  const picked = diverse(
     visible.map((v) => ({ item: v, score: videoScore(v, taste), group: channelKey(v) })),
     limit,
     0.9,
   );
+  // Only the first screenful counts as "shown".
+  rememberShown(taste.seed, picked.slice(0, 12).map((v) => `${v.source}:${v.id}`));
+  return picked;
+}
+
+// ---------- What each person was just shown (in memory, a few hours) ----------
+
+const SHOWN_HOURS = 4;
+const shownStore = ((globalThis as { __jmShown?: Map<string, Map<string, number>> }).__jmShown ??= new Map());
+
+/** The person part of a seed ("sub:time:random"). */
+const who = (seed: string) => seed.split(":")[0];
+
+function rememberShown(seed: string, keys: string[]) {
+  const person = who(seed);
+  let m = shownStore.get(person);
+  if (!m) {
+    if (shownStore.size > 5000) shownStore.clear();
+    m = new Map();
+    shownStore.set(person, m);
+  }
+  const now = Date.now();
+  for (const k of keys) m.set(k, now);
+  if (m.size > 600) for (const [k, t] of m) if (now - t > SHOWN_HOURS * 3_600_000) m.delete(k);
+}
+
+function recentlyShownPenalty(seed: string, key: string): number {
+  const t = shownStore.get(who(seed))?.get(key);
+  if (!t) return 0;
+  const hours = (Date.now() - t) / 3_600_000;
+  return hours > SHOWN_HOURS ? 0 : 2.2 * (1 - hours / SHOWN_HOURS);
 }
 
 export function latestVideos(videos: VideoCard[], taste: Taste, limit = 48): VideoCard[] {

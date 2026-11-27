@@ -66,6 +66,8 @@ final class PlayerModel: NSObject, ObservableObject {
     @Published var error: String?
 
     private(set) var av: AVPlayer?
+    /// Picture in picture for Apple's engine (also starts by itself when you leave the app while playing).
+    var pip: AVPictureInPictureController?
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
     private(set) var web: WKWebView?
@@ -142,6 +144,21 @@ final class PlayerModel: NSObject, ObservableObject {
         b.model = self
         bridge = b
         config.userContentController.add(b, name: "yt")
+        // Inside YouTube's frame: go into picture in picture when the page asks.
+        let pipScript = """
+        if (location.hostname.indexOf('youtube') >= 0) {
+          window.addEventListener('message', function (e) {
+            if (!e.data || !e.data.jacePip) return;
+            var v = document.querySelector('video');
+            if (!v) return;
+            try {
+              if (v.webkitSetPresentationMode) v.webkitSetPresentationMode(v.webkitPresentationMode === 'picture-in-picture' ? 'inline' : 'picture-in-picture');
+              else if (v.requestPictureInPicture) v.requestPictureInPicture();
+            } catch (err) {}
+          });
+        }
+        """
+        config.userContentController.addUserScript(WKUserScript(source: pipScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false))
         let web = WKWebView(frame: .zero, configuration: config)
         web.isOpaque = false
         web.backgroundColor = .black
@@ -152,7 +169,7 @@ final class PlayerModel: NSObject, ObservableObject {
         <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
         <style>html,body{margin:0;height:100%;background:#000;overflow:hidden}
         /* Taller than the box, so YouTube's title bar and logo sit outside it. */
-        #w{position:absolute;left:0;right:0;top:-12%;bottom:-12%}#w iframe,#p{width:100%;height:100%;border:0}</style></head>
+        #w{position:absolute;left:0;right:0;top:-12%;bottom:-12%}#w iframe,#p{width:200%;height:200%;border:0;transform:scale(.5);transform-origin:0 0}</style></head>
         <body><div id="w"><div id="p"></div></div>
         <script>
         var player=null,send=function(m){try{webkit.messageHandlers.yt.postMessage(m)}catch(e){}};
@@ -166,6 +183,7 @@ final class PlayerModel: NSObject, ObservableObject {
             }});
           setInterval(function(){if(player&&player.getCurrentTime)send({t:player.getCurrentTime(),d:player.getDuration(),b:player.getVideoLoadedFraction()})},400);
         }
+        function pip(){var f=document.querySelector('iframe');if(f&&f.contentWindow)f.contentWindow.postMessage({jacePip:1},'*')}
         function cc(on){try{if(!on){player.unloadModule('captions');return}player.loadModule('captions');setTimeout(function(){var l=player.getOption('captions','tracklist')||[],t=null;for(var i=0;i<l.length;i++)if(l[i].languageCode.indexOf('en')==0){t=l[i];break}t=t||l[0];if(t)player.setOption('captions','track',{languageCode:t.languageCode})},600)}catch(e){}}
         </script><script src="https://www.youtube.com/iframe_api"></script></body></html>
         """
@@ -209,6 +227,22 @@ final class PlayerModel: NSObject, ObservableObject {
 
     func toggle() { playing ? pause() : play() }
 
+    func attachPiP(_ layer: AVPlayerLayer) {
+        guard pip == nil, AVPictureInPictureController.isPictureInPictureSupported() else { return }
+        let c = AVPictureInPictureController(playerLayer: layer)
+        c?.canStartPictureInPictureAutomaticallyFromInline = true
+        pip = c
+    }
+
+    /// Picture in picture: Apple's for Jace videos; for YouTube, asks YouTube's video to go into it.
+    func startPiP() {
+        if let pip {
+            pip.isPictureInPictureActive ? pip.stopPictureInPicture() : pip.startPictureInPicture()
+        } else if isYouTube {
+            js("pip()")
+        }
+    }
+
     func seek(to t: Double) {
         let to = max(0, min(t, duration > 0 ? duration - 0.5 : t))
         time = to
@@ -247,6 +281,7 @@ final class PlayerModel: NSObject, ObservableObject {
 /// Apple's engine's picture.
 struct AVLayerView: UIViewRepresentable {
     let player: AVPlayer
+    var onLayer: (AVPlayerLayer) -> Void = { _ in }
 
     final class LayerView: UIView {
         override class var layerClass: AnyClass { AVPlayerLayer.self }
@@ -258,6 +293,7 @@ struct AVLayerView: UIViewRepresentable {
         v.backgroundColor = .black
         v.playerLayer.player = player
         v.playerLayer.videoGravity = .resizeAspect
+        onLayer(v.playerLayer)
         return v
     }
 
@@ -281,7 +317,7 @@ struct PlayerSurface: View {
         ZStack {
             Color.black
             if let av = model.av {
-                AVLayerView(player: av)
+                AVLayerView(player: av) { model.attachPiP($0) }
             } else if let web = model.web {
                 WebLayerView(web: web)
             }
@@ -386,6 +422,10 @@ struct JacePlayerView: View {
                     Text(title).font(.subheadline.weight(.semibold)).lineLimit(1)
                 }
                 Spacer()
+                Button { model.startPiP() } label: {
+                    Image(systemName: "pip.enter").font(.system(size: 15, weight: .semibold)).frame(width: 40, height: 40)
+                }
+                .glassCircle()
                 settingsMenu
             }
             .padding(10)
